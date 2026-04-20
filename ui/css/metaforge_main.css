@@ -1,0 +1,76 @@
+/* 
+   METAFORGE STUDIO - UNIFIED THEME ENGINE 
+   Core variables mapped to user-approved palettes
+*/
+
+:root {
+    /* --- DARK THEME (DEFAULT) --- */
+    --bg-main: #141414;
+    --bg-accent: #2f2f2f;
+    --mf-gold: #cc9900;
+    --text-output: #ffffff;
+    --text-message: #cccccc;
+    --status-success: #2ad9sa; /* Your specific green from mockup */
+    --status-error: #ff5e70;   /* Your specific red from mockup */
+    --font-main: 'Cascadia Code', monospace;
+}
+
+[data-theme="light"] {
+    /* --- LIGHT THEME (STEEL/PLATINUM) --- */
+    --bg-main: #f2f2f2;
+    --bg-accent: #e0e0e0;
+    --mf-gold: #997300;       /* Darker gold for light-bg contrast */
+    --text-output: #1a1a1a;
+    --text-message: #575757;
+    --status-success: #1a821a;
+    --status-error: #c21838;
+}
+
+/* --- BASE UI ELEMENTS --- */
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-main);
+    color: var(--text-message);
+    font-family: var(--font-main);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.header-ribbon {
+    background-color: var(--bg-accent);
+    border-bottom: 2px solid var(--mf-gold);
+    padding: 10px 20px;
+}
+
+.log-container {
+    background-color: #00000033; /* Slight tint to recede the log area */
+    border: 1px solid var(--bg-accent);
+    padding: 15px;
+    border-radius: 4px;
+    margin: 20px;
+}
+
+/* --- LOG TEXT CLASSES --- */
+
+.out-white { color: var(--text-output); }
+.msg-gray  { color: var(--text-message); }
+.stat-ok   { color: var(--status-success); }
+.stat-err  { color: var(--status-error); }
+
+/* --- INTERACTIVE --- */
+
+button.primary-action {
+    background: transparent;
+    border: 1px solid var(--mf-gold);
+    color: var(--mf-gold);
+    padding: 10px 25px;
+    cursor: pointer;
+    font-family: var(--font-main);
+    transition: all 0.2s;
+}
+
+button.primary-action:hover {
+    background: var(--mf-gold);
+    color: var(--bg-main);
+}
