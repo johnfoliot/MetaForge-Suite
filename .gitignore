@@ -1,20 +1,34 @@
-# Ignore executable files anywhere in the project
-*.exe
-*.dll
+# ==========================================
+# METAFORGE CORE PROTECTIONS
+# ==========================================
 
-# Ignore specific directories containing large libraries
-# (Replace 'FolderName/' with the actual names of the folders you want to exclude)
-config/
-data/
+# Ignore ALL binaries and library sandboxes
 bin/
+venv/
+.venv/
+env/
 
-# Ignore your database file (highly recommended for large SQLite DBs)
+# Ignore local data and configuration secrets
+data/
+config/
+.env
+
+# Ignore SQLite databases (Even if they aren't in /data)
 *.db
+*.db-journal
+*.db-wal
 
-# Ignore local system files
+# Ignore logs
+logs/
+*.log
+
+# Ignore OS metadata
 Thumbs.db
 .DS_Store
 
+# ==========================================
+# STANDARD PYTHON IGNORES (Keep the rest of your file below)
+# ==========================================
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
