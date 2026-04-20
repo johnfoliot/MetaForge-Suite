@@ -1,0 +1,11 @@
+{
+  "name": "AcoustID Manager",
+  "id": "acoustid",
+  "version": "1.0.0",
+  "description": "2-step tool: submits new acoustid's to their database, checks back later to confirm that the new value is there and finalizes source mp3",
+  "entry_point": "acoustid.py",
+  "ui_template": "acoustid.mfi",
+  "icon": "acoustid.svg",
+  "order": 2,
+  "enabled": true
+}
