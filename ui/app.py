@@ -70,57 +70,131 @@ def initialize_database():
                     file_path TEXT UNIQUE, artist TEXT, album TEXT, title TEXT, acoustid TEXT)''')
     conn.commit()
     conn.close()
+    
+# --- TOOL DISCOVERY LOGIC ---
+import json
+
+def get_dynamic_toolbar():
+    """
+    Scans the tools directory for manifest.json files and returns a sorted list
+    of enabled/required tools based on the defined 'order' key.
+    """
+    tools = []
+    if not TOOLS_DIR.exists():
+        return tools
+
+    for folder in TOOLS_DIR.iterdir():
+        if folder.is_dir():
+            manifest_path = folder / "manifest.json"
+            if manifest_path.exists():
+                try:
+                    with open(manifest_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        # Tool must be enabled OR required to appear in the toolbar
+                        if data.get("enabled", True) or data.get("required", False):
+                            tools.append(data)
+                except Exception as e:
+                    print(f"MetaForge Error: Failed to parse manifest in {folder.name}: {e}")
+    
+    # Sort by 'order' key; defaults to 99 to push un-ordered tools to the end
+    tools.sort(key=lambda x: x.get("order", 99))
+    return tools
+# --- TOOL DISCOVERY LOGIC END ---
 
 # --- [ SECTION 5: CORE UI ROUTES ] ---
+
 @app.route('/')
 def home():
-    if is_setup_required(): return render_template('setup.html')
+    """
+    Main entry point with Bootstrap Guard and Diagnostic Logging.
+    If .env is missing, serves setup.html from the UI/HTML folder.
+    """
+    if is_setup_required(): 
+        # Serve setup.html directly from the localized HTML directory
+        return send_from_directory(str(UI_ROOT / "html"), 'setup.html')
+        
+    # --- LOGIC FOR REGISTERED USERS ---
+    toolbar_data = get_dynamic_toolbar()
+    
+    # DIAGNOSTIC: Print discovery results to terminal
+    print(f"DEBUG: Discovery Scan found {len(toolbar_data)} tools.")
+    for t in toolbar_data:
+        print(f" - Tool: {t.get('id')} (Order: {t.get('order')})")
+    
+    # Calculate track count for footer diagnostic
     track_count = "0"
     if DB_PATH.exists():
         try:
+            import sqlite3
             conn = sqlite3.connect(str(DB_PATH))
             track_count = f"{conn.execute('SELECT COUNT(*) FROM tracks').fetchone()[0]:,}"
             conn.close()
-        except: track_count = "DB ERROR"
+        except Exception: 
+            track_count = "DB ERROR"
+            
+    return render_template('index.html', 
+                           track_count=track_count, 
+                           version_id=time.time(),
+                           tools=toolbar_data)
+
+@app.route('/complete_setup', methods=['POST'])
+def complete_setup():
+    """
+    Receives initial configuration and writes the .env file to AppData.
+    """
+    data = request.json
+    lines = [
+        f"USER_EMAIL={data['email']}",
+        f"LIBRARY_ROOT={data['lib_root']}",
+        f"ACOUSTID_KEY={data['acoustid']}",
+        f"GEMINI_KEY={data['gemini']}",
+        f"ENABLED_TOOLS={data['default_tools']}"
+    ]
     
-    # ADD time.time() here to create a unique ID every launch
-    return render_template('index.html', track_count=track_count, version_id=time.time())
+    try:
+        ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(ENV_PATH, 'w', encoding='utf-8') as f:
+            f.write("\n".join(lines))
+        return jsonify({"status": "success"})
+    except Exception as e:
+        print(f"ERROR: Failed to write .env: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/tool_asset/<tool_id>/<filename>')
+def serve_tool_asset(tool_id, filename):
+    """Serves icons and modular tool JS from tool directories."""
+    target_dir = TOOLS_DIR / tool_id
+    if not target_dir.exists():
+        return "Tool Asset Not Found", 404
+    return send_from_directory(str(target_dir), filename)
 
 @app.route('/ui/<type>/<path:filename>')
 def serve_ui(type, filename):
-    """Serves CSS, JS, and Images from their respective subfolders."""
+    """Serves global CSS, JS, and Images from the UI root."""
     response = send_from_directory(str(UI_ROOT / type), filename)
-    # Disable caching during development so changes show up immediately
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
-@app.route('/metaforge_core.js')
-def serve_master_script():
-    """Legacy helper to find the core JS if the root link fails."""
-    return send_from_directory(str(UI_ROOT / "js"), 'metaforge_core.js', mimetype='text/javascript')
+@app.route('/get_tool/<tool_id>')
+def get_tool(tool_id):
+    """Loads modular tool .mfi templates."""
+    clean_id = tool_id.split('?')[0]
+    target = TOOLS_DIR / clean_id / f"{clean_id}.mfi"
+    if not target.exists():
+        return f"Tool '{clean_id}' Not Found", 404
+    return target.read_text(encoding='utf-8')
 
 @app.route('/select_folder')
 def select_folder():
-    global window
-    if window:
-        result = window.create_file_dialog(webview.FOLDER_DIALOG)
-        path = result[0] if result else None
-        return jsonify({"path": path})
-    return jsonify({"path": None})
-
-@app.route('/get_tool/<tool_id>')
-def get_tool(tool_id):
-    """Discovery Engine: Loads tool .mfi files from the tools directory."""
-    clean_id = tool_id.split('?')[0]
-    target = TOOLS_DIR / clean_id / f"{clean_id}.mfi"
-    
-    if not target.exists():
-        return f"Tool '{clean_id}' Not Found at {target}", 404
-        
-    return target.read_text(encoding='utf-8')
+    """Direct route for the setup.html to access the folder picker."""
+    global api_bridge
+    path = api_bridge.select_folder()
+    return jsonify({"path": path})
 
 # --- [ THE HANDOFF ] ---
 routes.initialize_routes(app, lambda: window, TOOLS_DIR, ENV_PATH, set_file_attribute)
+
+# --- [ SECTION 5: CORE UI ROUTES END ] ---
 
 # --- [ SECTION 6: ENGINE STARTUP ] ------------------------------------
 class MetaForgeAPI:

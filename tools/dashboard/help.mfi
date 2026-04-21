@@ -1,0 +1,7 @@
+<h3 class="white">Dashboard Overview</h3>
+<p>The Dashboard provides a high-level summary of your music library status.</p>
+<ul>
+    <li><strong>Library Path:</strong> Shows your current root music directory.</li>
+    <li><strong>Database Stats:</strong> Displays the total number of tracks indexed.</li>
+</ul>
+<p class="tool_notes">Note: The dashboard updates automatically on startup.</p>

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MetaForge | Initial Setup</title>
+    <!-- Linking to your verified CSS location -->
+    <link rel="stylesheet" href="/ui/css/metaforge.css">
+    <style>
+        /* Setup-specific layout centering */
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            background-color: var(--bg-main); 
+        }
+        .setup-card { 
+            background-color: var(--bg-accent); 
+            padding: 30px; 
+            border: 1px solid var(--mf-gold); 
+            width: 500px; 
+            border-radius: 4px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .mf-input {
+            width: 100%;
+            background: var(--bg-main);
+            border: 1px solid #444;
+            color: var(--text-output);
+            padding: 8px;
+            margin-top: 5px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+        .mf-button-gold {
+            background-color: var(--mf-gold);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+			border-radius:3px;
+        }
+        .mf-button-gold:hover { opacity: 0.8; }
+        .input-group { margin-bottom: 20px; }
+		a {color:var(--text-message);}
+		p {color: var(--text-message); font-size: 0.8rem;}
+		
+    </style>
+</head>
+<body>
+    <div class="setup-card">
+	    <img src="/ui/images/logo.svg" alt="MetaForge Studio" style="width:430px; height: auto; padding:10px; background-color:#000;">
+        <h1 class="main">MetaForge Studio Setup</h1>
+        <p style="margin-bottom: 15px;">
+            Please initialize your environment variables to continue.
+        </p>
+        
+        <form id="setup-form" onsubmit="submitSetup(event)">
+            <!-- 1. USER EMAIL -->
+            <div class="input-group">
+                <label class="data-text" style="color: var(--mf-gold);" for="email">User Email:</label>
+                <input type="email" id="email" required class="mf-input" placeholder="user@gmail.com">
+            </div>
+
+            <!-- 2. LIBRARY ROOT -->
+            <div class="input-group">
+                <label class="data-text" style="color: var(--mf-gold);" for="lib_root">Music Library Route:</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="lib_root" readonly required class="mf-input" placeholder="C:\Music">
+                    <button type="button" class="mf-button-gold" onclick="pickSetupFolder()">BROWSE</button>
+                </div>
+            </div>
+
+            <!-- 3. ACOUSTID API KEY -->
+            <div class="input-group">
+                <label class="data-text" style="color: var(--mf-gold);" for="acoustid">AcoustID API Key</label>
+				<p>(Need a key? Visit <a href="https://acoustid.org/api-key" target=New">https://acoustid.org/api-key</a>)</p>
+                <input type="text" id="acoustid" required class="mf-input" placeholder="Paste your AcoustID key here">
+            </div>
+
+            <!-- 4. GEMINI API KEY -->
+            <div class="input-group">
+                <label class="data-text" style="color: var(--mf-gold);" for="gemini">Gemini AI Key</label>
+				<p>(Need a key? Visit <a href="https://aistudio.google.com/app/api-keys" target=New">https://aistudio.google.com/app/api-keys</a>)</p>
+                <input type="text" id="gemini" required class="mf-input" placeholder="Paste your Gemini API key here">
+            </div>
+
+            <!-- SYSTEM DEFAULTS -->
+            <input type="hidden" id="default_tools" value="dashboard:0,unpack_convert:1,intelli_tagger:2,musicbrainz_id:3,acoustid:4,bio_builder:5,db_tools:6,intelligent_playlist:7,settings:99">
+
+            <button type="submit" class="mf-button-gold" style="width:100%; margin-top:10px;">LET'S GET STARTED!</button>
+        </form>
+        <div id="setup-status" class="data-text" style="margin-top: 15px; text-align: center;"></div>
+    </div>
+
+    <script>
+        async function pickSetupFolder() {
+            const response = await fetch('/select_folder');
+            const data = await response.json();
+            if (data.path) document.getElementById('lib_root').value = data.path;
+        }
+
+        async function submitSetup(event) {
+            event.preventDefault();
+            const status = document.getElementById('setup-status');
+            const payload = {
+                email: document.getElementById('email').value,
+                lib_root: document.getElementById('lib_root').value,
+                acoustid: document.getElementById('acoustid').value,
+                gemini: document.getElementById('gemini').value,
+                default_tools: document.getElementById('default_tools').value
+            };
+
+            status.innerHTML = '<span style="color: var(--mf-gold);">WRITING ENVIRONMENT...</span>';
+
+            try {
+                const res = await fetch('/complete_setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    status.innerHTML = '<span style="color: var(--status-success);">SUCCESS! RESTARTING ENGINE...</span>';
+                    setTimeout(() => { location.reload(); }, 1500);
+                }
+            } catch (err) {
+                status.innerHTML = '<span style="color: var(--status-error);">BOOTSTRAP ERROR. CHECK CONSOLE.</span>';
+            }
+        }
+    </script>
+</body>
+</html>

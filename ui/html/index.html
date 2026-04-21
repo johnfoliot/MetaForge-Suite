@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetaForge Studio</title>
     <link rel="stylesheet" href="/ui/css/metaforge.css?v={{ version_id }}">
-    <script src="metaforge_core.js"></script>
+    <script src="/ui/js/metaforge_core.js"></script>
     <script>
         /**
          * SETTINGS LOGIC (REMEDIATED)
@@ -33,86 +33,37 @@
 </head>
 <body onload="switchMode('dashboard')">
 
-    <header role="banner">
-        <nav class="global-nav" aria-label="Global Navigation">
-			
-            <img src="/ui/images/logo.svg" class="mf-logo" alt="MetaForge Studio">
-            
-			<!-- 1st button: required -->
-            <div class="nav-item" id="mode-dashboard" role="button" aria-pressed="false" 
-                 onclick="switchMode('dashboard')" title="Dashboard">
-                <img src="/ui/images/gauge.svg" style="width:28px; height:28px;" alt="Dashboard">
-            </div>
-			
-			<!-- 2nd button: required -->
-			<div class="nav-item" id="mode-unpack_convert" role="button" aria-pressed="false" 
-                 onclick="switchMode('unpack_convert')" title="Unpack & Convert">
-                <img src="/ui/images/unpack-convert.svg" style="width:28px; height:28px;" alt="Unpack & Convert">
-            </div>
-			
-			<!-- 3rd button: required -->	
-            <div class="nav-item" id="mode-intelli-tagger" role="button" aria-pressed="false" 
-                 onclick="switchMode('intelli-tagger')" title="Intelli-Tagger">
-                <img src="/ui/images/magic-wand.svg" style="width:28px; height:28px;" alt="Intelli-Tagger">
-            </div>
+<!-- --- DYNAMIC TOOLBAR SECTION --- -->
+<header role="banner">
+    <nav class="global-nav" aria-label="Global Navigation">
+        <img src="/ui/images/logo.svg" class="mf-logo" alt="MetaForge Studio">
 
-            <!-- 4th button: required -->	
-			<div class="nav-item" id="mode-bio_builder" role="button" aria-pressed="false" 
-                 onclick="switchMode('bio_builder')" title="Bio Builder">
-                <img src="/ui/images/biography.svg" style="width:24px; height:24px;" alt="Bio Builder">
-            </div>
-			
-			<!-- 5th button: required -->
-			<div class="nav-item" id="mode-musicbrainz_id" role="button" aria-pressed="false" 
-                 onclick="switchMode('musicbrainz_id')" title="MusicBrainz">
-                <img src="/ui/images/musicbrainz.svg" style="width:24px; height:24px;" alt="MusicBrainz">
-            </div>
-			
-			<!-- 6th button: required -->
-			<div class="nav-item" id="mode-acoustid" role="button" aria-pressed="false" 
-                 onclick="switchMode('acoustid')" title="AcoustID Updates">
-                <div class="acoust-unit">
-                    <img src="/ui/images/acoustid.svg" style="width:24px; height:auto;" alt="AcoustID Manager">    
-                </div>
-            </div>
+        {% for tool in tools %}
+        <div class="nav-item" 
+             id="mode-{{ tool.id }}" 
+             role="button" 
+             tabindex="0"
+             aria-pressed="false" 
+             onclick="switchMode('{{ tool.id }}')"
+             onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); switchMode('{{ tool.id }}'); }"
+             title="{{ tool.name }}">
             
-			<!-- 7th button: required -->
-			<div class="nav-item" id="mode-database_tools" role="button" aria-pressed="false" 
-                 onclick="switchMode('database_tools')" title="Database Tools">
-                <img src="/ui/images/database.svg" style="width:24px; height:24px;" alt="Database Tools">
-            </div>			
+            {# Local tool asset with explicit fallback to shared UI images #}
+            <img src="/tool_asset/{{ tool.id }}/{{ tool.icon }}" 
+                 style="width:28px; height:28px;" 
+                 alt="{{ tool.name }}"
+                 aria-hidden="true"
+                 onerror="this.onerror=null; this.src='/ui/images/{{ tool.icon }}';">
+        </div>
+        {% else %}
+        <span style="color: var(--status-error); font-size: 10px; margin-left: 10px;">
+            ERR: NO TOOLS DISCOVERED
+        </span>
+        {% endfor %}
+    </nav>
+</header>
+<!-- --- DYNAMIC TOOLBAR SECTION END --- -->
 
-			<!-- 8th button: required -->
-			<div class="nav-item" id="mode-playlist_generator" role="button" aria-pressed="false" 
-                 onclick="switchMode('playlist_generator')" title="Intelligent Playlists">
-                <img src="/ui/images/library.svg" style="width:24px; height:24px;" alt="Intelligent Playlists">
-            </div>
-			
-			<!-- 9th button: optional -->
-            <div class="nav-item" id="mode-repair" role="button" aria-pressed="false" 
-                 onclick="switchMode('repair')" title="Audio Repair">
-                <img src="/ui/images/toolbox.svg" style="width:28px; height:28px;" alt="Audio Repair">
-            </div>
-            
-            <!-- 10th button: optional -->
-			<div class="nav-item" id="mode-youtube_mp3" role="button" aria-pressed="false" 
-                 onclick="switchMode('youtube_mp3')" title="YouTube to MP3">
-                <img src="/ui/images/youtube.svg" style="width:28px; height:28px;" alt="YouTube to MP3">
-            </div>
-            
-            <!-- 11th button: optional -->
-            <div class="nav-item" id="mode-music-sharing" role="button" aria-pressed="false" 
-                 onclick="switchMode('music-sharing')" title="Music Sharing">
-                <img src="/ui/images/music-sharing.svg" style="width:24px; height:24px;" alt="Intelligent Playlists">
-            </div>
-			
-			
-			<!-- last button: required -->
-            <img src="/ui/images/gear.svg" class="settings-btn" id="mode-settings" role="button" 
-                 onclick="switchMode('settings')" aria-label="Settings" title="Settings">
-            
-        </nav>
-    </header>
 
     <main id="main-stage" role="main" aria-live="polite">
         <div id="mfi-content">
@@ -121,11 +72,11 @@
     </main>
 
     <footer role="contentinfo" style="font-size:60%; color: #fff!important;">
-        <span id="status-text">Ready</span>
-        <span style="margin-left: auto; " aria-hidden="true">
-            Your library currently has <span class="data-text" style="color:#cc9900; font-size:100%;">{{ track_count }}</span> .mp3 files | MetaForge Studio &copy; 2026 - All Rights Reserved
-        </span>
-    </footer>
+    
+    <span style="margin-left: auto;" aria-hidden="true">
+        Your library currently has <span class="data-text" style="color:#cc9900; font-size:100%;">{{ track_count }}</span> .mp3 files | MetaForge Studio &copy; 2026 - All Rights Reserved
+    </span>
+</footer>
 
     <script>
     /**
