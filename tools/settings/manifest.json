@@ -1,0 +1,12 @@
+{
+  "name": "Settings",
+  "id": "settings",
+  "version": "1.0.0",
+  "description": "MetaForge Settings",
+  "entry_point": "settings.py",
+  "ui_template": "settings.mfi",
+  "icon": "gear.svg",
+  "order": 20,
+  "enabled": true,
+  "required": true
+}

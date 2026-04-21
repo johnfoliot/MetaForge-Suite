@@ -1,0 +1,12 @@
+{
+  "name": "Database Tools",
+  "id": "dashboard",
+  "version": "1.0.0",
+  "description": "MetaForge Dashboard",
+  "entry_point": "database.py",
+  "ui_template": "database.mfi",
+  "icon": "database.svg",
+  "order": 7,
+  "enabled": true,
+  "required": true
+}

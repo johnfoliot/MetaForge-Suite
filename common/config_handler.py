@@ -34,7 +34,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_KEY")
 ACOUSTID_API_KEY = os.getenv("ACOUSTID_KEY")
 LIBRARY_ROOT = Path(os.getenv("LIBRARY_ROOT", "C:\\Music"))
 
-# --- EXECUTABLE DEPENDENCIES (D:\BIN) ---
+# --- EXECUTABLE DEPENDENCIES (\BIN) ---
 FFMPEG_EXE = BIN_DIR / "ffmpeg.exe"
 FPCALC_EXE = BIN_DIR / "fpcalc.exe"
 SQLITE_EXE = BIN_DIR / "sqlite3.exe"

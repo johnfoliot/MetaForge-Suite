@@ -74,3 +74,12 @@ button.primary-action:hover {
     background: var(--mf-gold);
     color: var(--bg-main);
 }
+
+/* --- LEGACY STUFF --- */
+
+.mf-logo {
+    height: 32px;       /* Set this to match your header height */
+    width: auto;        /* Maintains the 2976:614 aspect ratio automatically */
+    color: #FFC107;     /* Your MetaForge Gold */
+    display: block;
+}

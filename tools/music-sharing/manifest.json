@@ -1,0 +1,12 @@
+{
+  "name": "Music Sharing",
+  "id": "music-sharing",
+  "version": "1.0.0",
+  "description": "Repackages .mp3 files as .mp4 files with album art, for sharing via social media",
+  "entry_point": "music-sharing.py",
+  "ui_template": "music-sharing.mfi",
+  "icon": "music-sharing.svg",
+  "order": 11,
+  "enabled": true,
+  "required": false
+}

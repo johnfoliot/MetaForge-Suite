@@ -1,0 +1,12 @@
+{
+  "name": "MusicBrainz IDs",
+  "id": "musicbrainz_id",
+  "version": "1.0.0",
+  "description": "Fetches MusicBrainz Artist ID, Album ID and Track IDs",
+  "entry_point": "musicbrainz_id.py",
+  "ui_template": "musicbrainz_id.mfi",
+  "icon": "musicbrainz.svg",
+  "order": 5,
+  "enabled": true,
+  "required": true
+}

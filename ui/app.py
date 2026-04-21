@@ -1,17 +1,23 @@
 # ======================================================================
-# 🚀 MetaForge Studio: Master Server Engine (V.Core)
+# MetaForge Studio: Master Server Engine (V.Core)
+# File Location: \MetaForge Suite\ui\app.py
 # ======================================================================
 import os
 import sys
+import time
 from pathlib import Path
 
 # --- [ SECTION 1: THE PATH FIXER ] ---
-BASE_PATH = Path(__file__).parent.resolve()
-if str(BASE_PATH) not in sys.path:
-    sys.path.append(str(BASE_PATH))
+# Base path is D:\MetaForge Suite\ui
+UI_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = UI_DIR.parent.resolve()
+
+# Add root to sys.path so we can see the 'common' and 'ui' folders
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 # --- [ EXTERNAL ROUTE LOADER ] ---
-import MetaForge_Routes
+import routes
 
 # --- [ SYSTEM IMPORTS ] ---
 import threading
@@ -20,25 +26,27 @@ import webview
 import ctypes
 from flask import Flask, render_template, request, redirect, send_from_directory, jsonify
 from dotenv import load_dotenv
-# --- [ SECTION 1: THE PATH FIXER END ] ---
+
+# Import our new central config brain
+from common import config_handler
 
 # --- [ SECTION 2: ARCHITECTURAL CONSTANTS ] ---
-APPDATA_ROOT = Path(os.environ.get('APPDATA', '')) / "MetaForge"
-ENV_PATH     = APPDATA_ROOT / ".env"
-DATA_DIR     = APPDATA_ROOT / "data"
-LOGS_DIR     = APPDATA_ROOT / "logs"
-DB_PATH      = DATA_DIR / "metaforge.db"
-# --- [ SECTION 2: ARCHITECTURAL CONSTANTS END ] ---
+# We pull these directly from our config_handler to ensure one source of truth
+APPDATA_ROOT = config_handler.APPDATA_MF
+ENV_PATH     = config_handler.ENV_PATH
+DATA_DIR     = config_handler.DATA_DIR
+LOGS_DIR     = config_handler.LOGS_DIR
+DB_PATH      = config_handler.DB_PATH
 
 # --- [ SECTION 3: BOOTSTRAP THE CONFIG ] ---
-AUDIO_DIR = BASE_PATH / "audio"
-UI_ROOT   = AUDIO_DIR / "ui"
+# Pathing aligned to D:\MetaForge Suite\
+UI_ROOT   = PROJECT_ROOT / "ui"
 HTML_DIR  = UI_ROOT / "html"
-TOOLS_DIR = AUDIO_DIR / "tools"
+TOOLS_DIR = PROJECT_ROOT / "tools"
 
-app = Flask(__name__, template_folder=str(HTML_DIR), static_folder=None)
+# static_folder is UI_ROOT so we can access /css/ and /js/
+app = Flask(__name__, template_folder=str(HTML_DIR), static_folder=str(UI_ROOT), static_url_path='/ui')
 window = None 
-# --- [ SECTION 3: BOOTSTRAP THE CONFIG END ] ---
 
 # --- [ SECTION 4: UTILITY FUNCTIONS ] ---
 def is_setup_required():
@@ -51,15 +59,17 @@ def set_file_attribute(path, attribute):
         except Exception: pass
 
 def initialize_database():
-    for folder in [APPDATA_ROOT, DATA_DIR, LOGS_DIR]:
-        folder.mkdir(parents=True, exist_ok=True)
+    # Ensure the AppData folders exist
+    APPDATA_ROOT.mkdir(parents=True, exist_ok=True)
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute('''CREATE TABLE IF NOT EXISTS tracks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     file_path TEXT UNIQUE, artist TEXT, album TEXT, title TEXT, acoustid TEXT)''')
     conn.commit()
     conn.close()
-# --- [ SECTION 4: UTILITY FUNCTIONS END ] ---
 
 # --- [ SECTION 5: CORE UI ROUTES ] ---
 @app.route('/')
@@ -72,56 +82,49 @@ def home():
             track_count = f"{conn.execute('SELECT COUNT(*) FROM tracks').fetchone()[0]:,}"
             conn.close()
         except: track_count = "DB ERROR"
-    return render_template('index.html', track_count=track_count)
+    
+    # ADD time.time() here to create a unique ID every launch
+    return render_template('index.html', track_count=track_count, version_id=time.time())
 
 @app.route('/ui/<type>/<path:filename>')
 def serve_ui(type, filename):
-    """Serves CSS and Images from their respective subfolders."""
+    """Serves CSS, JS, and Images from their respective subfolders."""
     response = send_from_directory(str(UI_ROOT / type), filename)
+    # Disable caching during development so changes show up immediately
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
 @app.route('/metaforge_core.js')
 def serve_master_script():
-    return send_from_directory(str(HTML_DIR), 'metaforge_core.js', mimetype='text/javascript')
+    """Legacy helper to find the core JS if the root link fails."""
+    return send_from_directory(str(UI_ROOT / "js"), 'metaforge_core.js', mimetype='text/javascript')
 
 @app.route('/select_folder')
 def select_folder():
-    """
-    Native PyWebView Folder Picker.
-    Location-agnostic and does not require tkinter.
-    """
     global window
     if window:
-        # This opens the standard Windows folder selection dialog
         result = window.create_file_dialog(webview.FOLDER_DIALOG)
-        # result is a tuple, e.g. ('D:/Music/Incoming',)
         path = result[0] if result else None
         return jsonify({"path": path})
     return jsonify({"path": None})
 
 @app.route('/get_tool/<tool_id>')
 def get_tool(tool_id):
-    """Simplified Tool Loader: Strips query strings to find the correct .mfi file."""
-    # This line is the only change: it ensures 'settings?v=123' becomes 'settings'
+    """Discovery Engine: Loads tool .mfi files from the tools directory."""
     clean_id = tool_id.split('?')[0]
     target = TOOLS_DIR / clean_id / f"{clean_id}.mfi"
     
     if not target.exists():
-        return "Tool Not Found", 404
+        return f"Tool '{clean_id}' Not Found at {target}", 404
         
     return target.read_text(encoding='utf-8')
 
 # --- [ THE HANDOFF ] ---
-MetaForge_Routes.initialize_routes(app, lambda: window, TOOLS_DIR, ENV_PATH, set_file_attribute)
-# --- [ SECTION 5: CORE UI ROUTES END ] ---
+routes.initialize_routes(app, lambda: window, TOOLS_DIR, ENV_PATH, set_file_attribute)
 
 # --- [ SECTION 6: ENGINE STARTUP ] ------------------------------------
-# This class defines the functions available to JavaScript via window.pywebview.api
 class MetaForgeAPI:
     def select_folder(self):
-        """Standardized bridge call for the Windows Folder Picker."""
-        # Access the global window object to trigger the dialog
         global window
         if window:
             result = window.create_file_dialog(webview.FOLDER_DIALOG)
@@ -129,24 +132,18 @@ class MetaForgeAPI:
         return None
 
 def run_flask():
-    """Runs the Flask server in a background thread."""
     app.run(port=5000, debug=False, use_reloader=False, threaded=True)
 
 if __name__ == '__main__':
-    # 1. Restore your original startup sequence
     initialize_database()
     if ENV_PATH.exists(): 
         load_dotenv(ENV_PATH)
     
-    # 2. Instantiate the API bridge
     api_bridge = MetaForgeAPI()
     
-    # 3. Start Flask in a separate thread
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
     
-    # 4. Create the Master Window and bind the JS API
-    # CRITICAL: js_api=api_bridge is what enables 'window.pywebview.api'
     window = webview.create_window(
         'MetaForge Studio', 
         'http://127.0.0.1:5000', 
@@ -158,4 +155,3 @@ if __name__ == '__main__':
     )
     
     webview.start()
-# --- [ SECTION 6: ENGINE STARTUP END ] --------------------------------

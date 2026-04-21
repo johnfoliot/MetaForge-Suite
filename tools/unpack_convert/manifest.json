@@ -1,0 +1,12 @@
+{
+  "name": "Unpack / Convert",
+  "id": "unpack_convert",
+  "version": "1.0.0",
+  "description": "Fetches MusicBrainz Artist ID, Album ID and Track IDs",
+  "entry_point": "unpack_convert.py",
+  "ui_template": "unpack_convert.mfi",
+  "icon": "musicbrainz.svg",
+  "order": 2,
+  "enabled": true,
+  "required": true
+}

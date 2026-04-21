@@ -1,0 +1,12 @@
+{
+  "name": "Intelli-tagger",
+  "id": "intelli-tagger",
+  "version": "1.0.0",
+  "description": "MetaForge Intelli-Tagger",
+  "entry_point": "intelli-tagger.py",
+  "ui_template": "intelli-tagger.mfi",
+  "icon": "magic-wand.svg",
+  "order": 3,
+  "enabled": true,
+  "required": true
+}

@@ -1,0 +1,18 @@
+<h1 class="main">Settings</h1>
+
+<div class="active_stage">
+ <nav style=" font-size:80%; width: 8rem; border-right: 1px solid var(--mf-gold); padding:3px; padding-left:.5rem; margin-right:5px;">
+  <!-- Navigation section -->
+    <ul style="list-style-type:none;">
+	  <li>Personalization</li>
+	  <li>API Keys &amp; Configuration</li>
+	  <li>Help Files</li>
+	</ul>
+ </nav>
+ <div>
+	<div id="personalization"></div>
+	<div id="api keys"></div>
+	<div id="help"></div>
+
+ </div>
+</div>
