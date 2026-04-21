@@ -19,7 +19,7 @@ Every tool must contain a `manifest.json`. The Shell performs a "Discovery Scan"
 ### SVG Icon Strategy (Embedded XML)
 - **Deployment:** Tool icons live in the tool's root as `[tool_name].svg`.
 - **Injection:** The Shell reads raw SVG XML and injects it directly into the DOM.
-- **Styling:** SVGs must use `fill="currentColor"` or omit hardcoded fills to allow the Global CSS to apply `--mf-gold` or state-based colors dynamically.
+
 
 ### UI Fragments (.mfi)
 - Tool UIs are authored as `.mfi` (MetaForge Include) files.
