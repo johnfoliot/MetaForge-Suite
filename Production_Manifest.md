@@ -33,7 +33,7 @@ Every tool must contain a `manifest.json`. The Shell performs a "Discovery Scan"
 - **Color System:** All styles must reference the MetaForge Unified Palette via CSS Variables.
 - **Hierarchy:** Use semantic HTML (`<thead>`, `<main>`, `<section>`) to ensure WCAG compliance and professional-grade document structure.
 - **Responsiveness:** Use Flexbox/Grid for "elastic" containers that adapt to window resizing.
-- **Compliance:** All UI output content MUST (RFC 2119) comply with WCAG 2.1 (https://www.w3.org/TR/WCAG21/). Interactive components must either use native elements (<button>) or include the appropriate ARIA markup (https://www.w3.org/TR/wai-aria-1.3/)
+- **Compliance:** All UI output content MUST (RFC 2119) comply with WCAG 2.1 (https://www.w3.org/TR/WCAG21/). Interactive components must either use native elements (&lt;button&gt;) or include the appropriate ARIA markup (https://www.w3.org/TR/wai-aria-1.3/)
 
 ---
 
