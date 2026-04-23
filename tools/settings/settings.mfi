@@ -1,3 +1,9 @@
+<!-- 
+======================================================================
+MetaForge Tool UI: Settings (V.Core - Build 3)
+File Location: \MetaForge Suite\tools\settings\settings.mfi
+======================================================================
+-->
 <h1 class="main">Settings</h1>
 
 <div class="active_stage" style="display: flex; gap: 15px;">
@@ -23,39 +29,51 @@
             </div>
 
             <div id="sub-panel-theme" class="personalization-sub-panel" style="display:block;">
-                <h2 class="data-text" style="font-size: 0.7rem;">THEME SELECTION</h2>
-                <p class="tool_notes">Theme selection logic pending...</p>
-            </div>
+				<h2 class="data-text" style="font-size:1.1rem;">Theme Selection</h2>
+				<div style="display: flex; gap: 20px; margin-top: 15px;">
+					<!-- Dark Mode Option -->
+					<div onclick="window.setMetaForgeTheme('dark')" style="cursor:pointer; text-align:center;">
+						<div style="width:50px; height:30px; background:#141414; border:2px solid var(--mf-gold); border-radius:4px; margin-bottom:5px;"></div>
+						<span class="tool_notes" style="font-size:0.7rem; font-weight:bold;">DARK</span>
+					</div>
+					
+					<!-- Light Mode Option -->
+					<div onclick="window.setMetaForgeTheme('light')" style="cursor:pointer; text-align:center;">
+						<div style="width:50px; height:30px; background:#f2f2f2; border:2px solid #ccc; border-radius:4px; margin-bottom:5px;"></div>
+						<span class="tool_notes" style="font-size:0.7rem; font-weight:bold;">LIGHT</span>
+					</div>
+				</div>
+			</div>
 
             <div id="sub-panel-toolbar" class="personalization-sub-panel" style="display:none;">
                 <div id="toolbar-customizer-grid">
                     <p class="tool_notes">Loading tool manifests...</p>
                 </div>
-                <button class="mf-button-gold-fixed" style="margin-top:12px;" onclick="saveSettings()">Update Toolbar</button>
+                <button class="mf-button-gold-fixed" style="margin-top:12px;" onclick="saveToolbarLayout()">Update Toolbar</button>
             </div>
 
             <div id="sub-panel-taxonomy" class="personalization-sub-panel" style="display:none;">
-                <h2 class="data-text" style="font-size: 0.7rem;">GENRE TAXONOMY</h2>
+                <h2 class="data-text" style=" font-size:1.1rem;">Genre | Sub Genre Taxonomies</h2>
                 <p class="tool_notes">Genre & Taxonomy modification logic pending...</p>
             </div>
         </div>
 
         <!-- Tab: API Keys -->
         <div id="panel-api-keys" class="settings-panel" style="display:none;">
-            <h2 class="data-text" style="margin-bottom:10px; font-size: 0.7rem;">API KEYS &amp; CONFIGURATION</h2>
+            <h2 class="data-text" style="margin-bottom:10px; font-size:1.1rem;">API Keys &amp; Configuration</h2>
             <div id="api-form-container"></div>
             <button class="mf-button-gold-fixed" style="margin-top:12px;" onclick="saveSettings()">Save Environment</button>
         </div>
 
         <!-- Tab: Updates -->
         <div id="panel-updates" class="settings-panel" style="display:none;">
-            <h2 class="data-text" style="margin-bottom:10px; font-size: 0.7rem;">CHECK FOR UPDATES</h2>
+            <h2 class="data-text" style="margin-bottom:10px;  font-size:1.1rem;">Check For Updates</h2>
             <p class="tool_notes">Master Manifest Sync integration pending...</p>
         </div>
 
         <!-- Tab: Help -->
         <div id="panel-help" class="settings-panel" style="display:none;">
-            <h2 class="data-text" style="margin-bottom:10px; font-size: 0.7rem;">METAFORGE HELP FILES</h2>
+            <h2 class="data-text" style="margin-bottom:10px;  font-size:1.1rem;">MetaForge Help Files</h2>
             <div id="help-aggregator"></div>
         </div>
 
@@ -76,9 +94,7 @@
         cursor: pointer;
         transition: background 0.2s;
     }
-    .sub-nav-btn:hover {
-        background: #333;
-    }
+    .sub-nav-btn:hover { background: #333; }
     .sub-nav-btn.active {
         background: #141414;
         border-color: var(--mf-gold);
@@ -86,8 +102,6 @@
         position: relative;
         z-index: 5;
     }
-
-    /* THE GOLD STANDARD CHECKBOX */
     .tool-toggle {
         appearance: none;
         -webkit-appearance: none;
@@ -102,19 +116,16 @@
         align-items: center;
         justify-content: center;
     }
-
     .tool-toggle:checked::after {
         content: '✔';
         color: #000;
         font-size: 14px;
         font-weight: bold;
     }
-
     .tool-toggle:disabled {
         opacity: 0.5;
         cursor: not-allowed;
     }
-
     .mf-button-gold-fixed {
         background-color: var(--mf-gold);
         color: #000;

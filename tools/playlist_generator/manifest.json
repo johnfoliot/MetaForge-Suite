@@ -1,12 +1,10 @@
 {
-  "name": "Intelligent Playlist maker",
+  "name": "Intelligent Playlist Maker",
   "id": "playlist_generator",
   "version": "1.0.0",
   "description": "Leverages the MetaForge database to create truly intelligent playlists",
   "entry_point": "playlist_generator.py",
   "ui_template": "playlist_generator.mfi",
   "icon": "library.svg",
-  "order": 8,
-  "enabled": true,
-  "required": true
+  "required": false
 }

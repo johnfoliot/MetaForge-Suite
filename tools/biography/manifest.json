@@ -6,7 +6,5 @@
   "entry_point": "biography.py",
   "ui_template": "biography.mfi",
   "icon": "biography.svg",
-  "order": 7,
-  "enabled": true,
-  "required": true
+  "required": false
 }

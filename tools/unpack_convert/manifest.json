@@ -6,7 +6,5 @@
   "entry_point": "unpack_convert.py",
   "ui_template": "unpack_convert.mfi",
   "icon": "unpack-convert.svg",
-  "order": 2,
-  "enabled": true,
-  "required": true
+  "required": false
 }

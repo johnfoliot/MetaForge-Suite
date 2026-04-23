@@ -6,7 +6,5 @@
   "entry_point": "music-sharing.py",
   "ui_template": "music-sharing.mfi",
   "icon": "music-sharing.svg",
-  "order": 11,
-  "enabled": true,
   "required": false
 }

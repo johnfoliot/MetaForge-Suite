@@ -52,6 +52,27 @@ body {
 body, button, .nav-item {
     cursor: default;
 }
+/* --- FOCUS STATES --- */
+/* Standardizes focus ring to MetaForge Gold */
+.mf-input:focus, 
+.mf-button-gold:focus,
+a:focus {
+    outline: 2px solid var(--mf-gold);
+    outline-offset: 2px;
+    background-color: #1a1a1a; /* Slight lift to indicate activity */
+}
+
+/* Ensure the Browse button has a distinct state when tabbed */
+.mf-button-gold:focus {
+    box-shadow: 0 0 8px var(--mf-gold);
+	color: var(--mf-gold);
+}
+
+/* Accessibility: High contrast for links on focus */
+a:focus {
+    text-decoration: underline;
+    color: #fff;
+}
 
 /* 2. HEADER & NAVIGATION */
 header {

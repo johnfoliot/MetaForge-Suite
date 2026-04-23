@@ -6,7 +6,5 @@
   "entry_point": "musicbrainz_id.py",
   "ui_template": "musicbrainz_id.mfi",
   "icon": "musicbrainz.svg",
-  "order": 5,
-  "enabled": true,
   "required": true
 }

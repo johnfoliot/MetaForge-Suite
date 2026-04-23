@@ -5,46 +5,38 @@
 import os
 import sys
 import time
-from pathlib import Path
-
-# --- [ SECTION 1: THE PATH FIXER ] ---
-# Base path is D:\MetaForge Suite\ui
-UI_DIR = Path(__file__).parent.resolve()
-PROJECT_ROOT = UI_DIR.parent.resolve()
-
-# Add root to sys.path so we can see the 'common' and 'ui' folders
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-# --- [ EXTERNAL ROUTE LOADER ] ---
-import routes
-
-# --- [ SYSTEM IMPORTS ] ---
+import json
 import threading
 import sqlite3
 import webview
 import ctypes
+from pathlib import Path
 from flask import Flask, render_template, request, redirect, send_from_directory, jsonify
 from dotenv import load_dotenv
 
-# Import our new central config brain
+# --- [ SECTION 1: THE PATH FIXER ] ---
+UI_DIR = Path(__file__).parent.resolve()
+PROJECT_ROOT = UI_DIR.parent.resolve()
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import routes
 from common import config_handler
 
 # --- [ SECTION 2: ARCHITECTURAL CONSTANTS ] ---
-# We pull these directly from our config_handler to ensure one source of truth
 APPDATA_ROOT = config_handler.APPDATA_MF
 ENV_PATH     = config_handler.ENV_PATH
 DATA_DIR     = config_handler.DATA_DIR
 LOGS_DIR     = config_handler.LOGS_DIR
 DB_PATH      = config_handler.DB_PATH
+LAYOUT_PATH  = DATA_DIR / "toolbar_layout.json"
 
 # --- [ SECTION 3: BOOTSTRAP THE CONFIG ] ---
-# Pathing aligned to D:\MetaForge Suite\
 UI_ROOT   = PROJECT_ROOT / "ui"
 HTML_DIR  = UI_ROOT / "html"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 
-# static_folder is UI_ROOT so we can access /css/ and /js/
 app = Flask(__name__, template_folder=str(HTML_DIR), static_folder=str(UI_ROOT), static_url_path='/ui')
 window = None 
 
@@ -59,144 +51,162 @@ def set_file_attribute(path, attribute):
         except Exception: pass
 
 def initialize_database():
-    # Ensure the AppData folders exist
+    """Beta 1 Database Schema Provisioning."""
     APPDATA_ROOT.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     
     conn = sqlite3.connect(str(DB_PATH))
-    conn.execute('''CREATE TABLE IF NOT EXISTS tracks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_path TEXT UNIQUE, artist TEXT, album TEXT, title TEXT, acoustid TEXT)''')
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS library_artist (
+            mf_artist_id TEXT PRIMARY KEY,
+            artist_name TEXT NOT NULL,
+            country TEXT, biography TEXT, bio_updated_at TEXT, last_updated TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS library_master (
+            mf_id TEXT PRIMARY KEY,
+            mf_artist_id TEXT, artist_name TEXT, 
+            album_title TEXT NOT NULL, mb_album_id TEXT, 
+            original_year TEXT, label TEXT, personnel TEXT, 
+            is_compilation INTEGER, last_updated TEXT, date_audit_status INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tracks (
+            file_path TEXT PRIMARY KEY, mf_id TEXT, mf_artist_id TEXT, 
+            mb_artist_id TEXT, mb_track_id TEXT, acoustid TEXT, 
+            title TEXT, genre TEXT, sub_genre TEXT, original_year TEXT, 
+            bpm INTEGER, key_val TEXT, mood TEXT, intensity INTEGER, 
+            is_remediated INTEGER, last_updated TEXT, mb_work_id TEXT, 
+            orig_year_conf INTEGER, orig_year_source TEXT, leak_flag INTEGER
+        )
+    """)
     conn.commit()
     conn.close()
-    
-# --- TOOL DISCOVERY LOGIC ---
-import json
 
+# --- [ SECTION 5: TOOL DISCOVERY LOGIC ] ---
 def get_dynamic_toolbar():
     """
-    Scans the tools directory for manifest.json files and returns a sorted list
-    of enabled/required tools based on the defined 'order' key.
+    Implements the Dual-Pass Discovery Protocol.
+    Merges manifest data with the layout state from the data directory.
     """
-    tools = []
-    if not TOOLS_DIR.exists():
-        return tools
-
-    for folder in TOOLS_DIR.iterdir():
-        if folder.is_dir():
+    discovered_tools = {}
+    
+    # Pass 1: Scan manifests
+    if TOOLS_DIR.exists():
+        for folder in TOOLS_DIR.iterdir():
             manifest_path = folder / "manifest.json"
             if manifest_path.exists():
                 try:
                     with open(manifest_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        # Tool must be enabled OR required to appear in the toolbar
-                        if data.get("enabled", True) or data.get("required", False):
-                            tools.append(data)
+                        m = json.load(f)
+                        discovered_tools[m['id']] = m
                 except Exception as e:
-                    print(f"MetaForge Error: Failed to parse manifest in {folder.name}: {e}")
-    
-    # Sort by 'order' key; defaults to 99 to push un-ordered tools to the end
-    tools.sort(key=lambda x: x.get("order", 99))
-    return tools
-# --- TOOL DISCOVERY LOGIC END ---
+                    print(f"Discovery Error in {folder.name}: {e}")
 
-# --- [ SECTION 5: CORE UI ROUTES ] ---
+    # Pass 2: Load or Generate Layout State
+    layout_state = []
+    if LAYOUT_PATH.exists():
+        try:
+            with open(LAYOUT_PATH, 'r', encoding='utf-8') as f:
+                layout_state = json.load(f)
+        except: layout_state = []
 
+    # Safeguard & Initial Order Strategy
+    if not layout_state:
+        # Initial factory order
+        initial_order = [
+            "dashboard", "unpack_convert", "intelli-tagger", "musicbrainz_id", 
+            "acoustid", "biography", "database_tools", "playlist_generator", 
+            "repair", "youtube_mp3", "music-sharing", "settings"
+        ]
+        layout_state = [{"id": tid, "visible": True} for tid in initial_order if tid in discovered_tools]
+        # Ensure any missing tools found in scan are appended
+        for tid in discovered_tools:
+            if not any(entry['id'] == tid for entry in layout_state):
+                layout_state.append({"id": tid, "visible": True})
+        
+        with open(LAYOUT_PATH, 'w', encoding='utf-8') as f:
+            json.dump(layout_state, f, indent=4)
+
+    # Synthesis & Security Enforcement
+    final_toolbar = []
+    for entry in layout_state:
+        tid = entry['id']
+        if tid in discovered_tools:
+            tool_data = discovered_tools[tid]
+            
+            # Security Rule: Dashboard and Settings are immutable
+            if tid in ["dashboard", "settings"]:
+                tool_data['visible'] = True
+            else:
+                tool_data['visible'] = entry.get('visible', True)
+            
+            if tool_data['visible'] or tool_data.get('required'):
+                final_toolbar.append(tool_data)
+                
+    return final_toolbar
+
+# --- [ SECTION 6: CORE UI ROUTES ] ---
 @app.route('/')
 def home():
-    """
-    Main entry point with Bootstrap Guard and Diagnostic Logging.
-    If .env is missing, serves setup.html from the UI/HTML folder.
-    """
     if is_setup_required(): 
-        # Serve setup.html directly from the localized HTML directory
         return send_from_directory(str(UI_ROOT / "html"), 'setup.html')
         
-    # --- LOGIC FOR REGISTERED USERS ---
     toolbar_data = get_dynamic_toolbar()
-    
-    # DIAGNOSTIC: Print discovery results to terminal
-    print(f"DEBUG: Discovery Scan found {len(toolbar_data)} tools.")
-    for t in toolbar_data:
-        print(f" - Tool: {t.get('id')} (Order: {t.get('order')})")
-    
-    # Calculate track count for footer diagnostic
     track_count = "0"
     if DB_PATH.exists():
         try:
-            import sqlite3
             conn = sqlite3.connect(str(DB_PATH))
             track_count = f"{conn.execute('SELECT COUNT(*) FROM tracks').fetchone()[0]:,}"
             conn.close()
-        except Exception: 
-            track_count = "DB ERROR"
+        except: track_count = "DB ERROR"
             
-    return render_template('index.html', 
-                           track_count=track_count, 
-                           version_id=time.time(),
-                           tools=toolbar_data)
+    return render_template('index.html', track_count=track_count, version_id=time.time(), tools=toolbar_data)
 
 @app.route('/complete_setup', methods=['POST'])
 def complete_setup():
-    """
-    Receives initial configuration and writes the .env file to AppData.
-    """
     data = request.json
     lines = [
         f"USER_EMAIL={data['email']}",
         f"LIBRARY_ROOT={data['lib_root']}",
         f"ACOUSTID_KEY={data['acoustid']}",
         f"GEMINI_KEY={data['gemini']}",
-        f"ENABLED_TOOLS={data['default_tools']}"
+        f"DISCOGS_TOKEN={data.get('discogs', '')}"
     ]
-    
     try:
         ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(ENV_PATH, 'w', encoding='utf-8') as f:
             f.write("\n".join(lines))
+        initialize_database()
         return jsonify({"status": "success"})
     except Exception as e:
-        print(f"ERROR: Failed to write .env: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/tool_asset/<tool_id>/<filename>')
 def serve_tool_asset(tool_id, filename):
-    """Serves icons and modular tool JS from tool directories."""
-    target_dir = TOOLS_DIR / tool_id
-    if not target_dir.exists():
-        return "Tool Asset Not Found", 404
-    return send_from_directory(str(target_dir), filename)
+    return send_from_directory(str(TOOLS_DIR / tool_id), filename)
 
 @app.route('/ui/<type>/<path:filename>')
 def serve_ui(type, filename):
-    """Serves global CSS, JS, and Images from the UI root."""
-    response = send_from_directory(str(UI_ROOT / type), filename)
-    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    return response
+    return send_from_directory(str(UI_ROOT / type), filename)
 
 @app.route('/get_tool/<tool_id>')
 def get_tool(tool_id):
-    """Loads modular tool .mfi templates."""
     clean_id = tool_id.split('?')[0]
-    target = TOOLS_DIR / clean_id / f"{clean_id}.mfi"
-    if not target.exists():
-        return f"Tool '{clean_id}' Not Found", 404
-    return target.read_text(encoding='utf-8')
+    return (TOOLS_DIR / clean_id / f"{clean_id}.mfi").read_text(encoding='utf-8')
 
 @app.route('/select_folder')
 def select_folder():
-    """Direct route for the setup.html to access the folder picker."""
     global api_bridge
-    path = api_bridge.select_folder()
-    return jsonify({"path": path})
+    return jsonify({"path": api_bridge.select_folder()})
 
-# --- [ THE HANDOFF ] ---
 routes.initialize_routes(app, lambda: window, TOOLS_DIR, ENV_PATH, set_file_attribute)
 
-# --- [ SECTION 5: CORE UI ROUTES END ] ---
-
-# --- [ SECTION 6: ENGINE STARTUP ] ------------------------------------
+# --- [ SECTION 7: ENGINE STARTUP ] ---
 class MetaForgeAPI:
     def select_folder(self):
         global window
@@ -210,22 +220,9 @@ def run_flask():
 
 if __name__ == '__main__':
     initialize_database()
-    if ENV_PATH.exists(): 
-        load_dotenv(ENV_PATH)
-    
+    if ENV_PATH.exists(): load_dotenv(ENV_PATH)
     api_bridge = MetaForgeAPI()
-    
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
-    
-    window = webview.create_window(
-        'MetaForge Studio', 
-        'http://127.0.0.1:5000', 
-        js_api=api_bridge,
-        width=1280, 
-        height=800,
-        maximized=True,
-        background_color='#141414'
-    )
-    
+    window = webview.create_window('MetaForge Studio', 'http://127.0.0.1:5000', js_api=api_bridge, width=1280, height=800, maximized=True, background_color='#141414')
     webview.start()

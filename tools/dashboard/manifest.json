@@ -6,7 +6,5 @@
   "entry_point": "dashboard.py",
   "ui_template": "dashboard.mfi",
   "icon": "gauge.svg",
-  "order": 1,
-  "enabled": true,
   "required": true
 }

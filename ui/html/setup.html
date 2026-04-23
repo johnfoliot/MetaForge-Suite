@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>MetaForge | Initial Setup</title>
-    <!-- Linking to your verified CSS location -->
     <link rel="stylesheet" href="/ui/css/metaforge.css">
     <style>
-        /* Setup-specific layout centering */
         body { 
             display: flex; 
             justify-content: center; 
@@ -15,13 +13,16 @@
             background-color: var(--bg-main); 
         }
         .setup-card { 
-            background-color: var(--bg-accent); 
-            padding: 30px; 
-            border: 1px solid var(--mf-gold); 
-            width: 500px; 
-            border-radius: 4px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
+			background-color: var(--bg-accent); 
+			padding: 30px; 
+			border: 1px solid var(--mf-gold); 
+			width: 500px; 
+			max-height: 100vh; 
+			border-radius: 4px; 
+			box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+			overflow-y: auto; /* Adds a vertical scrollbar only when content overflows */
+			overflow-x: hidden; /* Prevents accidental horizontal shifting */
+}
         .mf-input {
             width: 100%;
             background: var(--bg-main);
@@ -30,7 +31,7 @@
             padding: 8px;
             margin-top: 5px;
             font-family: var(--font-mono);
-            font-size: 0.8rem;
+            font-size: 0.7rem;
         }
         .mf-button-gold {
             background-color: var(--mf-gold);
@@ -40,18 +41,39 @@
             cursor: pointer;
             font-weight: bold;
             transition: opacity 0.2s;
-			border-radius:3px;
+            border-radius:3px;
         }
         .mf-button-gold:hover { opacity: 0.8; }
-        .input-group { margin-bottom: 20px; }
-		a {color:var(--text-message);}
-		p {color: var(--text-message); font-size: 0.8rem;}
+        .input-group { margin-bottom: 10px; }
+        a {color:var(--text-message);}
+        p {color: var(--text-message); font-size: 0.8rem;}
 		
+		
+		/* Standardizes focus ring to MetaForge Gold */
+		.mf-input:focus, 
+		.mf-button-gold:focus,
+		a:focus {
+			outline: 2px solid var(--mf-gold);
+			outline-offset: 2px;
+			background-color: #1a1a1a; /* Slight lift to indicate activity */
+		}
+
+		/* Ensure the Browse button has a distinct state when tabbed */
+		.mf-button-gold:focus {
+			box-shadow: 0 0 8px var(--mf-gold);
+			color: var(--mf-gold);
+		}
+
+		/* Accessibility: High contrast for links on focus */
+		a:focus {
+			text-decoration: underline;
+			color: #fff;
+		}
     </style>
 </head>
 <body>
     <div class="setup-card">
-	    <img src="/ui/images/logo.svg" alt="MetaForge Studio" style="width:430px; height: auto; padding:10px; background-color:#000;">
+        <img src="/ui/images/logo.svg" alt="MetaForge Studio" style="width:430px; height: auto; padding:10px; background-color:#000;">
         <h1 class="main">MetaForge Studio Setup</h1>
         <p style="margin-bottom: 15px;">
             Please initialize your environment variables to continue.
@@ -76,19 +98,23 @@
             <!-- 3. ACOUSTID API KEY -->
             <div class="input-group">
                 <label class="data-text" style="color: var(--mf-gold);" for="acoustid">AcoustID API Key</label>
-				<p>(Need a key? Visit <a href="https://acoustid.org/api-key" target=New">https://acoustid.org/api-key</a>)</p>
+                <p>(Need a key? Visit <a href="https://acoustid.org/api-key" target="_blank">acoustid.org</a>)</p>
                 <input type="text" id="acoustid" required class="mf-input" placeholder="Paste your AcoustID key here">
             </div>
 
             <!-- 4. GEMINI API KEY -->
             <div class="input-group">
                 <label class="data-text" style="color: var(--mf-gold);" for="gemini">Gemini AI Key</label>
-				<p>(Need a key? Visit <a href="https://aistudio.google.com/app/api-keys" target=New">https://aistudio.google.com/app/api-keys</a>)</p>
+                <p>(Need a key? Visit <a href="https://aistudio.google.com/app/api-keys" target="_blank">Google AI Studio</a>)</p>
                 <input type="text" id="gemini" required class="mf-input" placeholder="Paste your Gemini API key here">
             </div>
 
-            <!-- SYSTEM DEFAULTS -->
-            <input type="hidden" id="default_tools" value="dashboard:0,unpack_convert:1,intelli_tagger:2,musicbrainz_id:3,acoustid:4,bio_builder:5,db_tools:6,intelligent_playlist:7,settings:99">
+            <!-- 5. DISCOGS TOKEN (NEW REQUIREMENT) -->
+            <div class="input-group">
+                <label class="data-text" style="color: var(--mf-gold);" for="discogs">Discogs Personal Access Token</label>
+                <p>(Need a token? Visit <a href="https://www.discogs.com/settings/developers" target="_blank">Discogs Developers</a>)</p>
+                <input type="text" id="discogs" required class="mf-input" placeholder="Paste your Discogs token here">
+            </div>
 
             <button type="submit" class="mf-button-gold" style="width:100%; margin-top:10px;">LET'S GET STARTED!</button>
         </form>
@@ -110,6 +136,7 @@
                 lib_root: document.getElementById('lib_root').value,
                 acoustid: document.getElementById('acoustid').value,
                 gemini: document.getElementById('gemini').value,
+                discogs: document.getElementById('discogs').value, // Captured here
                 default_tools: document.getElementById('default_tools').value
             };
 
@@ -123,11 +150,13 @@
                 });
                 const result = await res.json();
                 if (result.status === 'success') {
-                    status.innerHTML = '<span style="color: var(--status-success);">SUCCESS! RESTARTING ENGINE...</span>';
+                    status.innerHTML = '<span style="color: var(--mf-gold);">SUCCESS! RESTARTING ENGINE...</span>';
                     setTimeout(() => { location.reload(); }, 1500);
+                } else {
+                    status.innerHTML = `<span style="color: red;">ERROR: ${result.message}</span>`;
                 }
             } catch (err) {
-                status.innerHTML = '<span style="color: var(--status-error);">BOOTSTRAP ERROR. CHECK CONSOLE.</span>';
+                status.innerHTML = '<span style="color: red;">BOOTSTRAP ERROR. CHECK CONSOLE.</span>';
             }
         }
     </script>

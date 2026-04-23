@@ -6,7 +6,5 @@
   "entry_point": "database.py",
   "ui_template": "database.mfi",
   "icon": "database.svg",
-  "order": 6,
-  "enabled": true,
   "required": true
 }

@@ -6,7 +6,5 @@
   "entry_point": "acoustid.py",
   "ui_template": "acoustid.mfi",
   "icon": "acoustid.svg",
-  "order": 6,
-  "enabled": true,
-  "required": true
+  "required": false
 }

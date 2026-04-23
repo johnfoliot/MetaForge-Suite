@@ -6,7 +6,5 @@
   "entry_point": "settings.py",
   "ui_template": "settings.mfi",
   "icon": "gear.svg",
-  "order": 99,
-  "enabled": true,
   "required": true
 }

@@ -6,7 +6,5 @@
   "entry_point": "repair.py",
   "ui_template": "repair.mfi",
   "icon": "toolbox.svg",
-  "order": 9,
-  "enabled": true,
   "required": false
 }

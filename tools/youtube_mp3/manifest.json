@@ -2,11 +2,9 @@
   "name": "YouTube to MP3",
   "id": "youtube_mp3",
   "version": "1.0.0",
-  "description": "Fetches MusicBrainz Artist ID, Album ID and Track IDs",
+  "description": "Sometimes the ONLY source of a music file is from YouTube. This tool to the rescue.",
   "entry_point": "youtube_mp3.py",
   "ui_template": "youtube_mp3.mfi",
   "icon": "youtube.svg",
-  "order": 10,
-  "enabled": true,
   "required": false
 }
