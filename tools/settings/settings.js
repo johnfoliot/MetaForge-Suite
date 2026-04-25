@@ -80,7 +80,7 @@ window.loadToolbarCustomizer = async function() {
             return;
         }
 
-        let tableHtml = `<table class="meta-table" style="border-spacing:0; color:#fff; display:table !important; width:100%;">
+        let tableHtml = `<table class="meta-table" style="border-spacing:0; display:table !important;">
             <thead>
                 <tr style="text-align:left; border-bottom:1px solid #444;">
                     <th style="padding:4px 8px; font-size:0.8rem; color:var(--mf-gold); letter-spacing:1px;">Show</th>
