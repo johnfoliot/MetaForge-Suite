@@ -1,5 +1,5 @@
 /* ======================================================================
-   MetaForge Studio: Unified Theme & Layout Engine
+   MetaForge Studio: Unified Theme & Layout Engine (V.4.8.8)
    File Location: \MetaForge Suite\ui\css\metaforge.css
    ====================================================================== */
 
@@ -12,21 +12,25 @@
     --text-output: #ffffff;
     --text-message: #cccccc;
     --status-success: #2ad95a; 
-    --status-error: #ff5e70;
+    --status-error: #FF363D;
+    --input-foreground: #000000;
+    --input-background: #cc9900;
     --font-main: "Ubuntu Sans", system-ui, -apple-system, sans-serif;
     --font-mono: 'Cascadia Code', "Courier New", monospace;
 }
 
 [data-theme="light"] {
     /* --- LIGHT THEME (STEEL/PLATINUM) --- */
-    --bg-main: #f2f2f2;
-    --bg-accent: #e0e0e0;
-    --bg-stage: #ffffff;
-    --mf-gold: #997300;
+    --bg-main: #babcc0;
+    --bg-accent: #7a7e83;
+    --bg-stage: #d1d3d6;
+    --mf-gold: #997300; 
     --text-output: #1a1a1a;
-    --text-message: #575757;
-    --status-success: #1a821a;
-    --status-error: #c21838;
+    --text-message: #333333; 
+    --status-success: #1b6332;
+    --status-error: #a31621;
+    --input-foreground: #ffffff;
+    --input-background: #997300;
 }
 
 /* 1. NATIVE INTERACTION DE-WEBIFIERS */
@@ -36,7 +40,15 @@
     padding: 0;
     user-select: none; 
     -webkit-user-select: none;
-    outline: none !important;
+}
+:focus:not(:focus-visible) { outline: none !important; }
+
+/* WCAG 2.2 Focus Indicator */
+:focus-visible {
+    outline: 2px solid var(--mf-gold) !important;
+    outline-offset: 3px;
+    position: relative; 
+    z-index: 999 !important; 
 }
 
 body {
@@ -49,30 +61,7 @@ body {
     color: var(--text-message);
 }
 
-body, button, .nav-item {
-    cursor: default;
-}
-/* --- FOCUS STATES --- */
-/* Standardizes focus ring to MetaForge Gold */
-.mf-input:focus, 
-.mf-button-gold:focus,
-a:focus {
-    outline: 2px solid var(--mf-gold);
-    outline-offset: 2px;
-    background-color: #1a1a1a; /* Slight lift to indicate activity */
-}
-
-/* Ensure the Browse button has a distinct state when tabbed */
-.mf-button-gold:focus {
-    box-shadow: 0 0 8px var(--mf-gold);
-	color: var(--mf-gold);
-}
-
-/* Accessibility: High contrast for links on focus */
-a:focus {
-    text-decoration: underline;
-    color: #fff;
-}
+body, button, .nav-item { cursor: default; }
 
 /* 2. HEADER & NAVIGATION */
 header {
@@ -95,6 +84,7 @@ header {
     margin-right: 1em;
 }
 
+/* HARDENED COLOR DRIVER: Prevents black-on-black icons */
 .nav-item {
     display: flex;
     align-items: center;
@@ -103,47 +93,39 @@ header {
     height: 32px;
     border-radius: 3px;
     transition: all 0.1s ease;
-    filter: grayscale(65%);
-    opacity: 0.7;
-    padding: 2px;
     border: 1px solid transparent;
-    color: var(--mf-gold);
+    color: var(--mf-gold) !important; 
 }
 
 .nav-item:focus-visible, .nav-item:hover {
-    filter: grayscale(0%);
-    opacity: 1;
     border: 1px solid var(--mf-gold);
+    color: var(--text-output) !important; 
 }
 
 .nav-item.active {
-    background-color: #3f3f3f; 
-    filter: grayscale(0%);
-    opacity: 1;
+    background-color: var(--bg-accent); 
     border: 1px solid var(--mf-gold);
+    color: var(--mf-gold) !important; 
 }
 
-/* --- TOOLBAR POSITIONING --- */
-.global-nav {
-    display: flex;
-    align-items: center;
-    gap: 12px; 
-    height: 42px; 
-}
-
-/* Force the Settings icon to the far right */
+/* Fix: Gear icon alignment */
 #mode-settings {
-    margin-left: auto;
+    margin-left: auto !important;
 }
 
-/* WCAG Focus State */
-.nav-item:focus {
-    outline: 2px solid var(--mf-gold) !important;
-    border-radius: 3px;
+/* 3. ICONOGRAPHY MASK ARCHITECTURE */
+.mf-icon-mask {
+    width: 28px; 
+    height: 28px; 
+    background-color: currentColor; /* Inherits from parent .nav-item */
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    mask-position: center;
 }
-/* --- TOOLBAR POSITIONING END --- */
 
-/* 3. MAIN WORKING STAGE */
+/* 4. MAIN WORKING STAGE */
 main {
     flex: 1;
     background-color: var(--bg-stage);
@@ -160,40 +142,93 @@ h1.main {
     border-bottom: 1px solid var(--mf-gold);
     margin-bottom: 0.5rem;
     padding-bottom: 4px;
-}
-
-main #mfi-content p.tool_notes, 
-main .tool_notes, 
-p.tool_notes {
-    display: block;
-    visibility: visible;
-    color: var(--text-message);
-    font-size: 0.85rem;
-    border-left: 3px solid var(--mf-gold);
-    padding-left: 15px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    margin-top: 15px;
-    margin-bottom: 15px;
-    min-height: 1.5em;
-    line-height: 1.5;
-    width: 100%;
+    outline: none;
 }
 
 div.active_stage {
-	width:100%;
-	background-color: var(--bg-main);
-	padding:8px;
-	min-height:100%;
-}	
-
-.data-text {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--text-output);
+    width: 100%;
+    padding: 8px;
+    min-height: 100%;
+    display: flex;
+    gap: 15px;
 }
 
-/* 4. STATUS BAR (FOOTER) */
+/* 5. TOOLBAR CUSTOMIZER & INPUTS */
+.tool-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    background-color: var(--mf-gold) !important; 
+    border: 1px solid #000;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.tool-toggle:checked::after {
+    content: '✔';
+    color: #000 !important; 
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.tool-order { 
+    width: 3rem !important; 
+    max-width: 3rem !important;
+    height: 1.5rem; 
+    background: var(--mf-gold) !important; 
+    color: #000 !important; 
+    border: 1px solid #000;
+    text-align: center; 
+    font-size: 0.8rem; 
+    font-weight: bold; 
+    border-radius: 3px;
+}
+
+.mf-input { 
+    width: 100%; 
+    background: var(--bg-stage); 
+    border: 1px solid var(--bg-accent); 
+    color: var(--text-output); 
+    padding: 8px; 
+    margin-top: 5px; 
+    font-family: var(--font-mono); 
+    font-size: 0.7rem; 
+}
+
+.mf-button-gold-fixed { 
+    background-color: var(--mf-gold); 
+    color: #000; 
+    border: 1px solid #000; 
+    border-radius: 3px; 
+    padding: 8px 16px; 
+    font-size: 0.75rem; 
+    font-weight: bold; 
+    cursor: pointer; 
+}
+
+/* 6. TAXONOMY & STATUS */
+.taxonomy-item { 
+    cursor: pointer; 
+    padding: 2px 8px; 
+    border-bottom: 1px solid var(--bg-accent); 
+    color: var(--text-message); 
+    font-size: 0.65rem !important; 
+}
+.taxonomy-item.active { 
+    background-color: var(--mf-gold) !important; 
+    color: #000 !important; 
+    font-weight: 900; 
+    padding-left: 12px; 
+    border-left: 4px solid #000; 
+}
+
+#save-status { margin-top: 10px; font-weight: bold; font-size: 0.75rem; }
+
+/* 7. FOOTER */
 footer {
     height: 26px;
     background-color: var(--bg-main);
@@ -202,42 +237,9 @@ footer {
     align-items: center;
     padding: 0 12px;
     font-size: 0.75rem;
-    color: #4b5563;
 }
 
-.settings-btn {
-    margin-left: auto;
-    width: 32px;
-    height: 32px;
-    padding: 4px;
-    opacity: 0.6;
-    color: var(--mf-gold);
-}
-
-.settings-btn:hover { opacity: 1; }
-
-/* 5. SPECIALTY UNITS (ACOUSTID) */
-.settings_nav {
-	width: 30rem;
-	border-right: 1px solid var(--mf-gold);
-	padding:5px;
-	padding-left:1.5rem;
-	margin-right:5px;
-}
-
-.label-updates {
-    font-size: 5.5px; 
-    color: var(--mf-gold);
-    text-align: right; 
-    padding-right: 1px;
-}
-
-/* 6. SCROLLBARS */
+/* 8. SCROLLBARS */
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg-main); }
-::-webkit-scrollbar-thumb { 
-    background: #374151; 
-    border-radius: 4px; 
-    border: 2px solid var(--bg-main); 
-}
-::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; border: 2px solid var(--bg-main); }

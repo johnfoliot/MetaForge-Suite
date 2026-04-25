@@ -1,42 +1,26 @@
+<!-- --- METAFORGE MAIN UI --- -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetaForge Studio</title>
-    <link rel="stylesheet" href="/ui/css/metaforge.css?v={{ version_id }}">
-    <script src="/ui/js/metaforge_core.js"></script>
-    <script>
-        /**
-         * SETTINGS LOGIC (REMEDIATED)
-         * Keeps your logic but ensures compatibility with the Global Script.
-         */
-        window.loadSettingsData = function() {
-            console.log("MetaForge: Global Fetching Settings...");
-            fetch('/run_tool_logic/settings?task=read')
-                .then(response => response.json())
-                .then(data => {
-                    console.log("MetaForge: Data received", data);
-                    const email = document.getElementById('set_email');
-                    const acoustid = document.getElementById('set_acoustid');
-                    const gemini = document.getElementById('set_gemini');
-                    const library = document.getElementById('set_library');
 
-                    if (email) email.value = data.user_email || '';
-                    if (acoustid) acoustid.value = data.acoustid_key || '';
-                    if (gemini) gemini.value = data.gemini_key || '';
-                    if (library) library.value = data.library_root || '';
-                })
-                .catch(err => console.error("Settings Load Error:", err));
-        };
-    </script>
+    <!-- LOAD THE MONOLITHIC CSS (Restored from Turn 48) -->
+    <link rel="stylesheet" href="/ui/css/metaforge.css?v={{ version_id }}">
+
+    <script src="/ui/js/metaforge_core.js?v={{ version_id }}"></script>
 </head>
-<body onload="switchMode('dashboard')">
+<body>
 
 <!-- --- DYNAMIC TOOLBAR SECTION --- -->
 <header role="banner">
     <nav class="global-nav" aria-label="Global Navigation">
-        <img src="/ui/images/logo.svg" class="mf-logo" alt="MetaForge Studio">
+        <!-- BRANDING LOGO: Target for theme-based swap -->
+        <img src="/ui/images/logo.svg?v={{ version_id }}" 
+             id="mf-main-logo" 
+             class="mf-logo" 
+             alt="MetaForge Studio">
 
         {% for tool in tools %}
         <div class="nav-item" 
@@ -48,60 +32,42 @@
              onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); switchMode('{{ tool.id }}'); }"
              title="{{ tool.name }}">
             
-            {# Local tool asset with explicit fallback to shared UI images #}
-            <img src="/tool_asset/{{ tool.id }}/{{ tool.icon }}" 
-                 style="width:28px; height:28px;" 
-                 alt="{{ tool.name }}"
-                 aria-hidden="true"
-                 onerror="this.onerror=null; this.src='/ui/images/{{ tool.icon }}';">
+            <div class="mf-icon-mask" 
+                 style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}'); 
+                        mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
+                        background-color: var(--mf-gold);">
+            </div>
         </div>
-        {% else %}
-        <span style="color: var(--status-error); font-size: 10px; margin-left: 10px;">
-            ERR: NO TOOLS DISCOVERED
-        </span>
         {% endfor %}
     </nav>
 </header>
 <!-- --- DYNAMIC TOOLBAR SECTION END --- -->
 
-
     <main id="main-stage" role="main" aria-live="polite">
         <div id="mfi-content">
-            <p class="label-text">Initializing MetaForge Modules...</p>
+            <p class="tool_notes">Initializing MetaForge Logic Layers...</p>
         </div>
     </main>
 
-    <footer role="contentinfo" style="font-size:60%; color: #fff!important;">
-    
-    <span style="margin-left: auto;" aria-hidden="true">
-        Your library currently has <span class="data-text" style="color:#cc9900; font-size:100%;">{{ track_count }}</span> .mp3 files | MetaForge Studio &copy; 2026 - All Rights Reserved
-    </span>
-</footer>
+    <footer role="contentinfo" style="display: flex; justify-content: flex-end; padding: 0 15px;">
+        <span class="data-text" style="font-size: 0.75rem;">
+            Your library currently has <span style="color: var(--mf-gold); font-weight: bold;">{{ track_count }}</span> .mp3 files | MetaForge Studio &copy; 2026
+        </span>
+    </footer>
 
     <script>
     /**
-     * Standard UI Mode Switcher
-     * Controls CSS states and triggers the tool loader.
+     * LOCAL BRIDGE
+     * Calls the uniquely named Global Engine to prevent recursion loops.
      */
     function switchMode(mode) {
-        // Handle nav item active states
-        const items = document.querySelectorAll('.nav-item, .settings-btn');
-        items.forEach(el => {
-            el.classList.remove('active');
-            el.setAttribute('aria-pressed', 'false');
-        });
-        
-        const activeEl = document.getElementById('mode-' + mode);
-        if(activeEl) {
-            activeEl.classList.add('active');
-            activeEl.setAttribute('aria-pressed', 'true');
-        }
-
-        // Trigger the loader in metaforge_core.js
-        if (typeof loadTool === 'function') {
-            loadTool(mode);
+        if (typeof window.mfSwitchMode === 'function') {
+            window.mfSwitchMode(mode);
+        } else {
+            console.error("MetaForge Error: Global Engine not yet registered.");
         }
     }
     </script>
 </body>
 </html>
+<!-- --- METAFORGE MAIN UI END --- -->

@@ -1,48 +1,45 @@
 /**
  * MetaForge Master Logic (V.Core)
- * The Application Shell: Handles orchestration, navigation, and global utilities.
- * Tool-specific business logic must be siloed in /tools/[tool_id]/[tool_id].js.
+ * Orchestration Engine. Build 4.8.0: Monolithic Stability.
  */
 
 // --- GLOBAL UTILITIES ---
 
 /**
- * Global Guard: Verifies the Python Bridge (pywebview) is initialized.
+ * Global Guard
  */
 window.checkMetaForgeBridge = function() {
-    if (!window.pywebview || !window.pywebview.api) {
-        console.error("MetaForge Error: Python Bridge (pywebview.api) is not initialized.");
-        const consoleDiv = document.querySelector('[id$="Console"]') || document.querySelector('[id$="-console"]') || document.querySelector('.console-scroll');
-        if (consoleDiv) {
-            consoleDiv.innerHTML = '<div style="color:#ff0000; font-weight:bold;">🔥 SYSTEM ERROR: Python connection not initialized. Please restart the app.</div>';
-        }
-        return false;
-    }
+    if (!window.pywebview || !window.pywebview.api) return false;
     return true;
 };
 
 /**
- * THE UNIVERSAL PICKER: A standardized wrapper for the Python Bridge.
+ * Initializer: Fetches preferences and sets branding.
  */
-window.getFolderPath = async function() {
-    if (!window.checkMetaForgeBridge()) return null;
+window.initializeMetaForgeBranding = async function() {
     try {
-        const path = await window.pywebview.api.select_folder();
-        return path || null;
-    } catch (err) {
-        console.error("MetaForge Shell: Global Folder Picker failed", err);
-        return null;
+        const response = await fetch('/run_tool_logic/settings/get_prefs');
+        if (response.ok) {
+            const prefs = await response.json();
+            // Set the theme attribute for CSS selectors
+            document.documentElement.setAttribute('data-theme', prefs.theme || 'dark');
+            
+            // Branding Logo Swap logic
+            const mainLogo = document.getElementById('mf-main-logo');
+            if (mainLogo) {
+                mainLogo.src = (prefs.theme === 'light') ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
+            }
+        }
+    } catch (e) {
+        console.warn("Branding Boot: Using default.");
     }
 };
 
-// --- GLOBAL UTILITIES END ---
-
 // --- ENGINE: MODE SWITCHER ---
 
-/**
- * Standard UI Mode Switcher
- */
-window.switchMode = function(mode) {
+window.mfSwitchMode = function(mode) {
+    console.log(`MetaForge Engine: Loading [${mode}]`);
+    
     const items = document.querySelectorAll('.nav-item, .settings-btn');
     items.forEach(el => {
         el.classList.remove('active');
@@ -55,21 +52,12 @@ window.switchMode = function(mode) {
         activeEl.setAttribute('aria-pressed', 'true');
     }
 
-    if (typeof loadTool === 'function') {
-        loadTool(mode);
-    }
+    window.loadTool(mode);
 };
-
-// --- ENGINE: MODE SWITCHER END ---
-
-// --- NO EDITS BEYOND THIS POINT - TOOL LOADER MUST COME LAST ---
 
 // --- ENGINE: TOOL LOADER ---
 
-/**
- * Modular Tool Loader
- */
-async function loadTool(toolId) {
+window.loadTool = async function(toolId) {
     const stage = document.getElementById('mfi-content');
     if (!stage) return;
 
@@ -87,24 +75,29 @@ async function loadTool(toolId) {
             document.head.appendChild(script);
         }
 
-        if (toolId === 'settings' && typeof window.showSettingsPanel === 'function') {
-            window.showSettingsPanel('personalization');
-        }
+        setTimeout(() => {
+            const heading = stage.querySelector('h1.main') || stage.querySelector('h1');
+            if (heading) {
+                heading.setAttribute('tabindex', '-1');
+                heading.focus();
+            }
+            if (toolId === 'settings' && typeof window.showSettingsPanel === 'function') {
+                window.showSettingsPanel('personalization');
+            }
+        }, 10);
         
     } catch (error) {
         console.error("MetaForge Load Error:", error);
-        stage.innerHTML = `<div style="color:#ff0000; padding: 20px;">⚠️ Failed to load tool: ${toolId}</div>`;
+        stage.innerHTML = `<div style="color:var(--status-error); padding: 20px;">⚠️ Failed to load tool: ${toolId}</div>`;
     }
-}
+};
 
-/**
- * AUTO-START TRIGGER: Boots the Dashboard on initial launch.
- */
+// --- AUTO-START TRIGGER ---
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Small delay to ensure the bridge and CSS variables are fully parsed
-    setTimeout(() => {
-        window.switchMode('dashboard');
-    }, 100);
-});
+    window.initializeMetaForgeBranding();
 
-// --- ENGINE: TOOL LOADER END ---
+    setTimeout(() => {
+        window.mfSwitchMode('dashboard');
+    }, 150);
+});
