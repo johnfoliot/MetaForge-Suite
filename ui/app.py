@@ -1,7 +1,7 @@
 # ======================================================================
-# MetaForge Studio: Master Server Engine (V.Core - Build 5.1.2)
+# MetaForge Studio: Master Server Engine (V.Core - Build 5.2.3)
 # File Location: \MetaForge Suite\ui\app.py
-# Build 5.1.2: Added dedicated Font and Data asset routing.
+# Build 5.2.3: Hardened Path Routing for Package Architecture.
 # ======================================================================
 import os
 import sys
@@ -87,11 +87,11 @@ def home():
     if not ENV_PATH.exists(): return send_from_directory(str(UI_ROOT / "html"), 'setup.html')
     return render_template('index.html', track_count="0", version_id=time.time(), tools=get_dynamic_toolbar())
 
-@app.route('/tool_asset/<tool_id>/<filename>')
+# FIX: Changed <filename> to <path:filename> to support /js/ subdirectories
+@app.route('/tool_asset/<tool_id>/<path:filename>')
 def serve_tool_asset(tool_id, filename):
     return send_from_directory(str(TOOLS_DIR / tool_id), filename)
 
-# FIX: Dedicated Route for local Fonts in the Data directory
 @app.route('/data/fonts/<path:filename>')
 def serve_custom_fonts(filename):
     return send_from_directory(str(DATA_DIR / "fonts"), filename)
