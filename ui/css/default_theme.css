@@ -1,0 +1,16 @@
+/* --- METAFORGE SKIN: INDUSTRIAL DARK --- */
+:root {
+    --bg-main: #141414;
+    --bg-accent: #2f2f2f;
+    --bg-stage: #2f2f2f;
+    --mf-gold: #cc9900;
+    --text-output: #ffffff;
+    --text-message: #cccccc;
+    --status-success: #2ad95a; 
+    --status-error: #ff5e70;
+    --input-foreground: #000000;
+    --input-background: #cc9900;
+}
+
+/* Dark Mode Scrollbar Color */
+::-webkit-scrollbar-thumb { background: #374151; }

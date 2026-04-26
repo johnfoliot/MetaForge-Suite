@@ -1,0 +1,22 @@
+/* --- METAFORGE SKIN: STEEL/PLATINUM --- */
+/* Restored from .bak file metrics. Build 5.1.3 */
+
+:root {
+    --bg-main: #babcc0;
+    --bg-accent: #7a7e83;
+    --bg-stage: #d1d3d6;
+    
+    /* Branding Colour: Using the requested Blue pivot for the light theme */
+    --mf-gold: #1a2fb5; 
+    
+    --text-output: #1a1a1a;
+    --text-message: #333333; 
+    --status-success: #1b6332;
+    --status-error: #a31621;
+    
+    --input-foreground: #ffffff;
+    --input-background: #1a2fb5; /* Matched to branding blue */
+}
+
+/* Light Mode Scrollbar Colour */
+::-webkit-scrollbar-thumb { background: #939097; }

@@ -1,0 +1,188 @@
+/* ======================================================================
+   MetaForge Studio: Unified Layout Engine (The Bones)
+   File Location: \MetaForge Suite\ui\css\layout.css
+   Build 5.1.7: Fixed Inactive Tab Contrast (Branding Inverse).
+   ====================================================================== */
+
+/* --- SECTION 1: HARDENED TYPOGRAPHY (LOCAL ASSETS) --- */
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('/data/fonts/CascadiaCode-Regular.ttf') format('truetype');
+    font-weight: normal; font-style: normal;
+}
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('/data/fonts/CascadiaCode-Bold.ttf') format('truetype');
+    font-weight: bold; font-style: normal;
+}
+@font-face {
+    font-family: 'Cascadia Mono';
+    src: url('/data/fonts/CascadiaMono-Regular.ttf') format('truetype');
+    font-weight: normal; font-style: normal;
+}
+
+:root {
+    --font-main: 'Cascadia Code', 'Segoe UI Mono', sans-serif;
+    --font-mono: 'Cascadia Mono', monospace;
+}
+
+/* 1. NATIVE INTERACTION DE-WEBIFIERS */
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+:focus:not(:focus-visible) { outline: none !important; }
+
+/* WCAG 2.2 Focus Indicator */
+:focus-visible {
+    outline: 2px solid var(--mf-gold) !important;
+    outline-offset: 3px;
+    position: relative; 
+    z-index: 999 !important; 
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-main); 
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text-message);
+}
+
+body, button, .nav-item { cursor: default; }
+h1.main {color:var(--mf-gold);}
+
+/* 2. GLOBAL COMPONENT PRIMITIVES */
+
+/* --- THE TAB METAPHOR --- */
+.sub-nav-container { 
+    display: flex; 
+    gap: 2px; 
+    margin-bottom: 15px; 
+    border-bottom: 1px solid var(--mf-gold); 
+    padding-bottom: 0;
+}
+
+.sub-nav-btn {
+    background: transparent;
+    border: 1px solid var(--mf-gold);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    color: var(--mf-gold) !important; /* Explicit branding color for inactive text */
+    font-size: 0.75rem;
+    font-weight: bold;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+    position: relative;
+    margin-right: 2px;
+    top: 1px; /* Overlaps container border for classic tab look */
+}
+
+.sub-nav-btn:hover, .sub-nav-btn:focus-visible { 
+    background: var(--bg-accent); 
+    color: var(--text-output) !important;
+}
+
+.sub-nav-btn.active { 
+    background-color: var(--mf-gold) !important; 
+    color: var(--input-foreground) !important; 
+    border: 1px solid var(--mf-gold);
+    border-bottom: 1px solid var(--mf-gold);
+    z-index: 5; 
+}
+
+/* --- BUTTONS --- */
+button, .mf-button-gold-fixed {
+    color: var(--input-foreground) !important;
+    background-color: var(--input-background);
+    border: 1px solid rgba(0,0,0,0.3);
+    border-radius: 3px;
+    padding: 8px 16px;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: filter 0.1s ease;
+}
+
+button:hover, .mf-button-gold-fixed:hover {
+    filter: brightness(1.2);
+}
+
+.mf-btn-danger {
+    background-color: var(--status-error) !important;
+    color: var(--input-foreground) !important;
+}
+
+/* 3. HEADER & NAVIGATION */
+header { background-color: var(--bg-main); border-bottom: 1px solid var(--mf-gold); padding: 4px 12px; }
+.global-nav { display: flex; align-items: center; gap: 12px; height: 42px; }
+.mf-logo { height: 32px; width: auto; display: block; margin-right: 1em; }
+
+.nav-item {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 3px;
+    transition: all 0.1s ease; border: 1px solid transparent; 
+    color: var(--mf-gold);
+}
+.nav-item:focus-visible, .nav-item:hover { border: 1px solid var(--mf-gold); color: var(--text-output); }
+.nav-item.active { background-color: var(--bg-accent); border: 1px solid var(--mf-gold); color: var(--mf-gold); }
+
+#mode-settings { margin-left: auto; }
+
+.mf-icon-mask {
+    width: 28px; height: 28px; 
+    background-color: currentColor; 
+    -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat; mask-position: center;
+}
+
+/* 4. MAIN WORKING STAGE */
+main { 
+    flex: 1; background-color: var(--bg-stage); margin: 6px; 
+    border: 1px solid var(--bg-main); border-radius: 1px; 
+    display: flex; flex-direction: column; overflow: hidden; padding: 10px; 
+}
+
+#mfi-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+div.active_stage { 
+    width: 100%; background-color: var(--bg-main); padding: 8px; 
+    display: flex; gap: 15px; flex: 1; min-height: 0; overflow-y: auto; 
+}   
+
+/* 5. SELECTION CARD PRIMITIVES */
+.mf-grid-heading { font-size: 1.1rem; color: var(--mf-gold); border-bottom: 1px solid var(--bg-accent); padding-bottom: 5px; margin-bottom: 15px; }
+.mf-selection-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; }
+
+.mf-selection-card {
+    background: var(--bg-accent);
+    border: 1px solid var(--bg-main);
+    border-radius: 4px;
+    padding: 10px;
+    cursor: pointer;
+    transition: transform 0.1s ease;
+    text-align: left;
+}
+.mf-selection-card:hover, .mf-selection-card:focus-visible { border-color: var(--mf-gold); transform: translateY(-2px); }
+
+.mf-card-swatch-container { display: flex; gap: 4px; margin-bottom: 8px; }
+.mf-swatch { width: 14px; height: 14px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.2); }
+.mf-card-label { font-size: 0.75rem; font-weight: bold; color: var(--text-output); font-family: var(--font-mono); }
+
+/* 6. DATA TABLES LAYOUT */
+.meta-table { width: auto; border-collapse: collapse; }
+.tool-toggle {
+    appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
+    background-color: var(--input-background) !important; border: 1px solid #000; border-radius: 3px;
+    cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center;
+}
+.tool-toggle:checked::after { content: '✔'; color: var(--input-foreground) !important; font-size: 14px; font-weight: 900; }
+.tool-order { width: 3rem !important; height: 1.5rem; background: var(--input-background) !important; color: var(--input-foreground) !important; border: 1px solid #000; text-align: center; font-size: 0.8rem; font-weight: bold; border-radius: 3px; }
+
+/* 7. SCROLLBARS (Structural) */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { border-radius: 4px; border: 2px solid var(--bg-main); }
+
+/* --- METAFORGE LAYOUT ENGINE END --- */

@@ -6,8 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MetaForge Studio</title>
 
-    <!-- LOAD THE MONOLITHIC CSS (Restored from Turn 48) -->
-    <link rel="stylesheet" href="/ui/css/metaforge.css?v={{ version_id }}">
+    <!-- 1. PERMANENT LAYOUT ENGINE (The Bones) -->
+    <link rel="stylesheet" href="/ui/css/layout.css?v={{ version_id }}">
+
+    <!-- 2. DYNAMIC THEME ENGINE (The Skin - Swapped by JS) -->
+    <link rel="stylesheet" id="mf-theme-stylesheet" href="/ui/css/default_theme.css?v={{ version_id }}">
 
     <script src="/ui/js/metaforge_core.js?v={{ version_id }}"></script>
 </head>
@@ -16,7 +19,7 @@
 <!-- --- DYNAMIC TOOLBAR SECTION --- -->
 <header role="banner">
     <nav class="global-nav" aria-label="Global Navigation">
-        <!-- BRANDING LOGO: Target for theme-based swap -->
+        <!-- BRANDING LOGO: Physical Swap Target -->
         <img src="/ui/images/logo.svg?v={{ version_id }}" 
              id="mf-main-logo" 
              class="mf-logo" 
@@ -45,7 +48,8 @@
 
     <main id="main-stage" role="main" aria-live="polite">
         <div id="mfi-content">
-            <p class="tool_notes">Initializing MetaForge Logic Layers...</p>
+            <!-- Tools are injected here -->
+            <p class="tool_notes">Initializing MetaForge logic layers...</p>
         </div>
     </main>
 
@@ -58,13 +62,13 @@
     <script>
     /**
      * LOCAL BRIDGE
-     * Calls the uniquely named Global Engine to prevent recursion loops.
+     * Connects UI triggers to the mfSwitchMode engine in core.js
      */
     function switchMode(mode) {
         if (typeof window.mfSwitchMode === 'function') {
             window.mfSwitchMode(mode);
         } else {
-            console.error("MetaForge Error: Global Engine not yet registered.");
+            console.error("MetaForge Error: Global engine (mfSwitchMode) not registered.");
         }
     }
     </script>
