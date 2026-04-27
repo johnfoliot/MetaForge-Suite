@@ -9,7 +9,7 @@
         "priority": "Optional",
         "is_dismissed": false,
         "title": "A new Theme is available",
-        "body_text": "A new summer-time theme for your metaforge Studio is available for download.",
-        "action_url": "https://github.com/johnfoliot/metaforge-studio"
+        "body_text": "A new summer-time theme for your MetaForge Studio is available for download.",
+        "action_url": "https://john.foliot.ca"
     }
 }
