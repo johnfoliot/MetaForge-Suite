@@ -2,73 +2,73 @@
 # ======================================================================
 # MetaForge Mini-Engine: Update Gatekeeper
 # Physical Location: \tools\settings\engines\update_engine.py
-# Build 5.3.9: Hardened SSL context and Traceback reporting.
+# Build 5.3.11: Corrected Remote GitHub URL for MetaForge-Suite.
 # ======================================================================
 import json
 import urllib.request
 import ssl
 import traceback
-import importlib
 from flask import jsonify
 from common import config_handler
 
 # --- CONFIGURATION ---
-REMOTE_MANIFEST_URL = "https://raw.githubusercontent.com/johnfoliot/metaforge-studio/main/deploy/updates.json"
+# Corrected repository name to MetaForge-Suite
+REMOTE_MANIFEST_URL = "https://raw.githubusercontent.com/johnfoliot/MetaForge-Suite/main/deploy/updates.json"
 
 def check_for_updates():
     """
     The Gatekeeper Logic: Compares local manifest against remote GitHub source.
     """
+    print("\n Initializing Update Check...")
+    
     try:
-        # 1. Force refresh of config_handler to ensure DEPLOY_DIR/UPDATE_MANIFEST are seen
-        importlib.reload(config_handler)
-        
+        # 1. Path Verification
         if not hasattr(config_handler, 'UPDATE_MANIFEST'):
-            return jsonify({
-                "status": "error", 
-                "message": "Attribute 'UPDATE_MANIFEST' missing from config_handler."
-            }), 500
+            print("  [!] Error: config_handler missing UPDATE_MANIFEST attribute.")
+            return jsonify({"status": "error", "message": "System config mismatch."}), 500
 
         local_path = config_handler.UPDATE_MANIFEST
-        
+        print(f"  [>] Target Local Manifest: {local_path}")
+
         # 2. Load Local State
         if not local_path.exists():
-            return jsonify({
-                "status": "error", 
-                "message": f"Local manifest missing at {local_path}"
-            }), 404
+            print(f"  [!] Error: Local file not found at {local_path}")
+            return jsonify({"status": "error", "message": "Local manifest missing."}), 404
         
-        local_data = json.loads(local_path.read_text(encoding='utf-8'))
+        try:
+            raw_local = local_path.read_text(encoding='utf-8-sig').strip()
+            local_data = json.loads(raw_local)
+            print(f"  [>] Local file read success.")
+        except json.JSONDecodeError as je:
+            print(f"  [!] JSON Syntax Error in local file: {str(je)}")
+            return jsonify({"status": "error", "message": "Local manifest corrupted."}), 500
 
-        # 3. Fetch Remote State (Hardened SSL Context)
-        # Bypasses local certificate issues common on Windows dev environments
+        # 3. Fetch Remote State
+        print(f"  [>] Fetching remote from: {REMOTE_MANIFEST_URL}")
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
         try:
             with urllib.request.urlopen(REMOTE_MANIFEST_URL, timeout=10, context=ctx) as response:
-                if response.getcode() != 200:
-                    raise Exception(f"HTTP {response.getcode()}")
-                remote_data = json.loads(response.read().decode('utf-8'))
+                remote_raw = response.read().decode('utf-8-sig')
+                remote_data = json.loads(remote_raw)
+                print("  [>] Remote fetch and parse success.")
         except Exception as fetch_err:
-            return jsonify({
-                "status": "error", 
-                "message": f"Remote Fetch Failure: {str(fetch_err)}"
-            }), 500
+            print(f"  [!] Remote fetch failed: {str(fetch_err)}")
+            return jsonify({"status": "error", "message": f"Remote fetch failed: {str(fetch_err)}"}), 500
 
         # 4. Comparison Logic
         local_meta = local_data.get("manifest_metadata", {})
         remote_meta = remote_data.get("manifest_metadata", {})
-        
         local_msg = local_data.get("announcements", {})
         remote_msg = remote_data.get("announcements", {})
 
-        # Contrast version or message ID mismatch
         version_mismatch = remote_meta.get("installed_version") != local_meta.get("installed_version")
         new_announcement = remote_msg.get("message_id") != local_msg.get("message_id")
 
         if version_mismatch or new_announcement:
+            print("  [!] Update Detected. Dispatching announcement to UI.")
             return jsonify({
                 "update_available": True,
                 "priority": remote_msg.get("priority", "optional"),
@@ -79,21 +79,16 @@ def check_for_updates():
                 "remote_version": remote_meta.get("installed_version")
             })
 
-        # System is current
+        print("  [OK] System is up to date.")
         return jsonify({
             "update_available": False,
             "message": "✅ Rest easy, your system is up to date. Happy tagging!"
         })
 
     except Exception:
-        # Return the full Traceback to the UI for debugging
         error_trace = traceback.format_exc()
-        print(f"🔥 Gatekeeper Logic Crash:\n{error_trace}")
-        return jsonify({
-            "status": "error", 
-            "message": "Python Gatekeeper Crash. Check Terminal.",
-            "trace": error_trace
-        }), 500
+        print(f"🔥 Critical Crash:\n{error_trace}")
+        return jsonify({"status": "error", "trace": error_trace}), 500
 
 # --- SETTINGS UPDATE ENGINE END ---
 # --- END OF FILE update_engine.py ---

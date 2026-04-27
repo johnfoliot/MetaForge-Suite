@@ -46,6 +46,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     color: var(--text-message);
+	font-size:70%;
 }
 
 body, button, .nav-item { cursor: default; }

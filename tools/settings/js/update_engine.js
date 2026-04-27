@@ -1,8 +1,8 @@
 // --- START OF FILE update_engine.js ---
 /**
- * Standalone Update Gatekeeper Spoke. Build 5.3.5
+ * Standalone Update Engine Spoke. Build 5.3.15
  * Handles the UI rendering for system updates and announcements.
- * Physical Location: \tools\settings\js\update_engine.js
+ * Build 5.3.15: Updated window target to _new and refined button labeling.
  */
 
 window.metaforge.settings.updates = {
@@ -13,26 +13,25 @@ window.metaforge.settings.updates = {
         const container = document.getElementById('binary-audit-container');
         if (!container) return;
 
-        // Visual feedback during the fetch
-        container.innerHTML = '<p class="tool_notes">Consulting the Gatekeeper manifest...</p>';
+        container.innerHTML = '<p class="tool_notes" style="margin-top: 20px;">Checking for Updates...</p>';
 
         try {
             const res = await fetch('/run_tool_logic/settings/check_updates');
             const data = await res.json();
 
             if (data.status === 'error') {
-                container.innerHTML = `<p class="error-text">Gatekeeper Error: ${data.message}</p>`;
+                container.innerHTML = `<p class="error-text" style="margin-top: 20px;">Update Error: ${data.message}</p>`;
                 return;
             }
 
             this.render(data);
         } catch (e) {
-            container.innerHTML = `<p class="error-text">Update bridge failure: ${e.message}</p>`;
+            container.innerHTML = `<p class="error-text" style="margin-top: 20px;">Update failure: ${e.message}</p>`;
         }
     },
 
     /**
-     * Renders the update status based on the Gatekeeper's decision.
+     * Renders the update status based on the Engine's decision.
      */
     render: function(data) {
         const container = document.getElementById('binary-audit-container');
@@ -40,39 +39,37 @@ window.metaforge.settings.updates = {
         // CASE 1: System is Up to Date
         if (!data.update_available) {
             container.innerHTML = `
-                <div style="padding: 20px; border: 1px solid var(--status-success); background: rgba(42, 217, 90, 0.1); border-radius: 4px; margin-top: 20px;">
-                    <p class="data-text" style="color: var(--status-success); font-weight: bold; font-size: 0.9rem; margin: 0;">
-                        ${data.message}
-                    </p>
-                </div>`;
+                <p class="data-text" style="color: var(--status-success); font-weight: bold; margin-top: 20px;">
+                    ✅ Rest easy, your system is up to date. Happy tagging!
+                </p>`;
             return;
         }
 
         // CASE 2: Update Available / Announcement
         const priorityColor = data.priority === 'required' ? 'var(--status-error)' : 'var(--mf-gold)';
-        const priorityLabel = data.priority.toUpperCase();
+        const priorityLabel = data.priority.charAt(0).toUpperCase() + data.priority.slice(1);
 
         container.innerHTML = `
-            <div class="update-announcement-card" style="margin-top: 20px; border: 1px solid ${priorityColor}; background: var(--bg-main); border-radius: 4px; padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--bg-accent); padding-bottom: 10px;">
+            <div class="update-announcement" style="margin-top: 25px; border-top: 1px solid var(--bg-accent); padding-top: 15px;">
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 10px;">
                     <h3 class="data-text" style="color: ${priorityColor}; margin: 0; font-size: 1rem;">${data.title}</h3>
-                    <span class="data-text" style="font-size: 0.7rem; background: ${priorityColor}; color: #000; padding: 2px 6px; font-weight: bold; border-radius: 2px;">
+                    <span class="data-text" style="font-size: 0.7rem; color: ${priorityColor}; border: 1px solid ${priorityColor}; padding: 1px 4px; font-weight: bold; border-radius: 2px;">
                         ${priorityLabel}
                     </span>
                 </div>
                 
-                <p class="data-text" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-message); margin-bottom: 20px;">
+                <p class="data-text" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-message); margin-bottom: 15px; max-width: 600px;">
                     ${data.body}
                 </p>
 
-                <div style="display: flex; gap: 15px; align-items: center;">
+                <div style="display: flex; gap: 20px; align-items: center;">
                     <button class="mf-button-gold-fixed" 
-                            onclick="window.open('${data.action_url}', '_blank')"
-                            aria-label="Visit update resource for ${data.title}">
-                        GET UPDATE / VIEW DETAILS
+                            onclick="window.open('${data.action_url}', '_new')"
+                            aria-label="View update details for ${data.title} on GitHub">
+                        View update details
                     </button>
                     <span class="data-text" style="font-size: 0.75rem; color: var(--text-message);">
-                        Remote Version: <span style="color: var(--mf-gold);">${data.remote_version}</span>
+                        Remote version: <span style="color: var(--mf-gold);">${data.remote_version}</span>
                     </span>
                 </div>
             </div>

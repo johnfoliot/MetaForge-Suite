@@ -1,9 +1,9 @@
 // --- START OF FILE settings.js ---
 /**
- * Settings Tool Hub (V.Core - Build 5.3.6)
+ * Settings Tool Hub (V.Core - Build 5.3.13)
  * Handles Namespace Initialization, Sequential Boot Loading, and Panel Navigation.
  * Adheres to MetaForge Production Directive IV.2 (Hub & Spoke Architecture).
- * Build 5.3.6: Integrated update_engine.js into boot and navigation sequences.
+ * Build 5.3.13: Implemented Boot-Lock to prevent duplicate script loading.
  */
 
 // --- 1. NAMESPACE INITIALIZATION (Immediate) ---
@@ -13,48 +13,61 @@ window.metaforge.settings = window.metaforge.settings || {
         activeParentGenre: null,
         taxonomy: {}
     },
-    booted: false
+    booted: false,
+    booting: null // Boot Lock Promise
 };
 
 /**
  * Sequential Boot Loader (Directive IV.2)
  * Physically injects the mini-engines from the /js/ subdirectory.
+ * Hardened to prevent race-condition duplicate loading.
  */
 window.metaforge.settings.boot = async function() {
+    // If already booted, exit
     if (window.metaforge.settings.booted) return true;
+    
+    // If a boot is currently in progress, return the existing promise
+    if (window.metaforge.settings.booting) return window.metaforge.settings.booting;
 
-    const toolRoot = "/tool_asset/settings/js";
-    const engines = [
-        "api_engine.js",
-        "theme_engine.js",
-        "audit_engine.js",
-        "help_engine.js",
-        "toolbar_engine.js",
-        "taxonomy_engine.js",
-        "update_engine.js" // Added Gatekeeper Spoke
-    ];
+    // Create the boot promise (The Lock)
+    window.metaforge.settings.booting = (async () => {
+        const toolRoot = "/tool_asset/settings/js";
+        const engines = [
+            "api_engine.js",
+            "theme_engine.js",
+            "audit_engine.js",
+            "help_engine.js",
+            "toolbar_engine.js",
+            "taxonomy_engine.js",
+            "update_engine.js"
+        ];
 
-    try {
-        for (const engine of engines) {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = `${toolRoot}/${engine}?v=${new Date().getTime()}`;
-                script.type = 'text/javascript';
-                script.onload = resolve;
-                script.onerror = () => {
-                    console.error(`MetaForge: Failed to load engine ${engine} from /js/`);
-                    resolve(); 
-                };
-                document.head.appendChild(script);
-            });
+        try {
+            for (const engine of engines) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = `${toolRoot}/${engine}?v=${new Date().getTime()}`;
+                    script.type = 'text/javascript';
+                    script.onload = resolve;
+                    script.onerror = () => {
+                        console.error(`MetaForge: Failed to load engine ${engine}`);
+                        resolve(); 
+                    };
+                    document.head.appendChild(script);
+                });
+            }
+            window.metaforge.settings.booted = true;
+            console.log("MetaForge Settings: Spoke engines synchronized.");
+            return true;
+        } catch (e) {
+            console.error("MetaForge Settings Boot Error:", e);
+            return false;
+        } finally {
+            window.metaforge.settings.booting = null;
         }
-        window.metaforge.settings.booted = true;
-        console.log("MetaForge Settings: Spoke engines synchronized.");
-        return true;
-    } catch (e) {
-        console.error("MetaForge Settings Boot Error:", e);
-        return false;
-    }
+    })();
+
+    return window.metaforge.settings.booting;
 };
 
 // --- 2. PANEL NAVIGATION ---
@@ -63,7 +76,8 @@ window.metaforge.settings.boot = async function() {
  * Master Panel Switcher
  */
 window.showSettingsPanel = async function(panelId, element) {
-    if (!window.metaforge.settings.booted) await window.metaforge.settings.boot();
+    // Wait for boot lock to clear
+    await window.metaforge.settings.boot();
 
     document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
     if(element) element.classList.add('active');
@@ -95,9 +109,6 @@ window.showSettingsPanel = async function(panelId, element) {
     if(panelId === 'api-keys' && window.metaforge.settings.api) window.metaforge.settings.api.load();
     if(panelId === 'help' && window.metaforge.settings.help) window.metaforge.settings.help.load();
     
-    // Updated: Redirected from audit_engine to update_engine
-    if(panelId === 'updates' && window.metaforge.settings.updates) window.metaforge.settings.updates.run();
-    
     if(panelId === 'personalization') {
         const activeSub = document.querySelector('.sub-nav-btn.active');
         if (activeSub) {
@@ -111,7 +122,7 @@ window.showSettingsPanel = async function(panelId, element) {
  * Sub-Panel Switcher
  */
 window.showSubPanel = async function(subId, element) {
-    if (!window.metaforge.settings.booted) await window.metaforge.settings.boot();
+    await window.metaforge.settings.boot();
 
     document.querySelectorAll('.sub-nav-btn').forEach(btn => btn.classList.remove('active'));
     if(element) element.classList.add('active');

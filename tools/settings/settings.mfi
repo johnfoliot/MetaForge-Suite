@@ -124,7 +124,7 @@
         <div id="panel-updates" class="settings-panel" style="display:none;">
             <h2 class="mf-grid-heading" tabindex="-1">Check for Updates</h2>
             <p class="data-text" style="font-size: 0.85rem; margin-bottom: 15px;">
-                Consult the MetaForge Gatekeeper to ensure your workbench and dependencies are current.
+                Checking to ensure your workbench and dependencies are current.
             </p>
             <button class="mf-button-gold-fixed" onclick="metaforge.settings.updates.run()">Check for Updates</button>
             
