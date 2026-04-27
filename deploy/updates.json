@@ -5,11 +5,11 @@
         "installed_version": "1.0.0"
     },
     "announcements": {
-        "message_id": "MF-2026-000",
-        "priority": "required",
+        "message_id": "MF-2026-001",
+        "priority": "Optional",
         "is_dismissed": false,
-        "title": "System Initialized",
-        "body_text": "MetaForge is ready for archival operations.",
+        "title": "A new Theme is available",
+        "body_text": "A new summer-time theme for your metaforge Studio is available for download.",
         "action_url": "https://github.com/johnfoliot/metaforge-studio"
     }
 }
