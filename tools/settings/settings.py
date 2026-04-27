@@ -1,8 +1,9 @@
 # --- START OF FILE settings.py ---
 # ======================================================================
-# MetaForge Tool Hub: Settings (V.Core - Build 5.2.10)
+# MetaForge Tool Hub: Settings (V.Core - Build 5.3.4)
 # Primary Role: Router / Dispatcher (Directive IV.3)
 # Physical Location: \tools\settings\settings.py
+# Build 5.3.4: Registered update_engine Spoke for Gatekeeper protocol.
 # ======================================================================
 import sys
 import json
@@ -23,6 +24,7 @@ import taxonomy_engine
 import audit_engine
 import toolbar_engine
 import help_engine
+import update_engine  # New Spoke for Update Gatekeeper
 
 def run_logic(action, tools_dir, env_path):
     """
@@ -69,6 +71,10 @@ def run_logic(action, tools_dir, env_path):
     # G. Help Documentation Aggregation
     if action == "get_help_docs":
         return help_engine.aggregate(tools_dir)
+
+    # H. Update Gatekeeper (GitHub Manifest Comparison)
+    if action == "check_updates":
+        return update_engine.check_for_updates()
 
     return jsonify({"status": "error", "message": f"Action '{action}' unrecognized by Settings Hub."}), 400
 

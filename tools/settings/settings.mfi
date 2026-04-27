@@ -67,7 +67,7 @@
                     <div style="flex: 1; min-width: 0;">
                         <div id="taxonomy-instruction-drawer" class="mf-drawer">
                             <div class="mf-drawer-content" id="tax-drawer-content">
-                                <p>The MetaForge Intelli-Tagger operates on a Fixed Taxonomy model designed to solve the "folksonomy" problem — the inconsistent, subjective tagging that dilutes the value of a large music library. <br>By replacing broad, crowd-sourced opinions with a hardened hierarchy, MetaForge ensures your library moves from "Garbage In, Garbage Out" to "Good Classification In, Good Classification Out." This strict taxonomical structure benefits users of music players/systems such as Plex, MusicBee, and Navidrome, which all leverage metadata tags extensively.</p>
+                                <p>The MetaForge Intelli-Tagger operates on a Fixed Taxonomy model designed to solve the "folksonomy" problem—the inconsistent, subjective tagging that dilutes the value of a music library. By replacing broad, crowd-sourced opinions with a hardened hierarchy, MetaForge ensures your library moves from "Garbage In, Garbage Out" to "Good In, Good Out."</p>
 
                                 <h3>Structure: The "Is-A" Hierarchy</h3>
                                 <p>MetaForge utilizes a two-tier "Is-A" model to enforce categorical rigor. Every track is assigned a specific relationship:</p>
@@ -79,14 +79,12 @@
                                 <p>This approach follows the archival standard of moving from General to Specific, ensuring that a search for "Rock" remains relevant while a search for "Hardcore Punk" remains precise.</p>
 
                                 <h3>The Balance of Breadth and Depth</h3>
-                                <p>While the Taxonomy Editor allows you to add custom Genres and Sub-Genres, the system is optimized for a balance of breadth (how many choices are available to the auto-tagger) and depth (how many sub categories are available). Importantly, Intelli-Tagger leverages AI and crowd-sourcing to help "funnel" the tagging choices, providing a consistent tag-set across all of your music files.</p>
+                                <p>While the Taxonomy Editor allows you to add custom Genres and Sub-Genres, the system is optimized for a balance of breadth (how many choices you see) and depth (how many levels you click through).</p>
 
                                 <ul>
                                     <li><strong>The Constraint:</strong> Providing too many options overloads the user; providing too few makes the library difficult to navigate.</li>
                                     <li><strong>The Recommendation:</strong> Users are encouraged to exercise discretion. The goal of MetaForge is to narrow "opinions" into a definitive set of options.</li>
                                 </ul>
-								
-								<p>Currently, adjacent Genres (Rock &amp; Blues) have appropriate Sub Genres to "cover the spread" - for example Eric Clapton could be tagged "Rock\Rock-Blues" while Stevie Ray Vaughan could be tagged "Blues\Blues-Rock" (a sublte but distinct shift), but playlist generators can then ensure that a playlist featuring Clapton would also feature SRV.</p>
 
                                 <h3>User Autonomy</h3>
                                 <p>Intelli-Tagger ships with a "Definitively Paired" default taxonomy leveraging AI-driven consensus. You retain the power to expand this list, but you are cautioned against over-expansion. Judgment is left to the curator to ensure the taxonomy remains a tool for relevance and retrieval, rather than a collection of clutter.</p>
@@ -95,7 +93,7 @@
                                     class="mf-drawer-toggle-btn" 
                                     onclick="metaforge.settings.taxonomy.toggleDrawer()" 
                                     aria-expanded="false" 
-                                    aria-controls="tax-drawer-content" style="color:var(--mf-gold)!important;">Learn more...</button>
+                                    aria-controls="tax-drawer-content">Read more...</button>
                         </div>
                     </div>
                     <button class="mf-button-gold-fixed" onclick="metaforge.settings.taxonomy.save()" style="white-space: nowrap;">Commit taxonomy changes</button>
@@ -119,16 +117,21 @@
             </div>
             <h2 class="data-text api-main-heading" tabindex="-1">Api keys &amp; configuration</h2>
             <div id="api-form-container"></div>
-            <button onclick="metaforge.settings.api.save()" style="margin-bottom:1rem;">Save environment</button>
+            <button onclick="metaforge.settings.api.save()">Save environment</button>
         </div>
 
         <!-- Tab: Check for Updates -->
         <div id="panel-updates" class="settings-panel" style="display:none;">
-            <h2 class="mf-grid-heading" tabindex="-1">Binary dependency audit</h2>
+            <h2 class="mf-grid-heading" tabindex="-1">Check for Updates</h2>
+            <p class="data-text" style="font-size: 0.85rem; margin-bottom: 15px;">
+                Consult the MetaForge Gatekeeper to ensure your workbench and dependencies are current.
+            </p>
+            <button class="mf-button-gold-fixed" onclick="metaforge.settings.updates.run()">Check for Updates</button>
+            
+            <!-- Target container for the Silent State or Announcement Card -->
             <div id="binary-audit-container">
-                <p class="data-text">System scan pending...</p>
+                <p class="tool_notes" style="margin-top: 20px;">System scan pending...</p>
             </div>
-            <button style="margin-top:20px;" onclick="runBinaryAudit()">Re-scan binaries</button>
         </div>
 
         <!-- Tab: Help -->
@@ -142,7 +145,7 @@
 </div>
 
 <style>
-    /* LOCALIZED TOOL STYLES (Build 5.2.12) */
+    /* LOCALIZED TOOL STYLES (Build 5.3.7) */
     .settings-nav-sidebar { font-size: 0.85rem; width: 10rem; border-right: 1px solid var(--mf-gold); padding: 5px; }
     .settings-nav-list { list-style-type: none; padding: 0; }
     .settings-nav-list .nav-tab { cursor: pointer; padding: 6px; color: var(--text-message); font-size: 0.85rem; }
@@ -166,20 +169,15 @@
 	
 	#toolbar-customizer-grid { font-size: 75%; }
 
-    /* --- TAXONOMY DRAWER ENGINE (Refined Build 5.2.12) --- */
+    /* --- TAXONOMY DRAWER ENGINE --- */
     .mf-drawer { display: flex; flex-direction: column; }
-    
     .mf-drawer-content { 
-        max-height: 2rem; /* Collapsed view optimized for approx 3-4 lines at 0.75rem */
+        max-height: 4rem; 
         overflow: hidden; 
         transition: max-height 0.4s ease-in-out; 
         position: relative;
     }
-
-    /* 80% Typography Reduction */
-    .mf-drawer-content p, 
-    .mf-drawer-content li,
-    .mf-drawer-content h3 { 
+    .mf-drawer-content p, .mf-drawer-content li, .mf-drawer-content h3 { 
         font-size: 0.75rem !important; 
         line-height: 1.4; 
         margin-bottom: 8px;
@@ -187,13 +185,8 @@
     }
     .mf-drawer-content h3 { color: var(--mf-gold); margin-top: 12px; font-weight: bold; }
     .mf-drawer-content ul { padding-left: 18px; list-style-type: square; margin-bottom: 8px; }
-    
-    /* Open State */
-    .mf-drawer.open .mf-drawer-content { 
-        max-height: 1200px; /* Allow expansion to full content height */
-    }
+    .mf-drawer.open .mf-drawer-content { max-height: 1200px; }
 
-    /* Expand/Contract Trigger Styling */
     .mf-drawer-toggle-btn {
         align-self: flex-start;
         background: none;
@@ -206,12 +199,10 @@
         margin-top: 2px;
         cursor: pointer;
         display: block;
-        min-height: 24px; /* Ensure touch/click target size */
+        min-height: 24px;
     }
-    .mf-drawer-toggle-btn:hover,
-    .mf-drawer-toggle-btn:focus-visible { color: var(--text-output); outline: none; }
+    .mf-drawer-toggle-btn:hover, .mf-drawer-toggle-btn:focus-visible { color: var(--text-output); outline: none; }
     
-    /* UI Container Primitives */
     .taxonomy-editor-container { 
         margin-top: 10px; 
         background: var(--bg-stage); 

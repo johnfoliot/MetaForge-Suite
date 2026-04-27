@@ -1,4 +1,3 @@
-/* --- START OF FILE updates.json --- */
 {
     "manifest_metadata": {
         "schema_version": "1.0.0",
@@ -14,4 +13,3 @@
         "action_url": "https://github.com/johnfoliot/metaforge-studio"
     }
 }
-/* --- END OF FILE updates.json --- */

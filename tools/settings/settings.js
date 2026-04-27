@@ -1,9 +1,9 @@
 // --- START OF FILE settings.js ---
 /**
- * Settings Tool Hub (V.Core - Build 5.2.7)
+ * Settings Tool Hub (V.Core - Build 5.3.6)
  * Handles Namespace Initialization, Sequential Boot Loading, and Panel Navigation.
  * Adheres to MetaForge Production Directive IV.2 (Hub & Spoke Architecture).
- * Build 5.2.7: Corrected pathing to /js/ subdirectory for Spoke Engines.
+ * Build 5.3.6: Integrated update_engine.js into boot and navigation sequences.
  */
 
 // --- 1. NAMESPACE INITIALIZATION (Immediate) ---
@@ -30,14 +30,14 @@ window.metaforge.settings.boot = async function() {
         "audit_engine.js",
         "help_engine.js",
         "toolbar_engine.js",
-        "taxonomy_engine.js"
+        "taxonomy_engine.js",
+        "update_engine.js" // Added Gatekeeper Spoke
     ];
 
     try {
         for (const engine of engines) {
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                // Target the /js/ subfolder as identified in the file intake
                 script.src = `${toolRoot}/${engine}?v=${new Date().getTime()}`;
                 script.type = 'text/javascript';
                 script.onload = resolve;
@@ -94,7 +94,10 @@ window.showSettingsPanel = async function(panelId, element) {
     // Logic delegation
     if(panelId === 'api-keys' && window.metaforge.settings.api) window.metaforge.settings.api.load();
     if(panelId === 'help' && window.metaforge.settings.help) window.metaforge.settings.help.load();
-    if(panelId === 'updates' && window.metaforge.settings.audit) window.metaforge.settings.audit.run();
+    
+    // Updated: Redirected from audit_engine to update_engine
+    if(panelId === 'updates' && window.metaforge.settings.updates) window.metaforge.settings.updates.run();
+    
     if(panelId === 'personalization') {
         const activeSub = document.querySelector('.sub-nav-btn.active');
         if (activeSub) {

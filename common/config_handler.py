@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Global Configuration
 # File Location: \MetaForge Suite\common\config_handler.py
-# Build 5.3.1: Added DIST_DIR for update manifest isolation.
+# Build 5.3.2: Realigned update manifest to \deploy\ directory.
 # ======================================================================
 import os
 import sys
@@ -19,7 +19,7 @@ HTML_DIR = UI_ROOT / "html"
 TOOLS_DIR = PROJECT_ROOT / "tools"
 BIN_DIR = PROJECT_ROOT / "bin"
 DATA_DIR = PROJECT_ROOT / "data"
-DIST_DIR = PROJECT_ROOT / "dist"  # Distribution and Update metadata
+DEPLOY_DIR = PROJECT_ROOT / "deploy" # Deployment and Update metadata
 
 # --- THE USER SANDBOX (IDENTITY & STATE) ---
 APPDATA_MF = Path(os.environ.get('APPDATA')) / "MetaForge"
@@ -28,7 +28,8 @@ DB_PATH = APPDATA_MF / "metaforge.db"
 ENV_PATH = APPDATA_MF / ".env"
 
 # --- SYSTEM FILES ---
-UPDATE_MANIFEST = DIST_DIR / "updates.json"
+# This is the specific attribute required by update_engine.py
+UPDATE_MANIFEST = DEPLOY_DIR / "updates.json"
 
 # --- LOAD SECRETS ---
 if ENV_PATH.exists():
@@ -50,7 +51,7 @@ def check_system():
     """Diagnostic check for the MetaForge Suite."""
     print("--- MetaForge Suite: System Check ---")
     print(f"   Root: {PROJECT_ROOT}")
-    print(f"   Dist: {DIST_DIR}")
+    print(f"   Deploy: {DEPLOY_DIR}")
     print(f"   Database: {'✅ Found' if DB_PATH.exists() else '❌ Missing'}")
     print(f"   Updates:  {'✅ Found' if UPDATE_MANIFEST.exists() else '⚠️ Missing'}")
 
