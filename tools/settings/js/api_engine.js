@@ -1,7 +1,8 @@
-// --- SETTINGS MINI-ENGINE: api_engine.js ---
+// --- START OF FILE api_engine.js ---
 /**
- * Standalone API & Config Manager. Build 5.2.2
+ * Standalone API & Config Manager. Build 5.2.3
  * Handles environmental variable auditing, editing, and persistence.
+ * Build 5.2.3: Refactored for high-density tabular layout and high-contrast inputs.
  */
 
 window.metaforge.settings.api = {
@@ -25,26 +26,42 @@ window.metaforge.settings.api = {
 
     /**
      * Renders a dense table of configuration inputs.
+     * Matches the Architect's "Desired" UI reference.
      */
     render: function(data) {
         const container = document.getElementById('api-form-container');
         
-        let html = '<table class="meta-table" style="width:100%;"><tbody>';
+        let html = `
+            <table class="meta-table" style="border-spacing: 0 10px; border-collapse: separate; margin-bottom: 20px;">
+                <tbody>`;
         
-        for (const [key, value] of Object.entries(data)) {
+        // Sort keys alphabetically for a cleaner UI
+        const sortedKeys = Object.keys(data).sort();
+
+        for (const key of sortedKeys) {
+            const value = data[key];
             html += `
-                <tr style="border-bottom: 1px solid var(--bg-main);">
-                    <td style="padding:8px; color:var(--mf-gold); font-size:0.75rem; font-weight:bold; width:30%;">
-                        ${key}
+                <tr>
+                    <td style="padding-right: 20px; vertical-align: middle;">
+                        <span class="data-text" style="color: var(--mf-gold); font-size: 0.75rem; font-weight: bold; font-family: var(--font-mono); white-space: nowrap;">
+                            ${key}
+                        </span>
                     </td>
-                    <td style="padding:8px;">
-                        <label class="visually-hidden" for="env-${key}">Value for ${key}</label>
+                    <td style="vertical-align: middle;">
                         <input type="text" 
                                id="env-${key}" 
                                class="mf-input env-input" 
                                data-key="${key}" 
                                value="${value}" 
-                               style="width:100%; margin-top:0;">
+                               spellcheck="false"
+                               style="width: 450px; 
+                                      background-color: #ffffff !important; 
+                                      color: #000000 !important; 
+                                      border: 1px solid #444; 
+                                      padding: 4px 8px; 
+                                      font-family: var(--font-mono); 
+                                      font-size: 0.8rem;
+                                      margin-top: 0;">
                     </td>
                 </tr>`;
         }

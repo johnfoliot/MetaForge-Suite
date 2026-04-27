@@ -119,7 +119,7 @@
             </div>
             <h2 class="data-text api-main-heading" tabindex="-1">Api keys &amp; configuration</h2>
             <div id="api-form-container"></div>
-            <button onclick="metaforge.settings.api.save()">Save environment</button>
+            <button onclick="metaforge.settings.api.save()" style="margin-bottom:1rem;">Save environment</button>
         </div>
 
         <!-- Tab: Check for Updates -->
