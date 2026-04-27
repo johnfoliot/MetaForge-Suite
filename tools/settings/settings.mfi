@@ -34,9 +34,9 @@
         <!-- Tab: Personalization -->
         <div id="panel-personalization" class="settings-panel">
             <div class="sub-nav-container">
-                <button id="sub-nav-theme" class="sub-nav-btn active" onclick="showSubPanel('theme', this)">Theme switcher</button>
+                <button id="sub-nav-theme" class="sub-nav-btn active" onclick="showSubPanel('theme', this)" >Theme switcher</button>
                 <button id="sub-nav-toolbar" class="sub-nav-btn" onclick="showSubPanel('toolbar', this)">Toolbar customization</button>
-                <button id="sub-nav-taxonomy" class="sub-nav-btn" onclick="showSubPanel('taxonomy', this)">Modify taxonomy</button>
+                <button id="sub-nav-taxonomy" class="sub-nav-btn" onclick="showSubPanel('taxonomy', this)" >Modify taxonomy</button>
             </div>
 
             <!-- Sub-Pane: Theme Discovery -->
@@ -45,7 +45,7 @@
                 <div id="theme-selector-grid" class="mf-selection-grid">
                     <p class="tool_notes">Searching for theme fragments...</p>
                 </div>
-                <button onclick="saveThemePreference()">Commit theme selection</button>
+                <button onclick="metaforge.settings.themes.save()">Commit theme selection</button>
             </div>
 
             <!-- Sub-Pane: Toolbar Layout -->
@@ -54,7 +54,7 @@
                 <div id="toolbar-customizer-grid">
                     <p class="tool_notes">Loading tool manifests...</p>
                 </div>
-                <button onclick="saveToolbarLayout()" style="margin-top:1rem;">Update toolbar</button>
+                <button onclick="metaforge.settings.toolbar.save()" style="margin-top:1rem;">Update toolbar</button>
             </div>
 
             <!-- Sub-Pane: Taxonomy Manager -->
@@ -78,7 +78,7 @@
             </div>
             <h2 class="data-text api-main-heading" tabindex="-1">Api keys &amp; configuration</h2>
             <div id="api-form-container"></div>
-            <button onclick="saveSettings()">Save environment</button>
+            <button onclick="metaforge.settings.api.save()">Save environment</button>
         </div>
 
         <!-- Tab: Check for Updates -->
@@ -90,7 +90,7 @@
             <button style="margin-top:20px;" onclick="runBinaryAudit()">Re-scan binaries</button>
         </div>
 
-        <!-- Tab: Help Docs -->
+        <!-- Tab: Help -->
         <div id="panel-help" class="settings-panel" style="display:none;">
             <h2 class="mf-grid-heading" tabindex="-1">MetaForge documentation</h2>
             <div id="help-aggregator"></div>
@@ -101,18 +101,33 @@
 </div>
 
 <style>
-    /* LOCALIZED TOOL STYLES (Build 5.1.5) */
+    /* LOCALIZED TOOL STYLES (Build 5.1.4) */
+    /* Only tool-specific layout remains here. All shared component styles moved to layout.css */
     
-    /* 1. SIDEBAR & NAVIGATION */
     .settings-nav-sidebar { font-size: 0.85rem; width: 10rem; border-right: 1px solid var(--mf-gold); padding: 5px; }
     .settings-nav-list { list-style-type: none; padding: 0; }
     .settings-nav-list .nav-tab { cursor: pointer; padding: 6px; color: var(--text-message); font-size: 0.85rem; }
     .settings-nav-list .nav-tab.active { color: var(--mf-gold); font-weight: bold; }
     .settings-viewport-container { flex: 1; padding: 0 10px; }
     
+    .sub-nav-container { display: flex; gap: 2px; margin-bottom: 15px; border-bottom: 1px solid var(--bg-accent); }
+    
+    /* Specific overrides for sub-tabs to prevent clipping */
+    .sub-nav-btn {
+        background: var(--bg-main);
+        border: 1px solid var(--bg-accent);
+        border-bottom: none;
+        border-radius: 4px 4px 0 0;
+        color: var(--text-message);
+        font-size: 0.75rem;
+        padding: 6px 12px;
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .sub-nav-btn.active { background: var(--bg-stage); border-color: var(--bg-accent); color: var(--mf-gold); position: relative; z-index: 5; }
+	
 	#toolbar-customizer-grid { font-size: 75%; }
     
-    /* 2. TAXONOMY EDITOR (LOCALIZED) */
     .taxonomy-editor-container { 
         margin-top: 10px; 
         background: var(--bg-stage); 
@@ -140,12 +155,9 @@
 	
     .sub-genre-input { color: var(--mf-gold) !important; font-weight: bold; }
 
-    /* 3. API HELP PANEL */
     .api-help-aside { float: right; padding: 1rem; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; }
     .api-help-list { list-style-type: none; font-size: 0.8rem; margin-top: 10px; line-height: 1.4; }
     .api-help-list a { color: var(--mf-gold); }
     .api-main-heading { margin-bottom: 10px; font-size: 1.1rem; color: var(--mf-gold); }
-    
-    #save-status { margin-top: 10px; font-weight: bold; font-size: 0.75rem; min-height: 1.2em; }
 </style>
 <!-- --- SETTINGS TOOL UI END --- -->
