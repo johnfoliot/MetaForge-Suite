@@ -1,3 +1,4 @@
+<!-- --- START OF FILE settings.mfi --- -->
 <!-- --- SETTINGS TOOL UI --- -->
 <h1 class="main" tabindex="-1">Settings</h1>
 
@@ -60,6 +61,46 @@
             <!-- Sub-Pane: Taxonomy Manager -->
             <div id="sub-panel-taxonomy" class="personalization-sub-panel" style="display:none;">
                 <h2 class="mf-grid-heading" tabindex="-1">Taxonomy manager</h2>
+                
+                <!-- Global Taxonomy Controls -->
+                <div class="taxonomy-header-block" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 20px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div id="taxonomy-instruction-drawer" class="mf-drawer">
+                            <div class="mf-drawer-content" id="tax-drawer-content">
+                                <p>The MetaForge Intelli-Tagger operates on a Fixed Taxonomy model designed to solve the "folksonomy" problem — the inconsistent, subjective tagging that dilutes the value of a large music library. <br>By replacing broad, crowd-sourced opinions with a hardened hierarchy, MetaForge ensures your library moves from "Garbage In, Garbage Out" to "Good Classification In, Good Classification Out." This strict taxonomical structure benefits users of music players/systems such as Plex, MusicBee, and Navidrome, which all leverage metadata tags extensively.</p>
+
+                                <h3>Structure: The "Is-A" Hierarchy</h3>
+                                <p>MetaForge utilizes a two-tier "Is-A" model to enforce categorical rigor. Every track is assigned a specific relationship:</p>
+                                <ul>
+                                    <li><strong>Genre (The Parent):</strong> A broad, vertical domain (e.g., Blues).</li>
+                                    <li><strong>Sub-Genre (The Instance):</strong> A specific realization of that domain (e.g., Chicago Blues).</li>
+                                </ul>
+
+                                <p>This approach follows the archival standard of moving from General to Specific, ensuring that a search for "Rock" remains relevant while a search for "Hardcore Punk" remains precise.</p>
+
+                                <h3>The Balance of Breadth and Depth</h3>
+                                <p>While the Taxonomy Editor allows you to add custom Genres and Sub-Genres, the system is optimized for a balance of breadth (how many choices are available to the auto-tagger) and depth (how many sub categories are available). Importantly, Intelli-Tagger leverages AI and crowd-sourcing to help "funnel" the tagging choices, providing a consistent tag-set across all of your music files.</p>
+
+                                <ul>
+                                    <li><strong>The Constraint:</strong> Providing too many options overloads the user; providing too few makes the library difficult to navigate.</li>
+                                    <li><strong>The Recommendation:</strong> Users are encouraged to exercise discretion. The goal of MetaForge is to narrow "opinions" into a definitive set of options.</li>
+                                </ul>
+								
+								<p>Currently, adjacent Genres (Rock &amp; Blues) have appropriate Sub Genres to "cover the spread" - for example Eric Clapton could be tagged "Rock\Rock-Blues" while Stevie Ray Vaughan could be tagged "Blues\Blues-Rock" (a sublte but distinct shift), but playlist generators can then ensure that a playlist featuring Clapton would also feature SRV.</p>
+
+                                <h3>User Autonomy</h3>
+                                <p>Intelli-Tagger ships with a "Definitively Paired" default taxonomy leveraging AI-driven consensus. You retain the power to expand this list, but you are cautioned against over-expansion. Judgment is left to the curator to ensure the taxonomy remains a tool for relevance and retrieval, rather than a collection of clutter.</p>
+                            </div>
+                            <button id="tax-drawer-toggle" 
+                                    class="mf-drawer-toggle-btn" 
+                                    onclick="metaforge.settings.taxonomy.toggleDrawer()" 
+                                    aria-expanded="false" 
+                                    aria-controls="tax-drawer-content" style="color:var(--mf-gold)!important;">Learn more...</button>
+                        </div>
+                    </div>
+                    <button class="mf-button-gold-fixed" onclick="metaforge.settings.taxonomy.save()" style="white-space: nowrap;">Commit taxonomy changes</button>
+                </div>
+
                 <div id="taxonomy-manager-container" class="taxonomy-editor-container">
                     <p class="tool_notes">Initializing taxonomy matrix...</p>
                 </div>
@@ -101,9 +142,7 @@
 </div>
 
 <style>
-    /* LOCALIZED TOOL STYLES (Build 5.1.4) */
-    /* Only tool-specific layout remains here. All shared component styles moved to layout.css */
-    
+    /* LOCALIZED TOOL STYLES (Build 5.2.12) */
     .settings-nav-sidebar { font-size: 0.85rem; width: 10rem; border-right: 1px solid var(--mf-gold); padding: 5px; }
     .settings-nav-list { list-style-type: none; padding: 0; }
     .settings-nav-list .nav-tab { cursor: pointer; padding: 6px; color: var(--text-message); font-size: 0.85rem; }
@@ -112,7 +151,6 @@
     
     .sub-nav-container { display: flex; gap: 2px; margin-bottom: 15px; border-bottom: 1px solid var(--bg-accent); }
     
-    /* Specific overrides for sub-tabs to prevent clipping */
     .sub-nav-btn {
         background: var(--bg-main);
         border: 1px solid var(--bg-accent);
@@ -127,7 +165,53 @@
     .sub-nav-btn.active { background: var(--bg-stage); border-color: var(--bg-accent); color: var(--mf-gold); position: relative; z-index: 5; }
 	
 	#toolbar-customizer-grid { font-size: 75%; }
+
+    /* --- TAXONOMY DRAWER ENGINE (Refined Build 5.2.12) --- */
+    .mf-drawer { display: flex; flex-direction: column; }
     
+    .mf-drawer-content { 
+        max-height: 2rem; /* Collapsed view optimized for approx 3-4 lines at 0.75rem */
+        overflow: hidden; 
+        transition: max-height 0.4s ease-in-out; 
+        position: relative;
+    }
+
+    /* 80% Typography Reduction */
+    .mf-drawer-content p, 
+    .mf-drawer-content li,
+    .mf-drawer-content h3 { 
+        font-size: 0.75rem !important; 
+        line-height: 1.4; 
+        margin-bottom: 8px;
+        color: var(--text-message);
+    }
+    .mf-drawer-content h3 { color: var(--mf-gold); margin-top: 12px; font-weight: bold; }
+    .mf-drawer-content ul { padding-left: 18px; list-style-type: square; margin-bottom: 8px; }
+    
+    /* Open State */
+    .mf-drawer.open .mf-drawer-content { 
+        max-height: 1200px; /* Allow expansion to full content height */
+    }
+
+    /* Expand/Contract Trigger Styling */
+    .mf-drawer-toggle-btn {
+        align-self: flex-start;
+        background: none;
+        border: none;
+        color: var(--mf-gold);
+        font-family: var(--font-mono);
+        font-size: 0.7rem;
+        text-decoration: underline;
+        padding: 4px 0;
+        margin-top: 2px;
+        cursor: pointer;
+        display: block;
+        min-height: 24px; /* Ensure touch/click target size */
+    }
+    .mf-drawer-toggle-btn:hover,
+    .mf-drawer-toggle-btn:focus-visible { color: var(--text-output); outline: none; }
+    
+    /* UI Container Primitives */
     .taxonomy-editor-container { 
         margin-top: 10px; 
         background: var(--bg-stage); 
@@ -161,3 +245,4 @@
     .api-main-heading { margin-bottom: 10px; font-size: 1.1rem; color: var(--mf-gold); }
 </style>
 <!-- --- SETTINGS TOOL UI END --- -->
+<!-- --- END OF FILE settings.mfi --- -->

@@ -1,7 +1,8 @@
-// --- SETTINGS MINI-ENGINE: taxonomy_engine.js ---
+// --- START OF FILE taxonomy_engine.js ---
 /**
- * Standalone Taxonomy Manager. Build 5.2.2
- * Handles UI rendering and state for Genre/Sub-Genre management.
+ * Standalone Taxonomy Manager. Build 5.2.5
+ * Handles UI rendering, state for Genre/Sub-Genre management, and Drawer logic.
+ * Build 5.2.5: Integrated toggleDrawer logic for instructional text expansion.
  */
 
 window.metaforge.settings.taxonomy = {
@@ -18,7 +19,7 @@ window.metaforge.settings.taxonomy = {
             const res = await fetch('/run_tool_logic/settings/get_taxonomy');
             const data = await res.json();
             
-            // Store data in the Hub's global state object
+            // Directive IV.3: Store data in the Hub's global state object
             window.metaforge.settings.state.taxonomy = data;
             this.render();
         } catch (e) {
@@ -33,7 +34,7 @@ window.metaforge.settings.taxonomy = {
         const container = document.getElementById('taxonomy-manager-container');
         if(!container) return;
 
-        const data = window.metaforge.settings.state.taxonomy;
+        const data = window.metaforge.settings.state.taxonomy || {};
         const activeParent = window.metaforge.settings.state.activeParentGenre;
         const parents = Object.keys(data).sort();
         
@@ -76,7 +77,7 @@ window.metaforge.settings.taxonomy = {
      */
     renderSubControls: function() {
         const activeParent = window.metaforge.settings.state.activeParentGenre;
-        const data = window.metaforge.settings.state.taxonomy;
+        const data = window.metaforge.settings.state.taxonomy || {};
         
         if (!activeParent) return '<p class="tool_notes">Select a genre to manage its sub-taxonomies.</p>';
         const subs = data[activeParent] || [];
@@ -99,9 +100,21 @@ window.metaforge.settings.taxonomy = {
             </div>
             <div style="margin-top:30px; display:flex; gap:10px; align-items:center;">
                 <button class="mf-btn-danger" onclick="metaforge.settings.taxonomy.removeParent()">Delete category</button>
-                <button class="mf-button-gold-fixed" style="margin-top:0;" onclick="metaforge.settings.taxonomy.save()">Commit taxonomy changes</button>
             </div>
         `;
+    },
+
+    /**
+     * UI Logic: Toggles the instructional text drawer expansion.
+     */
+    toggleDrawer: function() {
+        const drawer = document.getElementById('taxonomy-instruction-drawer');
+        const btn = document.getElementById('tax-drawer-toggle');
+        if (!drawer || !btn) return;
+
+        const isOpen = drawer.classList.toggle('open');
+        btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        btn.innerText = isOpen ? 'Read less...' : 'Read more...';
     },
 
     // --- LOGIC ACTIONS ---
@@ -109,7 +122,7 @@ window.metaforge.settings.taxonomy = {
     selectParent: function(p) { 
         window.metaforge.settings.state.activeParentGenre = p; 
         this.render(); 
-        // 10ms focus guard for keyboard navigation
+        // Directive II.3: 10ms focus guard for keyboard navigation
         setTimeout(() => { 
             const activeItem = document.querySelector('.taxonomy-item.active'); 
             if (activeItem) activeItem.focus(); 
@@ -117,17 +130,21 @@ window.metaforge.settings.taxonomy = {
     },
 
     addParent: function() {
-        const n = document.getElementById('new-parent-name').value.trim();
+        const input = document.getElementById('new-parent-name');
+        const n = input.value.trim();
         if (n && !window.metaforge.settings.state.taxonomy[n]) {
-            window.metaforge.settings.state.taxonomy[n] = [n];
+            window.metaforge.settings.state.taxonomy[n] = [];
             window.metaforge.settings.state.activeParentGenre = n;
+            input.value = '';
             this.render();
         }
     },
 
     removeParent: function() {
         const p = window.metaforge.settings.state.activeParentGenre;
-        if (confirm(`Delete entire '${p}' category?`)) {
+        if (!p) return;
+        
+        if (confirm(`Delete entire '${p}' category and all its sub-genres?`)) {
             delete window.metaforge.settings.state.taxonomy[p];
             window.metaforge.settings.state.activeParentGenre = null;
             this.render();
@@ -135,22 +152,26 @@ window.metaforge.settings.taxonomy = {
     },
 
     addSub: function() {
-        const n = document.getElementById('new-sub-name').value.trim();
+        const input = document.getElementById('new-sub-name');
+        const n = input.value.trim();
         const p = window.metaforge.settings.state.activeParentGenre;
         if (n && p) {
             window.metaforge.settings.state.taxonomy[p].push(n);
+            input.value = '';
             this.render();
         }
     },
 
     updateSub: function(idx, val) {
         const p = window.metaforge.settings.state.activeParentGenre;
-        if (p) window.metaforge.settings.state.taxonomy[p][idx] = val.trim();
+        if (p) {
+            window.metaforge.settings.state.taxonomy[p][idx] = val.trim();
+        }
     },
 
     removeSub: function(idx) {
         const p = window.metaforge.settings.state.activeParentGenre;
-        if (p) {
+        if (p && window.metaforge.settings.state.taxonomy[p]) {
             window.metaforge.settings.state.taxonomy[p].splice(idx, 1);
             this.render();
         }
@@ -158,6 +179,8 @@ window.metaforge.settings.taxonomy = {
 
     save: async function() {
         const status = document.getElementById('save-status');
+        if (!status) return;
+
         status.innerHTML = "<span class='data-text'>Committing taxonomy changes...</span>";
         try {
             const res = await fetch('/run_tool_logic/settings/save_taxonomy', {
@@ -170,8 +193,11 @@ window.metaforge.settings.taxonomy = {
                 status.innerHTML = "<span style='color:var(--status-success);'>✓ Taxonomy matrix physically committed.</span>";
                 setTimeout(() => { status.innerHTML = ""; }, 4000);
             }
-        } catch (e) { status.innerHTML = "<span style='color:var(--status-error);'>Commit error.</span>"; }
+        } catch (e) { 
+            status.innerHTML = "<span style='color:var(--status-error);'>Commit error.</span>"; 
+        }
     }
 };
 
-// --- SETTINGS MINI-ENGINE: taxonomy_engine.js END ---
+// --- SETTINGS TAXONOMY ENGINE END ---
+// --- END OF FILE taxonomy_engine.js ---
