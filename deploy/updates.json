@@ -1,0 +1,17 @@
+/* --- START OF FILE updates.json --- */
+{
+    "manifest_metadata": {
+        "schema_version": "1.0.0",
+        "last_checked": "2026-01-01T00:00:00Z",
+        "installed_version": "1.0.0"
+    },
+    "announcements": {
+        "message_id": "MF-2026-000",
+        "priority": "required",
+        "is_dismissed": false,
+        "title": "System Initialized",
+        "body_text": "MetaForge is ready for archival operations.",
+        "action_url": "https://github.com/johnfoliot/metaforge-studio"
+    }
+}
+/* --- END OF FILE updates.json --- */
