@@ -1,0 +1,415 @@
+<!-- --- START OF FILE unpack_convert.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Unpack & Convert
+     Build 7.8.8: Optimized Mask-based Iconography for Theme Sync.
+     Accessibility: WCAG 2.2 AA | COGA 4.8.4
+     ====================================================================== -->
+<style>
+    /* --- WORKBENCH LAYOUT (Strict 50/50 High-Density) --- */
+    .unpacker-stage-wrapper {
+        display: flex;
+        width: 100%;
+        gap: 15px;
+        align-items: stretch;
+        max-height: 72vh;
+    }
+
+    .unpacker-interview-side {
+        flex: 0 0 calc(50% - 7.5px);
+        display: flex;
+        flex-direction: column;
+        box-sizing: border-box;
+    }
+
+    .unpacker-interview-side fieldset:disabled {
+        border: none;
+        margin: 0;
+        padding: 0;
+        opacity: 1; 
+    }
+
+    .unpacker-console-side {
+        flex: 0 0 calc(50% - 7.5px);
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-stage);
+        border: 3px solid var(--bg-accent);
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    /* --- CONDENSED INTERVIEW FORM --- */
+    .unpacker-interview-grid {
+        background: var(--bg-main);
+        padding: 15px; 
+        border: 3px solid var(--bg-accent);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: 100%;
+    }
+
+    .interview-group { display: flex; flex-direction: column; gap: 2px; }
+    .interview-group label {
+        color: var(--mf-gold);
+        font-size: 0.7rem;
+        font-weight: bold;
+        letter-spacing: 0.5px;
+    }
+
+    .mf-hint {
+        font-size: 0.6rem;
+        color: var(--text-message);
+        font-style: italic;
+        margin-top: 2px;
+        line-height: 1.2;
+    }
+
+    /* --- PERSISTENT PROGRESS ENGINE (Sticky) --- */
+    #upk-progress-container {
+        background: var(--bg-stage);
+        height: 20px;
+        border-bottom: 2px solid var(--bg-accent);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        flex-shrink: 0;
+        margin-bottom: 25px;
+    }
+
+    .progress-fill {
+        background: var(--mf-gold);
+        height: 100%;
+        width: 0%;
+        transition: width 0.4s ease;
+    }
+
+    .progress-text {
+        position: absolute;
+        width: 100%;
+        text-align: center;
+        line-height: 30px;
+        font-size: 0.7rem;
+        font-weight: bold;
+        color: var(--text-output);
+        mix-blend-mode: difference;
+    }
+
+    /* --- CONSOLE LOG --- */
+    .unpacker-console {
+        color: var(--text-output);
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        padding: 0 15px 15px 15px;
+        overflow-y: auto;
+        flex: 1;
+        line-height: 1.4;
+    }
+
+    /* --- ART GALLERY ARCHITECTURE --- */
+    .art-selection-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-top: 10px;
+    }
+
+    .art-card {
+        background: var(--bg-main);
+        border: 2px solid var(--bg-accent);
+        padding: 6px;
+        cursor: pointer;
+        transition: border-color 0.1s ease;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+    }
+
+    .art-card:hover, .art-card:focus-within {
+        border-color: var(--mf-gold);
+    }
+
+    .art-card.selected {
+        border-color: var(--mf-gold);
+        background: rgba(204, 153, 0, 0.1);
+    }
+
+    .art-preview {
+        width: 100%;
+        aspect-ratio: 1/1;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        border: 1px solid #000;
+    }
+
+    .art-meta {
+        font-size: 0.55rem;
+        color: var(--text-message);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .art-selector-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+        border-top: 1px solid var(--bg-accent);
+        padding-top: 4px;
+    }
+
+    .art-radio {
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        border: 1px solid var(--mf-gold);
+        border-radius: 50%;
+        cursor: pointer;
+        display: grid;
+        place-content: center;
+    }
+
+    .art-radio:checked::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--mf-gold);
+    }
+
+    /* --- CHECKBOX ARCHITECTURE --- */
+    .consent-box {
+        padding: 12px;
+        background: var(--bg-accent);
+        border: 1px solid var(--bg-accent);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .consent-row { display: flex; align-items: flex-start; gap: 12px; }
+
+    .silo-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 16px !important;
+        height: 16px !important;
+        min-width: 16px !important;
+        min-height: 16px !important;
+        flex-shrink: 0 !important;
+        background-color: var(--bg-main);
+        border: 1px solid var(--mf-gold);
+        border-radius: 2px;
+        cursor: pointer;
+        position: relative;
+        margin: 0;
+        display: grid; place-content: center;
+    }
+
+    .silo-checkbox:checked { background-color: var(--mf-gold); }
+    .silo-checkbox::before {
+        content: ""; width: 8px; height: 8px; transform: scale(0);
+        transition: 100ms transform ease-in-out; background-color: var(--bg-main);
+        clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    }
+    .silo-checkbox:checked::before { transform: scale(1); }
+
+    .consent-row label {
+        color: var(--text-message);
+        font-size: 0.65rem;
+        cursor: pointer;
+        line-height: 1.3;
+        margin-top: -2px;
+    }
+
+    /* Visual Indicators */
+    .unpacker-console .status-api { 
+        color: var(--mf-gold); 
+        font-weight: bold; 
+        display: block; 
+        border-bottom: 1px solid var(--bg-accent); 
+        margin-bottom: 5px; 
+        padding-bottom: 2px; 
+    }
+    .unpacker-console .status-success { color: var(--status-success); }
+    .unpacker-console .status-error { 
+        color: var(--status-error); 
+        font-weight: bold; 
+        margin: 8px 0; 
+        padding: 4px; 
+        border-left: 3px solid var(--status-error); 
+        background: var(--bg-main); 
+    }
+
+    /* --- ICON THEME SYNC ENGINE (NEW) --- */
+    .ebu-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--mf-gold);
+        text-decoration: underline;
+        font-weight: bold;
+    }
+    .ebu-link:hover, .ebu-link:focus-visible {
+        color: var(--text-output);
+    }
+    
+    .mf-ext-icon-mask {
+        width: 10px;
+        height: 10px;
+        background-color: currentColor; /* Inherits var(--mf-gold) from .ebu-link */
+        -webkit-mask-image: url('/ui/images/external_link.svg');
+        mask-image: url('/ui/images/external_link.svg');
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        mask-repeat: no-repeat;
+        display: inline-block;
+    }
+
+    /* Button State Overrides */
+    #upk-start-btn:disabled {
+        background-color: var(--bg-accent) !important; 
+        color: var(--text-message) !important; 
+        border-color: var(--bg-main) !important; 
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+	
+	    .mb-input-text {
+        background: var(--input-background2);
+        border: 1px solid #444;
+        color: var(--input-foreground);
+        padding: 6px;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        width: 100%;
+    }
+</style>
+
+<h1 id="unpack-header" class="main" tabindex="-1">Unpack &amp; Convert</h1>
+
+<section class="unpack_convert-description" aria-labelledby="unpack_convert-info-label">
+    <h2 id="unpack_convert-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+		<p class="data-text tool_notes">Unpack &amp; Convert unboxes .cue, .wv, .zip, and .rar files, and converts them to the high-quality .mp3 VBR (V0) format.<br>It then applies an intelligent 'clean-up', leaving your album folders in pristine shape and ready for continued tagging.</p>
+        <button class="mf-button-gold-fixed" 
+                style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
+                onclick="metaforge.unpack_convert.openHelp()" 
+                aria-label="Open Unpack &amp; Convert help documentation">
+            Help
+        </button>
+    </div>
+</section>
+
+<div class="active_stage">
+    <div class="unpacker-stage-wrapper">
+        
+        <!-- LEFT: THE INTERVIEW -->
+        <div class="unpacker-interview-side">
+            <form id="unpacker-interview-form" oninput="if(window.metaforge.unpack_convert) metaforge.unpack_convert.validate()">
+                <fieldset id="upk-fieldset" style="border:none; padding:0; margin:0;">
+                <div class="unpacker-interview-grid">
+				
+					<div class="interview-group">
+                        <label for="upk-path">Source Directory</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="upk-path" class="mb-input-text" style="color:var(--input-foreground2)" readonly style="flex:1;" placeholder="Select album folder...">
+                            <button type="button" class="mf-button-gold-fixed" onclick="metaforge.unpack_convert.pickFolder()">Browse</button>
+						</div>
+                    </div>
+
+                    <div class="interview-group">
+                        <label for="upk-artist">Filing Artist (Required)</label>
+                        <input type="text" id="upk-artist" class="mb-input-text" style="color:var(--input-foreground2)" placeholder="e.g. Pink Floyd" required>
+                    </div>
+
+                    <div class="interview-group">
+                        <label for="upk-album">Album Title (Required)</label>
+                        <input type="text" id="upk-album" class="mb-input-text" style="color:var(--input-foreground2)" placeholder="e.g. The Dark Side Of the Moon" required>
+                    </div>
+
+                    <div id="enhanced-section" class="interview-group" style="display: none;">
+                        <label for="upk-category">Filing Category (Required)</label>
+                        <select id="upk-category" class="mb-input-text" style="color:var(--input-foreground2)">
+                            <option value="">-- Loading Categories --</option>
+                        </select>
+                    </div>
+
+                    <div class="consent-box" style="background: rgba(204, 153, 0, 0.05); border: 1px solid var(--mf-gold);">
+                        <div id="processing-details" class="interview-group">
+                            <label for="processing-details" style="margin-bottom:5px;">Processing Details</label>
+                            <div class="consent-row">
+                                <input type="checkbox" id="upk-norm" class="silo-checkbox">
+                                <label for="upk-norm">
+                                    <strong>Apply Loudness Normalization</strong>
+                                    <span style="font-size:80%">
+                                        (<a href="https://tech.ebu.ch/loudness" target="_new" class="ebu-link" aria-label="Learn more about EBU R 128 loudness normalization (opens in a new window)">
+                                            EBU R128 <span class="mf-ext-icon-mask"></span></a>)
+                                        
+                                    </span>
+                                    <br>
+                                    <span class="mf-hint">⚠️ Increases conversion time. Recommended for mixed sources.</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="consent-box" id="upk-consent-gate">
+                        <div class="consent-row">
+                            <input type="checkbox" id="upk-consent" class="silo-checkbox" required>
+                            <label for="upk-consent">
+                                <strong>Consent:</strong> I acknowledge that MetaForge will convert audio, rename files, and <span style="color:var(--status-error); font-weight:bold;">DELETE</span> original archives and legacy metadata.
+                            </label>
+                        </div>
+                        <div class="consent-row">
+                            <input type="checkbox" id="upk-remember" class="silo-checkbox">
+                            <label for="upk-remember">Remember this decision.</label>
+                        </div>
+                    </div>
+
+                    <div style="text-align: right; border-top: 1px solid var(--bg-accent); padding-top: 10px; margin-top: auto;">
+                        <button type="button" id="upk-start-btn" class="mf-button-gold-fixed" onclick="metaforge.unpack_convert.run()" disabled>
+                            Unpack / Convert
+                        </button>
+                    </div>
+                </div>
+                </fieldset>
+            </form>
+        </div>
+
+        <!-- RIGHT: THE OUTPUT WORKFLOW -->
+        <div class="unpacker-console-side">
+            <div id="upk-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+                <div id="upk-progress-fill" class="progress-fill"></div>
+                <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem;">Standing By</h2>
+			</div>
+            <div id="unpacker-console" class="unpacker-console" aria-live="polite">
+                <div class="data-text">Provide album details and select a source directory to begin.</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- FLOATING HELP PANEL -->
+<div id="upk-help-panel" class="mf-help-panel" role="dialog" aria-labelledby="upk-panel-title" style="display: none;">
+    <div class="mf-panel-header">
+        <h2 id="upk-panel-title">Help: Unpack &amp; Convert</h2>
+        <button class="mf-panel-close" onclick="metaforge.unpack_convert.closeHelp()" aria-label="Close help panel">×</button>
+    </div>
+    <div id="upk-help-body" class="mf-panel-body"></div>
+</div>
+
+<script>
+    (function fragmentAwakener() {
+        if (window.metaforge?.unpack_convert?.init) { 
+            window.metaforge.unpack_convert.init(); 
+        } else { 
+            setTimeout(fragmentAwakener, 50); 
+        }
+    })();
+</script>
+<!-- --- END OF FILE unpack_convert.mfi --- -->

@@ -1,0 +1,32 @@
+<!-- --- START OF FILE help.mfi --- -->
+<!-- --- AUDIO REPAIR HELP DOCUMENTATION --- -->
+<div class="help-content-silo">
+<h3 class="help first">What it does:</h3>
+<p class="help">The Audio Repair tool restores .mp3 files that have become corrupted — a common issue during file transfers or downloads.</p> 
+
+<div class="tool_notes" style="margin-top: 20px; padding: 12px; border-left: 4px solid var(--mf-gold);">
+        <h3 class="help">How to use this tool:</h3> 
+		
+<p>The repair process is driven by two primary <i>log files</i> located in the <code>/data/repair/</code> directory:</p>
+        <ol style="margin-left:1.2rem; font-size: 0.75rem; line-height: 1.5;">
+            <li><strong>remediation_queue.log:</strong> The input list. Files flagged as corrupted are staged here for bitstream surgery.</li>
+            <li><strong>repaired.log:</strong> The hand-off manifest. Successful repairs are logged here to notify the Intelli-Tagger that they are ready for final processing.</li>
+            
+        </ol>
+		<p>This round-trip process is highly automated; once the tool is initiated, it handles the batch remediation without further user input.</p>
+</div>
+
+<h3 class="help">The Repair process:</h3>
+<p class="help">Corrupted files are first identified by the Intelli-Tagger during the preparation phase. To keep your workflow moving, these files are moved to a <i>remediation log</i> for separate processing. When you launch the Audio Repair tool, it loads that log to perform a deep-tissue rebuild of the audio data, ensuring <b>Quality In = Quality Out</b> integrity for your library.</p>
+
+<h3 class="help">How it does it:</h3>
+<p class="help">MetaForge utilizes the FFMPEG library, the industry standard for professional audio manipulation. Unlike light-duty "container fixes," this tool performs an Industrial Strength repair. It deconstructs the audio data and re-streams it into a brand-new, structurally sound MP3 container.</p>
+<p class="help"><b>Note: This tool cannot turn a low-quality source (such as a 128 kbps file) into a high-quality VBR (V0) audio file.</b> Once audio data is lost during compression, it cannot be recovered.</p>
+<p class="help">The "Precision Rebuild" is fully tag-aware. Existing metadata frames are extracted before the repair and re-injected afterward. To ensure maximum compatibility across all hardware and the MetaForge Web UI, tags are saved using the <strong>ID3v2.3</strong> standard with <strong>UTF-16 (Encoding 1)</strong>.</p>
+
+
+
+
+	</div>
+<!-- --- AUDIO REPAIR HELP END --- -->
+<!-- --- END OF FILE help.mfi --- -->

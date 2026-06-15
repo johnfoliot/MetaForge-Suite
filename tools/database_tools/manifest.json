@@ -1,0 +1,18 @@
+{
+  "id": "database_tools",
+  "name": "Database Tools",
+  "version": "1.6.0",
+  "author": "MetaForge Studio",
+  "description": "Forensic relationship manager for high-fidelity personnel and metadata archival.",
+  "icon": "database.svg",
+  "entry_point": "database_tools.py",
+  "ui_template": "database_tools.mfi",
+  "logic_bridge": "database_tools.js",
+  "order": 6,
+  "permissions":[
+    "sqlite",
+    "filesystem_read"
+  ],
+  "category": "Library Management",
+  "working_directory": "tools/database_tools"
+}

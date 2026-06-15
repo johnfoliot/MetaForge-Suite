@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaForge | Initial Setup Wizard</title>
+    <link rel="stylesheet" href="/ui/css/default_theme.css">
+    <link rel="stylesheet" href="/ui/css/layout.css">
+    
+    <script src="/common/common_ui.js"></script>
+
+    <style>
+        /* --- LOCALIZED WORKBENCH OVERRIDES --- */
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            background-color: #0a0a0a;
+            margin: 0;
+            font-family: var(--font-mono);
+        }
+
+        .setup-card { 
+            background-color: var(--bg-stage); 
+            padding: 30px; 
+            border: 1px solid var(--mf-gold); 
+            width: 550px; 
+            border-radius: 4px; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+        }
+
+        .setup-header {
+            text-align: center;
+            background: #000;
+            margin: -30px -30px 30px -30px;
+            padding: 20px;
+            border-bottom: 1px solid var(--mf-gold);
+        }
+
+        .setup-logo {
+            width: 280px;
+            height: auto;
+        }
+
+        .setup-step { display: none; }
+        .setup-step.active { display: block; }
+
+        .input-group { 
+            margin-bottom: 8px; 
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            color: var(--mf-gold);
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .help-text { 
+            color: var(--text-message); 
+            font-size: 0.7rem; 
+            line-height: 1.4;
+            margin-bottom: 15px;
+        }
+
+        .mf-input {
+            background-color: #111 !important;
+            border: 1px solid #333 !important;
+            color: #eee !important;
+            padding: 8px !important;
+            font-size: 0.85rem !important;
+        }
+
+        .mf-input[readonly] {
+            color: var(--mf-gold) !important;
+            border-color: var(--bg-accent) !important;
+        }
+
+        /* Logic: Disabled State for the Next Button */
+        .mf-button-gold-fixed:disabled {
+            background-color: #333 !important;
+            color: #777 !important;
+            border: 1px solid #444 !important;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .silo-list-container {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #050505;
+            border: 1px solid #222;
+            padding: 10px;
+            margin-top: 15px;
+        }
+
+        .silo-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px;
+            border-bottom: 1px solid #111;
+        }
+
+        .silo-item label { 
+            font-size: 0.8rem; 
+            color: var(--text-output); 
+            cursor: pointer; 
+        }
+
+        .policy-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--mf-gold);
+            color: #000;
+            font-weight: bold;
+            font-size: 0.75rem;
+            margin-bottom: 15px;
+        }
+
+        .button-row {
+            margin-top: 10px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .mf-button-gold-fixed {
+            align-self: flex-start;
+        }
+
+        #validation-hint {
+            font-size: 0.65rem;
+            color: var(--status-error);
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="setup-card" role="main">
+        <div class="setup-header">
+            <img src="/ui/images/logo.svg" alt="MetaForge Studio" class="setup-logo">
+        </div>
+
+        <section id="step-1" class="setup-step active">
+            <h1 id="hd-step-1" class="main" tabindex="-1" style="font-size: 1.2rem; margin-bottom: 5px;">1. Core Credentials</h1>
+            <p class="help-text">Initialize your system identity and integration keys. All fields are mandatory.</p>
+
+            <form id="creds-form" oninput="validateStepOne()">
+                <div class="input-group">
+                    <label for="email">User Email</label>
+                    <input type="email" id="email" class="mf-input" placeholder="user@example.com" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="lib_root">Library Root Path</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="lib_root" class="mf-input" style="flex:1;" readonly placeholder="Select folder..." required>
+                        <button type="button" class="mf-button-gold-fixed" onclick="pickFolder()">Browse</button>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="acoustid">AcoustID Key</label>
+                    <input type="text" id="acoustid" class="mf-input" placeholder="Your API key..." required>
+                    <p style="font-size:.75rem">Need a key? See: <a href="https://acoustid.org/api-key" target="_blank" style="color:var(--mf-gold)!important;">acoustid.org</a></p>
+                </div>
+
+                <div class="input-group">
+                    <label for="gemini">Gemini AI Key</label>
+                    <input type="text" id="gemini" class="mf-input" placeholder="Your Gemini key..." required>
+                    <p style="font-size:.75rem">Need a key? See: <a href="https://aistudio.google.com/app/api-keys" target="_blank" style="color:var(--mf-gold)!important;">Google AI Studio</a></p>
+                </div>
+
+                <div class="input-group">
+                    <label for="discogs">Discogs Token</label>
+                    <input type="text" id="discogs" class="mf-input" placeholder="Your Personal Access Token..." required>
+                    <p style="font-size:.75rem">Need a key? See: <a href="https://www.discogs.com/settings/developers" target="_blank" style="color:var(--mf-gold)!important;">Discogs Developers</a></p>
+                </div>
+
+                <div class="button-row">
+                    <span id="validation-hint">Waiting for all mandatory fields...</span>
+                    <button type="button" id="btn-next" class="mf-button-gold-fixed" onclick="proceedToDiscovery()" disabled>Next: Scan Library</button>
+                </div>
+            </form>
+        </section>
+
+        <section id="step-2" class="setup-step">
+            <h1 id="hd-step-2" class="main" tabindex="-1" style="font-size: 1.2rem;">2. Library Discovery</h1>
+            
+            <div id="discovery-results" style="margin-top: 10px;">
+                </div>
+			
+            <div class="button-row">
+                <button type="button" class="mf-button-gold-fixed" style="background:transparent; border: 1px solid var(--mf-gold); color:var(--mf-gold);" onclick="showStep(1)">Back</button>
+                <button type="button" class="mf-button-gold-fixed" onclick="commitSetup()">Finalize Setup</button>
+            </div>
+        </section>
+
+        <section id="step-3" class="setup-step" style="text-align: center; padding: 40px 0;">
+            <h1 id="hd-step-3" class="main" tabindex="-1">Initializing Engine</h1>
+            <div id="setup-status" class="data-text" style="margin-top: 20px; color: var(--mf-gold);">
+                Writing environment variables and generating library map...
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let discoveredData = null;
+
+        function validateStepOne() {
+            const fields = ['email', 'lib_root', 'acoustid', 'gemini', 'discogs'];
+            const nextBtn = document.getElementById('btn-next');
+            const hint = document.getElementById('validation-hint');
+            
+            const allFilled = fields.every(id => {
+                const val = document.getElementById(id).value.trim();
+                return val !== "";
+            });
+
+            nextBtn.disabled = !allFilled;
+            hint.style.visibility = allFilled ? 'hidden' : 'visible';
+        }
+
+        function showStep(stepNum) {
+            document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+            const target = document.getElementById(`step-${stepNum}`);
+            target.classList.add('active');
+            setTimeout(() => {
+                const hd = document.getElementById(`hd-step-${stepNum}`);
+                if (hd) hd.focus();
+            }, 10);
+        }
+
+        async function pickFolder() {
+            // Using common UI service
+            window.metaforge.ui.openFilePicker((path) => {
+                document.getElementById('lib_root').value = path;
+                validateStepOne();
+            });
+        }
+
+        async function proceedToDiscovery() {
+            const path = document.getElementById('lib_root').value;
+            showStep(2);
+            const container = document.getElementById('discovery-results');
+            container.innerHTML = '<p class="data-text">Analyzing your music collection and probing for audio depth...<br> (This may take a few seconds - stand by)</p>';
+
+            try {
+                const res = await fetch(`/scan_library?path=${encodeURIComponent(path)}`);
+                const data = await res.json();
+                discoveredData = data;
+                renderDiscovery(data);
+            } catch (e) {
+                container.innerHTML = '<p class="status-error">Discovery Engine failed to respond.</p>';
+            }
+        }
+
+        function renderDiscovery(data) {
+            const container = document.getElementById('discovery-results');
+            let policyHeading = "";
+            let policyDesc = "";
+            let listLabel = "";
+
+            switch(data.policy_suggestion) {
+                case "BASIC":
+                    policyHeading = "MetaForge recognizes you file your music by Albums.";
+                    policyDesc = "Your root directory contains individual album folders.<br>NOTE: you can change this in the Settings at any time.<br>";
+                    listLabel = "Albums Detected at Root";
+                    break;
+                case "STANDARD":
+                    policyHeading = "MetaForge recognizes you file your music by Artist/Album(s).";
+                    policyDesc = "Folders at your root directory represent Artist silos.<br>NOTE: you can change this in the Settings at any time.<br>";
+                    listLabel = "Artists Detected at Root";
+                    break;
+                case "ENHANCED":
+                    policyHeading = "MetaForge recognizes you file your music by Category/Artist/Album(s).";
+                    policyDesc = "Folders at your root directory represent physical filing categories (e.g. Rock, Blues).<br>NOTE: you can change this in the Settings at any time.<br>";
+                    listLabel = "Physical Filing Categories Detected";
+                    break;
+            }
+
+            let siloHtml = data.silos.map(s => `
+                <div class="silo-item">
+                    <input type="checkbox" id="silo-${s}" class="silo-checkbox" value="${s}" checked>
+                    <label for="silo-${s}">${s}</label>
+                </div>
+            `).join('');
+
+            container.innerHTML = `
+                <div class="policy-badge">Suggested Policy: ${data.policy_suggestion}</div>
+                <h2 class="data-text" style="color: var(--mf-gold); font-size: 0.9rem; margin-bottom: 5px;">${policyHeading}</h2>
+                <p class="help-text">${policyDesc} Uncheck any system or non-music folders below.</p>
+                
+                <h3 class="data-text" style="font-size: 0.75rem; color: var(--mf-gold); margin-top: 15px; border-bottom: 1px solid #333;">${listLabel}</h3>
+                <div class="silo-list-container">
+                    ${siloHtml || '<p class="data-text">No subfolders detected.</p>'}
+                </div>
+            `;
+        }
+
+        async function commitSetup() {
+            showStep(3);
+            const status = document.getElementById('setup-status');
+            const selectedSilos = Array.from(document.querySelectorAll('.silo-checkbox:checked')).map(cb => cb.value);
+
+            const payload = {
+                email: document.getElementById('email').value,
+                lib_root: document.getElementById('lib_root').value,
+                acoustid: document.getElementById('acoustid').value,
+                gemini: document.getElementById('gemini').value,
+                discogs: document.getElementById('discogs').value,
+                policy: discoveredData ? discoveredData.policy_suggestion : "STANDARD",
+                silos: selectedSilos
+            };
+
+            try {
+                const res = await fetch('/complete_setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    status.innerHTML = "Configuration Completed. Rebooting MetaForge now...";
+                    setTimeout(() => { location.reload(); }, 2000);
+                } else {
+                    status.innerHTML = `<span style="color:var(--status-error)">ERROR: ${result.message}</span>`;
+                }
+            } catch (e) {
+                status.innerHTML = '<span style="color:var(--status-error)">CRITICAL BOOTSTRAP FAILURE.</span>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+<!-- --- START OF FILE help.mfi --- -->
+<!-- --- UNPACK & CONVERT HELP DOCUMENTATION --- -->
+<div class="mf-help-panel">
+    <h3 class="help first">What it does:</h3>
+    <p class="help">The Unpack &amp; Convert tool is the pre-production entry point for new music into your MetaForge library. It acts as a professional ingestion engine, transforming raw downloads and legacy archives into standardized, clean audio files ready for additional tagging ("Clean Room state").</p> 
+	
+	<div class="tool_notes" style="margin-top: 20px; padding: 12px; border-left: 4px solid var(--mf-gold);">
+    <h3 class="help">How to use this tool:</h3> 
+	<ol style="margin-left:1.2rem; font-size: 0.75rem; line-height: 1.5;">
+        <li class="help"><strong>Select Source:</strong> <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Browse</span> for the folder that represents your "Album". The tool targets the Album folder, not the individual ZIP file. Note: To ensure proper extraction and processing of compressed archives (.zip, .rar), those compressed files MUST be placed in an appropriate folder ("\{Album Name}\album.zip").</li>
+        <li class="help"><strong>Assign Identity:</strong> Enter the Artist and Album names. (Users with an Enhanced library structure will also be prompted for the 'filing category'.) Note that this information will be applied to the entire batch to ensure metadata consistency.</li>
+        <li class="help"><strong>Granting Consent:</strong> Because this tool performs destructive operations (deleting junk files and original FLAC/APE sources), <u><b>users must explicitly grant Consent</b></u> for the tool to purge those original archives and non-essential legacy files.</li>
+        <li class="help"><strong>Execute:</strong> Click <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Unpack / Convert</span> and monitor the real-time console for completion.</li>
+	</ol>
+</div>
+
+<h3 class="help">How it works:</h3>
+<p class="help">The tool executes a multi-stage automated workflow to ensure your library remains consistent and free of data errors:</p>
+
+<ol style="padding-left: 20px; margin-top: 5px; font-size: 0.75rem;">
+    <li class="help"><strong>Extraction:</strong> If the Unpacker initially detects CUE, ZIP, or RAR archives (including multi-part sets), it will first Extract the audio files to the Album folder. It uses heuristic logic (<abbr title="Atomic Content Root">ACR</abbr>) to move the audio files out of unnecessary sub-folders and into the main album directory.</li>
+	
+    <li class="help"><strong>Conversion:</strong> All incoming audio is converted to high-quality <b>MP3 VBR (V0)</b>. It optionally applies professional EBU R128 Loudness Normalization to ensure a consistent volume floor across the library. This ensures that every track in your collection adheres to a single, high-fidelity bitstream standard for maximum hardware and software compatibility. <br><span style="font-size:80%">(<a href="#footnote1">Why we chose to do this.</a>)</span></li>
+	
+    <li class="help"><strong>Sanitation:</strong> Filenames are standardized (Track - Artist - Title), and "metadata junk" — such as legacy comments, ad links, and old encoder data — is surgically removed.</li>
+	
+	<li class="help"><strong>Album Art:</strong> Once the music files have been 1) extracted (when required), 2) converted, and 3) sanitized, the final step is to 4) ensure the album has a standard 'folder.jpg' at the root of the album folder. <br>During the <b>Sanitation</b> phase, the tool also gathers all graphic files discovered and moves them to the \art\ directory; it also rescues embedded images from source bitstreams (<i>e.g., if a FLAC has an internal cover</i>).
+        <br>Users are prompted to select the appropriate cover graphic from the choices available: the tool will then resize the user's choice to a square 500px X 500px file. (It is recommended to select the largest version of the cover when more than one is available: shrinking the size to 500px will result in better outcomes than 'stretching' smaller images to 500px square.) It ensures the final folder.jpg is a perfect 500x500 square and embeds it into every track.
+        <div class="mf-hint" style="margin-top: 8px; padding: 8px; border: 1px dashed var(--mf-gold); color:#000">
+            <strong>BONUS:</strong> No graphics shipped with the album? No problem. The tool will intelligently query Discogs for the best quality cover graphic available. <br>(Note: not every album will have a graphic file at Discogs — we are limited to what is publicly available.)
+        </div>
+    </li>
+	<li class="help"><strong>Audit Trail:</strong> The Unpack &amp; Convert tool maintains a permanent MetaForge.log recording every file created, converted, or deleted.</li>
+</ol>
+
+<h3 class="help">Multi-Disc / Box-Set Handling:</h3>
+<p class="help">MetaForge is able to process either individual Albums or Multi-Disc Box Sets in a single pass. If your source folder contains multiple sub-directories (Albums), the tool will preserve the multi-disc structure: each sub-folder will number the <b>actual files</b> using the pattern: 101, 102, 103...201, 202, 203... etc. while also ensuring a logical linear numbering structure (i.e. "106" = 26, "201" = 27).</p>
+
+<h3 class="help">The Unpack &amp; Convert Audit Trail:</h3> 
+<p class="help">Because the sanitation process involves deleting original archives and junk files to save storage space, MetaForge Unpack &amp; Convert maintains a permanent record of all operations performed. You can review every file change and deletion in a log file created in your album folder:</p>
+<p class="help" style="font-family: var(--font-mono); font-size: 0.7rem; background: #eee; padding: 6px; margin-top: 5px; border: 1px solid #ccc;">
+    MetaForge.log
+</p>
+
+<div id="footnote" class="help" style="font-size:85%">
+<h3 class="help"><abbr title="Frequently Asked Questions" aria-label="Frequently Asked Questions">F.A.Q.</abbr></h3>
+<h4 class="help" id="footnote1" style="size:1.2rem; font-weight:bold;">Why Convert to MP3 VBR (V0)?</h4> 
+
+	<p class="help">The MetaForge Suite has chosen MP3 VBR (V0) as the MetaForge library standard, in an attempt to balance <b>high-quality sound</b> with technical efficiency and optimized storage capacity.</p>
+	<p class="help"> While many people believe that "lossless" files (.flac) are better, multiple studies (<a href="https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/content/103446-Audibility-of-a-CD-Standard-v-High-Resolution.pdf" target="_new">1 (PDF)</a>, <a href="https://qmro.qmul.ac.uk/xmlui/bitstream/handle/123456789/13493/Reiss%20A%20Meta-Analysis%20of%20High%20Resolution%202016%20Published.pdf" target="_new">2 (PDF)</a>, <a href="https://blog.codinghorror.com/concluding-the-great-mp3-bitrate-experiment/" target="_new">3 (Blog)</a>) confirm that the human ear simply cannot tell the difference between a V0 file and the original source (<i>"...even dogs won’t be able to hear the difference between 192kbps VBR MP3 tracks and the original CD."</i> - Jeff Atwood).</p>
+	<p class="help">By using this format, the MetaForge Suite gets excellent sound quality while saving a massive amount of storage space. This choice also ensures that your music collection works on all devices and legacy software.</p>
+    <p class="help">Our goal is to provide a <b>high-performing library that focuses on how the music actually sounds</b>, rather than keeping unnecessary data that no one can hear.</p>
+
+<h4 class="help" id="footnote2" style="size:1.2rem; font-weight:bold">What is an Enhanced Library?</h4>
+<p class="help">The MetaForge Suite is primarily targeted towards serious music collectors and supports three types of Library structure:</p>
+<dl>
+	<dt class="help" style="size:1rem; color:var(--mf-gold);">Basic</dt>
+	<dd class="help"><img src="/ui/images/basic_library.png" 
+     style="width:100px; height:auto; float: right; margin-left: 1rem;" 
+     alt="Basic structure visualized">The Basic library structure is a flat storage structure. Frequently users will store all of their "Albums" in Windows' standard "Music" directory (e.g. <i>"C:\Music\Dark Side of The Moon"</i>, <i>"C:\Music\The Wall"</i>). While acceptable, it makes individual retrieval messy in File Explorer.</dd>
+	 
+	<dt class="help" style="size:1rem; color:var(--mf-gold); margin-top:.5rem;">Standard</dt>
+	<dd class="help"><img src="/ui/images/standard_library.png" 
+     style="width:120px; height:auto; float: right; margin-left: 1rem;" 
+     alt="Standard structure visualized">Most serious collectors use the "Standard" filing structure recommended by tools like <a href="https://support.plex.tv/articles/200265296-adding-music-media-from-folders/" target="_new">Plex<span class="mf-ext-icon-mask"></span></a>, <a href="https://musicbee.fandom.com/wiki/File_Organization" target="_new">MusicBee<span class="mf-ext-icon-mask"></span></a> and others:<br> <i><b>Artist (or Album Artist) > Album > Track</b></i>. <br>MetaForge <b>strongly</b> recommends this as your baseline structure.</dd>
+	 
+	<dt class="help" style="size:1rem; color:var(--mf-gold); margin-top:.5rem;">Enhanced</dt>
+	<dd class="help"><img src="/ui/images/enhanced_library.png" 
+     style="width:150px; height:auto; float: right; margin-left: 1rem;" 
+     alt="Enhanced structure visualized">For collectors who use a multi-nested organization, MetaForge supports an Enhanced structure: <i><b>Category > Artist (or Album Artist) > Album > Track</b></i>.</dd>
+</dl>
+<p class="help" style="margin-top:.5rem;">During initial setup, MetaForge scanned your directories to determine your filing policy. You can change this at any time via <i>Settings > Config &amp; API Keys > MF_FILING_POLICY</i>.</p>
+</div>
+
+</div>
+<!-- --- UNPACK & CONVERT HELP END --- -->
+<!-- --- END OF FILE help.mfi --- -->

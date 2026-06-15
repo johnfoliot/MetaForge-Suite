@@ -1,0 +1,98 @@
+/* --- START OF FILE help.css --- */
+/* ======================================================================
+   MetaForge Studio: Unified Help System Styling
+   Role: Standardizes contextual help panels across all tools.
+   Location: \ui\css\help.css
+   Accessibility: WCAG 2.2 AA | COGA 4.4.1
+   ====================================================================== */
+
+/* 1. STRUCTURAL CONTAINER */
+.mf-help-panel {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    width: 320px;
+    height: 450px;
+    background-color: #FFFFFF;
+    border: 3px solid var(--mf-gold);
+    display: flex;
+    flex-direction: column;
+    z-index: 999;
+    box-shadow: 10px 10px 20px rgba(0,0,0,0.5);
+    border-radius: 4px;
+    overflow: auto;
+	
+}
+
+/* 2. PANEL HEADER & NAVIGATION */
+.mf-panel-header {
+    background-color: #FFFFFF;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--bg-accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.mf-panel-header h2 {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #000000;
+    font-weight: bold;
+}
+
+/* 3. INTERACTIVE TRIGGERS */
+.mf-panel-close {
+    background-color: var(--input-background);
+    border: 1px solid var(--bg-main);
+    color: var(--input-foreground)!important;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    line-height: 1;
+    transition: all 0.1s ease-in-out;
+}
+
+.mf-panel-close:hover,
+.mf-panel-close:focus-visible {
+    background-color: var(--status-error);
+    color: #FFFFFF !important;
+    border-color: var(--status-error);
+}
+
+/* 4. DOCUMENTATION BODY & TYPOGRAPHY */
+.mf-panel-body {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    color: #000000;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    text-align: left;
+}
+
+h3.help {
+    color: var(--mf-gold);
+    margin-top: 0.5rem;
+    line-height: 1.3rem;
+    font-family: var(--font-main);
+}
+
+p.help {
+    margin-bottom: 0.5rem;
+    color: #000000;
+}
+
+/* 5. COGA ENHANCEMENTS */
+
+help.first {
+    margin-top: -0.8rem !important;
+}
+
+/* --- END OF FILE help.css --- */

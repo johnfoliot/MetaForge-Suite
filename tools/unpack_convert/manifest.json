@@ -1,0 +1,10 @@
+{
+  "name": "Unpack / Convert",
+  "id": "unpack_convert",
+  "version": "1.0.0",
+  "description": "Extracts files from .CUE bundles when present. Converts all audio formats to .mp3 VBR(V0), and renames files to MetaForge standard. Does file dirctory sanitation: moves all graphic assets to a 'art' folder, deletes all other legacy cruft.",
+  "entry_point": "unpack_convert.py",
+  "ui_template": "unpack_convert.mfi",
+  "icon": "unpack-convert.svg",
+  "required": false
+}

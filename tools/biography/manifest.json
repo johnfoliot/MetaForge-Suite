@@ -1,0 +1,10 @@
+{
+  "name": "Biography Builder",
+  "id": "biography",
+  "version": "1.0.0",
+  "description": "Synthesizes, manages, and updates historical artist profiles and portrait graphic locations directly within the MetaForge database schema.",
+  "entry_point": "biography.py",
+  "ui_template": "biography.mfi",
+  "icon": "biography.svg",
+  "required": false
+}

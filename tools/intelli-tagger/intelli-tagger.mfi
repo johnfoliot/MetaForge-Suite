@@ -1,0 +1,325 @@
+<!-- --- START OF FILE intelli-tagger.mfi --- -->
+<!-- ======================================================================
+MetaForge Interface: Intelli-Tagger Workbench
+Build 3.0.6: 30/70 Split | Revised 2-Line Forensic Layout | 0.85rem Base.
+Accessibility: WCAG 2.2 AA | COGA 4.5.4 (Error Prevention)
+====================================================================== -->
+<style>
+/* --- WORKBENCH ARCHITECTURE --- */
+.it-workbench-wrapper {
+display: flex;
+width: 100%;
+gap: 20px;
+align-items: stretch;
+max-height: 75vh;
+}
+
+/* Column 1: The Context/Input (Fixed 30%) */
+.it-input-silo {
+flex: 0 0 calc(30% - 10px);
+background: var(--bg-main);
+padding: 15px;
+display: flex;
+flex-direction: column;
+gap: 12px;
+box-sizing: border-box;
+}
+
+/* Column 2: The Feedback/Console (Fixed 70%) */
+.it-output-silo {
+flex: 0 0 calc(70% - 10px);
+display: flex;
+flex-direction: column;
+background: var(--bg-main);
+border: 3px solid var(--bg-accent);
+box-sizing: border-box;
+overflow: hidden;
+}
+
+/* --- FORM COMPONENTS --- */
+.it-group { display: flex; flex-direction: column; gap: 4px; }
+.it-group label {
+color: var(--mf-gold);
+font-size: 0.75rem;
+font-weight: bold;
+letter-spacing: 0.5px;
+}
+
+.it-input-text {
+background-color: var(--input-background2);
+color: var(--input-foreground2);
+border: 1px solid #000;
+padding: 6px 10px;
+font-family: var(--font-mono);
+font-size: 0.85rem;
+width: 100%;
+box-sizing: border-box;
+}
+
+.it-input-text:read-only {
+background-color: var(--input-background2);
+color: var(--input-foreground2);
+cursor: default;
+}
+
+/* --- TOGGLE PRIMITIVE --- */
+.mf-toggle-container {
+display: flex;
+align-items: center;
+gap: 12px;
+border-bottom: 3px solid var(--bg-accent);
+padding: 10px;
+margin-top: -10px;
+cursor: pointer;
+}
+
+.mf-toggle-wrapper {
+position: relative;
+width: 44px;
+height: 24px;
+background-color: var(--bg-accent);
+border: 1px solid var(--mf-gold);
+border-radius: 12px;
+transition: background-color 0.2s ease;
+flex-shrink: 0;
+}
+
+.mf-toggle-knob {
+position: absolute;
+top: 2px;
+left: 2px;
+width: 18px;
+height: 18px;
+background-color: var(--text-message);
+border-radius: 50%;
+transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+}
+
+[aria-checked="true"] .mf-toggle-wrapper { background-color: var(--bg-main); }
+[aria-checked="true"] .mf-toggle-knob {
+transform: translateX(20px);
+background-color: var(--mf-gold);
+}
+
+.mf-toggle-label {
+font-family: var(--font-mono);
+font-size: 0.7rem;
+color: var(--text-output);
+line-height: 1.2;
+}
+
+/* --- PROGRESS & CONSOLE --- */
+#it-progress-container {
+background: var(--bg-main);
+height: 30px;
+padding:8px;
+margin:5px;
+margin-top:-10px;
+
+position: relative;
+flex-shrink: 0;
+z-index: 10;
+}
+
+.it-progress-fill {
+background: var(--mf-gold);
+height: 100%;
+width: 0%;
+transition: width 0.3s ease;
+}
+
+.it-progress-text {
+position: absolute;
+top: 24px;
+left: 0;
+width: 100%;
+height: 100%;
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 0.85rem;
+font-weight: bold;
+color: var(--text-output);
+background-color: transparent;
+mix-blend-mode: difference;
+margin: 0;
+pointer-events: none;
+}
+
+.it-console {
+flex: 1;
+padding: 20px;
+overflow-y: auto;
+overflow-x: hidden;
+font-family: var(--font-mono);
+font-size: 0.75rem;
+color: var(--text-output);
+line-height: 1.6;
+background-color: var(--bg-main);
+margin-top: 1rem;
+}
+
+/* --- 2-LINE TRACK LOG STYLING --- */
+.it-log-row {
+margin-bottom: 12px;
+display: flex;
+flex-direction: column;
+border-left: 2px solid transparent;
+padding-left: 10px;
+}
+
+.it-log-row:hover { border-left-color: var(--mf-gold); }
+
+.it-log-line1 {
+display: block;
+white-space: pre;
+font-weight: bold;
+}
+
+.it-log-subline {
+display: block;
+margin-left: 2.5rem;
+opacity: 0.9;
+font-size: 0.7rem;
+color: var(--text-message);
+white-space: pre;
+}
+
+.it-val-gold { color: var(--mf-gold); }
+.it-val-white { color: var(--text-output); }
+.it-val-success { color: var(--status-success); }
+.it-val-error { color: var(--status-error); }
+
+/* --- ACTIONS --- */
+.it-action-footer { display: flex; gap: 10px; padding-top: 10px; }
+.it-btn-primary {
+background-color: var(--mf-gold);
+color: var(--input-foreground);
+font-weight: bold;
+flex: 1;
+border: 1px solid rgba(0,0,0,0.3);
+border-radius: 3px;
+padding: 8px 16px;
+cursor: pointer;
+}
+.it-btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.it-handoff-area {
+padding: 15px;
+background: var(--bg-main);
+border-top: 1px solid var(--bg-accent);
+text-align: right;
+display: none;
+}
+</style>
+<h1 id="it-header" class="main" tabindex="-1">Intelli-tagger</h1>
+
+<section class="intelli_tagger-description" aria-labelledby="intelli_tagger-info-label">
+    <h2 id="intelli_tagger-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+		<p class="data-text tool_notes">The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker.</p>
+        <button class="mf-button-gold-fixed" 
+                style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
+                onclick="metaforge.intelli_tagger.openHelp()"  
+                aria-label="Open Intelli-Tagger help documentation">
+            Help
+        </button>
+    </div>
+</section>
+
+<div class="active_stage">
+<div class="it-workbench-wrapper">
+<aside class="it-input-silo">
+	<div class="mf-toggle-container" 
+             onclick="metaforge.intelli_tagger.toggleDatabase(this)"
+             onkeydown="if(event.key===' ' || event.key==='Enter'){ event.preventDefault(); metaforge.intelli_tagger.toggleDatabase(this); }">
+            
+            <div class="mf-toggle-wrapper" role="switch" aria-checked="true" tabindex="0" aria-label="Toggle Database Writing" id="it-db-toggle">
+                <div class="mf-toggle-knob"></div>
+            </div>
+            <span class="mf-toggle-label" id="it-toggle-label">Also Write to <br>MetaForge Database: On</span>
+        </div>
+        <div class="it-group">
+            <label for="it-path">Source Directory</label>
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="it-path" class="it-input-text" style="color:#000000!important;" readonly placeholder="Select album folder...">
+                <button type="button" class="mf-button-gold-fixed" onclick="metaforge.intelli_tagger.pickFolder()">Browse</button>
+            </div>
+        </div>
+		
+		<div class="it-action-footer">
+            <button type="button" id="it-search-mb-btn" class="mf-button-gold-fixed" style="display:none;" onclick="metaforge.intelli_tagger.backtrackToMB()">
+                Search MusicBrainz
+            </button>
+            <button type="button" id="it-start-btn" class="it-btn-primary" disabled onclick="metaforge.intelli_tagger.run()">
+                Begin Tagging
+            </button>
+        </div>
+		
+        <div class="it-group">
+            <label for="it-artist">Filing Artist (Required)</label>
+            <input type="text" id="it-artist" class="it-input-text" style="color:#000000;" placeholder="e.g. Pink Floyd">
+        </div>
+
+        <div class="it-group">
+            <label for="it-album">Album Title (Required)</label>
+            <input type="text" id="it-album" class="it-input-text" style="color:#000000!important;" placeholder="e.g. The Wall">
+        </div>
+
+        <div id="it-mb-fields" style="display: flex; flex-direction: column; gap: 12px;">
+            <div class="it-group">
+                <label for="it-mb-artist-id">MusicBrainz Artist Id (Recommended)</label>
+                <input type="text" id="it-mb-artist-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
+            </div>
+            <div class="it-group">
+                <label for="it-mb-album-id">MusicBrainz Album Id (Recommended)</label>
+                <input type="text" id="it-mb-album-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
+            </div>
+            <div class="it-group">
+                <label for="it-mb-group-id"><abbr title="MusicBrainz">MB</abbr> Release Group Id (Recommended)</label>
+                <input type="text" id="it-mb-group-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
+            </div>
+            <div class="it-group" style="margin-bottom:1rem;">
+                <label for="it-mb-country"><abbr title="MusicBrainz">MB</abbr> Release Country (Recommended)</label>
+                <input type="text" id="it-mb-country" class="it-input-text" style="color:#000000;" placeholder="e.g. US, GB, XW">
+            </div>
+        </div>
+
+    </aside>
+
+    <main class="it-output-silo">
+        <div id="it-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+            <div id="it-progress-fill" class="it-progress-fill"></div>
+            <br><br><h3 id="it-progress-label" class="it-progress-text" style-"padding:4px!important;">Standing By</h3>
+        </div>
+
+        <div id="it-console" class="it-console" aria-live="polite">
+            <div class="tool_notes">Waiting for files to be loaded...</div>
+        </div>
+
+        <div id="it-handoff-area" class="it-handoff-area">
+            <button class="mf-button-gold-fixed" onclick="metaforge.intelli_tagger.advance()">
+                Optional: Add Personnel
+            </button>
+        </div>
+    </main>
+
+</div>
+</div>
+<div id="it-help-panel" class="mf-help-panel" role="dialog" aria-labelledby="it-help-title" style="display: none;">
+<div class="mf-panel-header">
+<h2 id="it-help-title">Help: Intelli-Tagger</h2>
+<button class="mf-panel-close" onclick="metaforge.intelli_tagger.closeHelp()" aria-label="Close help panel">×</button>
+</div>
+<div id="it-help-body" class="mf-panel-body"></div>
+</div>
+<script>
+(function awakener() {
+if (window.metaforge?.intelli_tagger?.init) {
+window.metaforge.intelli_tagger.init();
+} else {
+setTimeout(awakener, 50);
+}
+})();
+</script>
+<!-- --- END OF FILE intelli-tagger.mfi --- -->

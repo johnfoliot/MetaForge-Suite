@@ -1,0 +1,14 @@
+{
+  "id": "intelli-tagger",
+  "name": "Intelli-Tagger",
+  "version": "4.0.6",
+  "author": "MetaForge Studio",
+  "description": "Master orchestrator for forensic audio analysis and AI metadata mapping.",
+  "icon": "magic-wand.svg",
+  "entry_point": "intelli-tagger.mfi",
+  "logic_bridge": "intelli-tagger.js",
+  "backend_logic": "intelli-tagger.py",
+  "order": 5,
+  "category": "Tagging",
+  "working_directory": "tools/intelli-tagger"
+}

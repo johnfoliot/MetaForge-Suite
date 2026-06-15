@@ -1,0 +1,99 @@
+<!-- --- START OF FILE repair.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Audio Repair
+     Build 7.4.5: Global Help CSS Integration & Repair Grid Preservation.
+     Accessibility: WCAG 2.2 AA Compliance
+     ====================================================================== -->
+<h1 class="main" tabindex="-1">Audio Repair</h1>
+
+<section class="repair-description" aria-labelledby="repair-info-label">
+    <h2 id="repair-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <p class="data-text tool_notes" style="margin: 0; max-width: 80%;">
+            The Audio Repair tool fixes .mp3 audio files that have been corrupted - often during download.
+            Corrupted MP3 files identified by the Intelli-Tagger tool are re-built from RAW data using FFMPEG to ensure "Good In, Good Out" integrity.
+        </p>
+        <button class="mf-button-gold-fixed" 
+                style="font-size:85%; margin-right: 5rem;"
+                onclick="metaforge.repair.openHelp()" 
+                aria-label="Open Audio Repair help documentation">
+            Help
+        </button>
+    </div>
+</section>
+
+<div class="active_stage" id="repair-stage">
+    <div class="repair-grid" style="display: grid; grid-template-columns: 30% 1fr; gap: 30px; min-height: 450px; width: 100%;">
+        
+        <!-- COLUMN 1: THE QUEUE (Locked at 30%) -->
+        <section class="repair-column" 
+                 aria-labelledby="repair-queue-label" 
+                 style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start; ">
+            
+            <h2 id="repair-queue-label" class="mf-grid-heading">Remediation Queue</h2>
+            
+            <div id="repair-queue-container" 
+                 class="repair-list-container" 
+                 style="width: 100%; background-color: var(--bg-main); border: 3px solid var(--bg-accent); border-radius: 4px; padding: 10px; overflow-y: auto; max-height: 400px; box-sizing: border-box; flex: 1;">
+                <p class="tool_notes">Synchronizing remediation log...</p>
+            </div>
+        </section>
+
+        <!-- COLUMN 2: THE CONSOLE (Flexible) -->
+        <section class="repair-column" 
+                 aria-labelledby="repair-console-label" 
+                 style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start; width: 100%;">
+            
+            <h2 id="repair-console-label" class="mf-grid-heading">Repair Console</h2>
+
+            <button id="btn-repair-all" 
+                    class="mf-button-gold-fixed" 
+                    onclick="metaforge.repair.runBatch()" 
+                    style="margin-top:-1.2rem; display:none;"
+                    aria-label="Begin batch rebuild for all queued files">
+                Repair The Files
+            </button>
+
+            <div id="repair-console" 
+                 role="log" 
+                 aria-live="polite" 
+                 class="mf-console-output" 
+                 style="width: 100%; background-color: var(--bg-main); border: 3px solid var(--bg-accent); border-radius: 4px; padding: 15px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-output); overflow-y: auto; white-space: pre-wrap; line-height: 1.2; box-sizing: border-box; flex: 1;">
+                <p class="tool_notes">Awaiting operation...</p>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
+<div id="repair-help-panel" 
+     class="mf-help-panel" 
+     role="dialog" 
+     aria-labelledby="repair-help-title" 
+     style="display: none;">
+    <div class="mf-panel-header">
+        <h2 id="repair-help-title" style="margin: 0; font-size: 0.85rem;">Help: Audio Repair</h2>
+        <button class="mf-panel-close" onclick="metaforge.repair.closeHelp()" aria-label="Close help panel">×</button>
+    </div>
+    <div id="repair-help-body" class="mf-panel-body">
+        <!-- Content injected via JS -->
+    </div>
+</div>
+
+<style>
+    /* LOCALIZED TOOL STYLES: repair */
+    #repair-stage { position: relative; }
+    
+    .repair-item {
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--bg-accent);
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .repair-item:last-child { border-bottom: none; }
+    .repair-item .file-name { font-family: var(--font-mono); font-size: 0.75rem; color: var(--mf-gold); }
+    .repair-item .error-msg { font-size: 0.65rem; color: var(--status-error); }
+</style>
+<!-- --- END OF FILE repair.mfi --- -->

@@ -1,0 +1,108 @@
+<!-- --- START OF FILE personnel.mfi --- -->
+<h1 class="main" tabindex="-1">Personnel Scout</h1>
+<p class="tool_notes">
+    Consult the <span style="font-weight:bold; color:var(--mf-gold);">Wikipedia Archive</span> to identify album credits, musicians, and technical personnel. 
+    Review the raw extraction and map identities to the MetaForge relationship graph.
+</p>
+
+<div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+
+    <!-- MAIN WORKING STAGE: SIDE-BY-SIDE SILOS -->
+    <div id="p-workspace-stage" style="flex: 1; display: flex; gap: 15px; padding: 10px; overflow: hidden; background: var(--bg-main);">
+        
+        <!-- LEFT SILO: THE RADAR & SOURCE (40% Width) -->
+        <div id="p-left-silo" style="flex: 0 0 42%; display: flex; flex-direction: column; gap: 10px; min-height: 0; border-right: 1px solid #444; padding-right: 15px;">
+            
+            <!-- SOURCE DIRECTORY BLOCK -->
+            <div style="display: grid; grid-template-columns: 100px 1fr 80px; gap: 8px; align-items: center;">
+                <label for="p-local-path" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Source Directory:</label>
+                <input type="text" id="p-local-path" class="mb-input-text" placeholder="Select album folder..." 
+                       style="background: var(--input-background2); color: var(--input-foreground2);">
+                <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.selectFolder()">Browse</button>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid #333; margin: 5px 0;">
+
+            <!-- IDENTITY CONTEXT BLOCK -->
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: center;">
+                    <label for="p-artist-input" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Artist:</label>
+                    <input type="text" id="p-artist-input" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
+                    
+                    <label for="p-album-input" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Album:</label>
+                    <input type="text" id="p-album-input" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
+                    <label for="p-year-input" class="mf-card-label" style="color: var(--mf-gold);">Year:</label>
+                    <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
+                    <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search Wikipedia</button>
+                </div>
+            </div>
+
+            <!-- CANDIDATE TABLE: FIXED HEIGHT (Directive: UI Stability) -->
+            <div id="p-search-results-container" style="height: 155px; flex-shrink: 0; border: 1px solid var(--mf-gold); background: var(--bg-accent); overflow-y: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                    <thead style="position: sticky; top: 0; background: var(--bg-main); color: var(--mf-gold); border-bottom: 1px solid var(--mf-gold);">
+                        <tr>
+                            <th style="padding: 4px; text-align: left;">Wikipedia Candidate</th>
+                            <th style="padding: 4px; text-align: right; width: 60px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="p-search-results-body">
+                        <tr><td colspan="2" style="padding: 10px; text-align: center; opacity: 0.5;">Identity results will appear here.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- RAW EXTRACTION BOX (Left Column Bottom) -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px; min-height: 0;">
+                <h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 0.8rem; margin: 0;">Wikipedia Raw Extraction</h2>
+                <div id="p-wiki-raw-container" style="flex: 1; overflow-y: auto; background: #000; border: 1px solid #444; padding: 8px; font-family: var(--font-mono); font-size: 0.7rem; color: #00ff00; white-space: pre-wrap;"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT SILO: MAPPING INTERFACE (60% Width) -->
+        <div id="p-right-silo" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--mf-gold); padding-bottom: 5px;">
+                <h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 1rem; margin: 0;">Album Personnel</h2>
+                <span id="p-mapping-count" class="mf-card-label" style="font-size: 0.75rem; color: var(--text-message);">0 Rows Staged</span>
+            </div>
+
+            <div id="p-mapping-viewport" style="flex: 1; overflow-y: auto; background: var(--bg-stage); border: 1px solid #000;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--mf-gold);">
+						<tr>
+							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;" 
+								onclick="window.metaforge.personnel.sortMapping('name')">Name ↕</th>
+							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%;">Role</th>
+							<th style="padding: 8px; text-align: center; width: 40px;">X</th>
+						</tr>
+					</thead>
+                    <tbody id="p-mapping-body" style="color: var(--text-output);">
+                        <!-- Mapping rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 10px; background: var(--bg-main);">
+                 <button class="mf-button-gold-fixed" style="background: transparent!important; border: 1px solid var(--mf-gold); color: var(--mf-gold)!important;" onclick="window.metaforge.personnel.addManualRow()">Add Manual Entry</button>
+                 <!-- Expand Commit Button width to fit text -->
+                 <button id="p-commit-btn" class="mf-button-gold-fixed" style="width: 240px; height: 40px; font-size: 1rem; opacity: 0.5;" disabled onclick="window.metaforge.personnel.commitToDatabase()">Commit to Database</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- STATUS BAR -->
+    <!-- div id="p-status-bar" role="status" aria-live="polite" 
+         style="background: var(--bg-main); border-top: 1px solid var(--mf-gold); padding: 4px 15px; font-size: 0.75rem; height: 28px; display: flex; align-items: center;">
+        <span id="p-status-text" style="color: var(--status-success);">Scout Engine Ready.</span>
+    </div -->
+</div>
+
+<script>
+    if (window.metaforge && window.metaforge.personnel) {
+        window.metaforge.personnel.init();
+    }
+</script>
+<!-- --- END OF FILE personnel.mfi --- -->

@@ -1,0 +1,104 @@
+<!-- --- START OF FILE biography.mfi --- -->
+<h1 class="main">Bio Builder</h1>
+<p class="tool_notes">Manage, update, and commit artist profiles directly to the MetaForge database ecosystem.</p>
+
+<div id="bio-container-main" class="active_stage">
+    <!-- Processing Overlay -->
+    <div id="bio-loading-overlay" class="bio-overlay" style="display: none;">
+        <div  style="font-size:.85rem; color:#000; padding-left:300px;">
+		<div class="bio-spinner"></div>
+        <img src="/ui/images/intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;"> <p>Generating biography and searching a portrait...</p></div>
+    </div>
+
+    <div class="bio-container">
+        
+        <div class="bio-left-panel">
+            
+            <div class="bio-form-group">
+                <label for="bio-artist" class="bio-label">Artist</label>
+				<p>Search to confirm that this artist has content in the database.</p>
+                <div class="bio-input-row">
+                    <input type="text" id="bio-artist" class="bio-input-field" placeholder="Artist Name">
+                    <button type="button" id="btn-search-artist" class="bio-btn-amber">Search</button>
+                </div>
+            </div>
+            
+            <div class="bio-action-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
+                <button type="button" id="btn-get-biography" class="bio-btn-amber long-btn" disabled style="flex: 1; white-space: nowrap;">Get Biography</button>
+                
+                <div class="bio-toggle-group-inline" style="display: flex; align-items: center; gap: 10px; user-select: none; flex-shrink: 0; white-space: nowrap;">
+                    <div class="mf-toggle-wrapper" role="switch" aria-checked="false" tabindex="0" aria-label="Toggle Biography Profile Detail" id="bio-profile-toggle">
+                        <div class="mf-toggle-knob"></div>
+                    </div>
+                    <span class="mf-toggle-label" id="bio-toggle-label" style="font-family: 'Cascadia Code', monospace; color: #888888; font-size: 0.8rem; font-weight: bold; line-height: 1.2;">Enhanced Bio: Off</span>
+                </div>
+
+                <button type="button" id="btn-save-biography" class="bio-btn-amber long-btn" disabled style="flex: 1; white-space: nowrap;">Save Biography</button>
+            </div>
+            
+            <div class="bio-photo-region">
+                <div id="bio-photo-preview" class="photo-box-container">
+                    <img id="bio-img-element" src="/ui/images/no-photo.png" alt="Artist Portrait">
+                </div>
+            </div>
+            
+            <!-- Restored: Local Portrait File Path Picker -->
+            <div class="bio-form-group mt-15">
+                <label for="bio-add-photo" class="bio-label">Local Portrait File Path</label>
+                <div class="bio-input-row">
+                    <input type="text" id="bio-add-photo" class="bio-input-field" placeholder="D:\MetaForge Suite\photos\artist.jpg">
+                    <button type="button" id="btn-browse-photo" class="bio-btn-amber">Browse</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bio-right-panel">
+            <div class="bio-form-group h-100">
+                <label for="bio-text-editor" class="bio-label">Biography Editor Workspace</label>
+                <textarea id="bio-text-editor" class="bio-textarea-field" placeholder="Artist background details..."></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* --- Toggle Styles --- */
+.mf-toggle-wrapper { position: relative; width: 44px; height: 24px; background-color: #2a2a2a; border: 1px solid #444; border-radius: 12px; cursor: pointer; flex-shrink: 0; }
+.mf-toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background-color: #888888; border-radius: 50%; transition: transform 0.2s; display: block; z-index: 10; }
+div[aria-checked="true"]#bio-profile-toggle { background-color: #0d2a1d !important; border-color: var(--mf-gold) !important; }
+div[aria-checked="true"]#bio-profile-toggle .mf-toggle-knob { transform: translateX(20px); background-color: var(--mf-gold); }
+
+/* --- Layout Styles --- */
+.bio-container { display: flex; width: 100%; height: calc(100vh - 160px); gap: 30px; box-sizing: border-box; }
+.bio-left-panel { width: 410px; display: flex; flex-direction: column; }
+.bio-right-panel { flex: 1; height: 100%; }
+.bio-form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+.mt-15 { margin-top: 15px; }
+.h-100 { height: 100%; }
+.bio-label { font-family: 'Cascadia Code', monospace; color: var(--mf-gold); font-size: 0.95rem; margin-bottom: 6px; font-weight: bold; }
+.bio-input-row { display: flex; gap: 10px; align-items: center; }
+.bio-input-field { flex: 1; height: 34px; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 0 10px; font-family: inherit; font-size: 0.95rem; }
+.bio-textarea-field { flex: 1; width: 100%; height: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
+.bio-btn-amber { height: 34px; padding: 0 20px; background-color: var(--mf-gold); color: #000000; border: 1px solid var(--mf-gold); font-family: inherit; font-weight: bold; cursor: pointer; }
+.bio-btn-amber:disabled { background-color: #555555; color: #888888; border-color: #444444; cursor: not-allowed; }
+.bio-photo-region { width: 220px; height: 220px; margin-left: 95px; border: 1px solid #3d3d3d; background-color: #111111; }
+.photo-box-container img { width: 100%; height: 100%; object-fit: cover; }
+.bio-overlay { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background: color-mix(in srgb, var(--bg-stage) 50%, transparent); 
+    z-index: 2000; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+    align-items: center; 
+    color: var(--mf-gold); 
+    font-family: 'Cascadia Code', monospace; 
+}
+.bio-spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--mf-gold); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; margin-left:150px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+<!-- --- END OF FILE biography.mfi --- -->

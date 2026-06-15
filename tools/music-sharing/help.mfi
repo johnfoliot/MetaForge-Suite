@@ -1,0 +1,43 @@
+<!-- --- START OF FILE help.mfi --- -->
+<!-- --- MUSIC SHARING STUDIO HELP DOCUMENTATION --- -->
+<div class="help-content-silo">
+    <h3 class="help first">What it does:</h3>
+    <p class="help">MetaForge Music Sharing is a media transformation tool designed to bridge the gap between high-fidelity audio and visual social media platforms. It automates the creation of branded, square-format video clips generated from your music library.</p> 
+    
+    <p class="help">This tool allows you to select any track in your library and "repackage" it for distribution to your friends (NOTE: Copyright of your music files usually remain the property of the music publisher - share on social media at your own risk).</p>
+
+	<div class="tool_notes" style="margin-top: 20px; padding: 12px; border-left: 4px solid var(--mf-gold);">
+        <h3 class="help">How to use this tool:</h3> 
+		<ol style="margin-left:1.2rem; font-size: 0.75rem; line-height: 1.5;">
+        <li class="help">Clicking on <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Select Track</span> opens a file selector. Navigate to your audio file and select the track for conversion.</li>
+        <li class="help">Click <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Generate Video</span>. Once completed, a <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">View Output folder</span> button will apear. Clicking that button will take you to the location where the video file was stored.</li>
+        <li class="help">Share your MP4 video file on your favorite Social media platform.</li>
+		</ol>
+    </div>
+
+    <h3 class="help">How it works:</h3>
+    <p class="help">MetaForge Music Sharing utilizes the <strong>FFMPEG</strong> engine to perform a "Visual Synthesis." The process follows these technical specifications:</p>
+    <ul style="padding-left: 20px; margin-top: 5px; font-size: 0.7rem;">
+        <li><strong>Visuals:</strong> Ingests <code>folder.jpg</code> from the track directory to create a 1080x1080 static background. </li>
+        <li><strong>Branding:</strong> Applies a professional MetaForge watermark overlay to the render.</li>
+        <li><strong>Encoding:</strong> Generates a high-compatibility <strong>H.264</strong> video stream with <strong>192k AAC</strong> audio.</li>
+    </ul>
+
+    <h3 class="help">The Studio Interface:</h3>
+    <p class="help">The workbench provides a simplified "Studio" environment to monitor the transformation:</p>
+    <ul style="padding-left: 20px; margin-top: 5px; font-size: 0.7rem;">
+        <li><strong>Output Preview:</strong> A 250px replica displays the artwork identified for the render.</li>
+        <li><strong>Progress Bar:</strong> Tracks the file conversion in real-time.</li>
+    </ul>
+	
+	<h3 class="help">Output Location:</h3> 
+        <p class="help">Generated videos are stored in your system's Videos folder:</p>
+        <p class="help" style="font-family: var(--font-mono); font-size: 0.65rem; background: #eee; padding: 4px; margin-top: 5px;">
+            \Videos\MetaForge Studio\
+        </p>
+        <p class="help">Share your MP4 video file on your favorite Social media platform.</p>
+
+    
+</div>
+<!-- --- MUSIC SHARING STUDIO HELP END --- -->
+<!-- --- END OF FILE help.mfi --- -->

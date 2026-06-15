@@ -1,0 +1,188 @@
+/* ======================================================================
+   MetaForge Studio: Unified Theme & Layout Engine (V.5.0.3)
+   File Location: \MetaForge Suite\ui\css\metaforge.css
+   ====================================================================== */
+
+/* --- SECTION 1: HARDENED TYPOGRAPHY (LOCAL ASSETS) --- */
+
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('../../data/fonts/CascadiaCode-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('../../data/fonts/CascadiaCode-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cascadia Code';
+    src: url('../../data/fonts/CascadiaCode-Italic.ttf') format('truetype');
+    font-weight: normal;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: 'Cascadia Mono';
+    src: url('../../data/fonts/CascadiaMono-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+:root {
+    /* --- DARK THEME (DEFAULT) --- */
+    --bg-main: #141414;
+    --bg-accent: #2f2f2f;
+    --bg-stage: #2f2f2f;
+    --mf-gold: #cc9900;
+    --text-output: #ffffff;
+    --text-message: #cccccc;
+    --status-success: #2ad95a; 
+    --status-error: #ff5e70;
+    --input-foreground: #000000;
+    --input-background: #cc9900;
+    
+    /* Semantic Font Mapping */
+    --font-main: 'Cascadia Code', sans-serif;
+    --font-mono: 'Cascadia Mono', monospace;
+}
+
+[data-theme="light"] {
+    /* --- LIGHT THEME (STEEL/PLATINUM) --- */
+    --bg-main: #babcc0;
+    --bg-accent: #7a7e83;
+    --bg-stage: #d1d3d6;
+    --mf-gold: #997300; 
+    --text-output: #1a1a1a;
+    --text-message: #333333; 
+    --status-success: #1b6332;
+    --status-error: #a31621;
+    --input-foreground: #ffffff;
+    --input-background: #997300;
+    --font-main: 'Cascadia Code', sans-serif;
+    --font-mono: 'Cascadia Mono', monospace;
+}
+
+/* 1. NATIVE INTERACTION DE-WEBIFIERS */
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+:focus:not(:focus-visible) { outline: none !important; }
+
+/* WCAG 2.2 Focus Indicator */
+:focus-visible {
+    outline: 2px solid var(--mf-gold) !important;
+    outline-offset: 3px;
+    position: relative; 
+    z-index: 999 !important; 
+}
+
+body {
+    font-family: var(--font-main);
+    background-color: var(--bg-main); 
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text-message);
+}
+
+body, button, .nav-item { cursor: default; }
+
+/* 2. HEADER & NAVIGATION */
+header { background-color: var(--bg-main); border-bottom: 1px solid var(--mf-gold); padding: 4px 12px; }
+.global-nav { display: flex; align-items: center; gap: 12px; height: 42px; }
+.mf-logo { height: 32px; width: auto; display: block; margin-right: 1em; }
+
+.nav-item {
+    display: flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 3px;
+    transition: all 0.1s ease; border: 1px solid transparent; color: var(--mf-gold); 
+}
+.nav-item:focus-visible, .nav-item:hover { border: 1px solid var(--mf-gold); color: var(--text-output); }
+.nav-item.active { background-color: var(--bg-accent); border: 1px solid var(--mf-gold); color: var(--mf-gold); }
+
+#mode-settings { margin-left: auto; }
+
+.mf-icon-mask {
+    width: 28px; height: 28px; background-color: currentColor; 
+    -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat; mask-position: center;
+}
+
+/* 3. MAIN WORKING STAGE (GLOBAL PRIMITIVES) */
+main { 
+    flex: 1; 
+    background-color: var(--bg-stage); 
+    margin: 6px; 
+    border: 1px solid var(--bg-main); 
+    border-radius: 1px; 
+    display: flex; 
+    flex-direction: column;
+    overflow: hidden; 
+    padding: 10px; 
+}
+
+#mfi-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+div.active_stage { 
+    width: 100%; 
+    background-color: var(--bg-main); 
+    padding: 8px; 
+    display: flex; 
+    gap: 15px; 
+    flex: 1; 
+    min-height: 0; 
+    overflow-y: auto; 
+}   
+
+.mf-grid-heading { font-size: 1.1rem; color: var(--mf-gold); border-bottom: 1px solid var(--bg-accent); padding-bottom: 5px; margin-bottom: 15px; }
+.mf-selection-grid { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 15px; }
+.mf-selection-option { text-align: center; outline-offset: 4px; cursor: pointer; border-radius: 4px; }
+.mf-selection-preview { width: 60px; height: 35px; border-radius: 4px; margin-bottom: 5px; border: 1px solid var(--bg-accent); }
+.mf-selection-label { font-size: 0.75rem; color: var(--text-message); display: block; font-weight: bold; }
+
+/* 4. FORM & UI COMPONENTS */
+h1.main { color: var(--mf-gold); font-size: 1.2rem; border-bottom: 1px solid var(--mf-gold); margin-bottom: 0.5rem; padding-bottom: 4px; outline: none; }
+p.tool_notes { display: block; color: var(--text-message); font-size: 0.85rem; border-left: 3px solid var(--mf-gold); padding-left: 15px; margin: 15px 0; }
+
+.mf-input { 
+    width: 100%; background: var(--bg-stage); border: 1px solid var(--bg-accent); 
+    color: var(--text-output); padding: 8px; margin-top: 5px; 
+    font-family: var(--font-mono); font-size: 0.85rem; 
+}
+
+.mf-button-gold-fixed { 
+    background-color: var(--mf-gold); color: #000; border: 1px solid #000; 
+    border-radius: 3px; padding: 8px 16px; font-size: 0.8rem; 
+    font-weight: bold; cursor: pointer; 
+}
+
+.mf-btn-danger { 
+    background: var(--status-error); 
+    color: #fff; 
+    border: 1px solid #000; 
+    padding: 8px 16px; 
+    cursor: pointer; 
+    border-radius: 3px; 
+    font-weight: bold; 
+    font-size: 0.8rem; 
+}
+.mf-btn-danger:hover { filter: brightness(1.2); }
+
+/* 5. DATA TABLES LAYOUT */
+.meta-table { width: auto; border-collapse: collapse; }
+.tool-toggle {
+    appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
+    background-color: var(--mf-gold) !important; border: 1px solid #000; border-radius: 3px;
+    cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center;
+}
+.tool-toggle:checked::after { content: '✔'; color: #000 !important; font-size: 14px; font-weight: 900; }
+.tool-order { width: 3rem !important; height: 1.5rem; background: var(--mf-gold) !important; color: #000 !important; border: 1px solid #000; text-align: center; font-size: 0.8rem; font-weight: bold; border-radius: 3px; }
+
+/* 6. SCROLLBARS */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-main); }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; border: 2px solid var(--bg-main); }

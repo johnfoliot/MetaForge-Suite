@@ -1,0 +1,40 @@
+<!-- --- START OF FILE help.mfi --- -->
+<div class="mf-help-container" style="background-color: #ffffff; color: #000000; padding: 20px; font-family: sans-serif; line-height: 1.6; border: 1px solid #000000;">
+    <h1 style="border-bottom: 2px solid #000000; padding-bottom: 10px;">Help: Database Tools Workbench</h1>
+    
+    <p>The Database Tools workbench is a three-phase forensic environment designed to ensure your music library adheres to archival standards and maintains a rich relationship graph (personnel credits).</p>
+
+    <h2 style="margin-top: 20px;">Phase 1: Identity Radar</h2>
+    <p>Search your local MetaForge database for existing Artist or Album records. This phase is used to "lock on" to a specific target for remediation.</p>
+    <ul>
+        <li><strong>Health Status:</strong> Indicates if an album has verified personnel relationships.</li>
+        <li><strong>Selection:</strong> Clicking a result row transitions the workbench to Phase 2.</li>
+    </ul>
+
+    <h2 style="margin-top: 20px;">Phase 2: Archival Record</h2>
+    <p>Standardize the core metadata for the selected album. This acts as the "Source of Truth."</p>
+    <ul>
+        <li><strong>Bimodal Date Cascade:</strong> Saving the release year here will automatically update the <code>TYER</code> (Year) frame for every track associated with this album ID.</li>
+        <li><strong>Wikipedia Scraper:</strong> Use the "Scrape Wikipedia Personnel" button to launch an automated forensic search for credits based on the Artist and Album title.</li>
+    </ul>
+
+    <h2 style="margin-top: 20px;">Phase 3: Personnel Graph</h2>
+    <p>Manage the semantic relationships (edges) between the album and the people who created it.</p>
+    <ul>
+        <li><strong>Assigned Roles:</strong> Choose from standardized roles (e.g., Producer, Engineer, Instrumentalist).</li>
+        <li><strong>Evidence Source:</strong> Document where the information came from (Wikipedia, Liner Notes, or Personal Knowledge) for future forensic verification.</li>
+        <li><strong>Apply to All:</strong> When checked, the relationship is linked to every track in the album.</li>
+    </ul>
+
+    <h2 style="margin-top: 20px;">Library Maintenance</h2>
+    <p>Tools for database health.</p>
+    <ul>
+        <li><strong>Forensic Audit:</strong> Generates a report on library orphans and missing metadata.</li>
+        <li><strong>Optimize:</strong> Runs a <code>VACUUM</code> command to reclaim disk space and rebuild search indices.</li>
+    </ul>
+
+    <div style="margin-top: 30px; padding: 10px; border: 2px dashed #000000;">
+        <strong>Note on Accessibility:</strong> This workbench is fully keyboard-navigable. Use <code>Tab</code> to move between fields and <code>Enter</code> or <code>Space</code> to activate buttons and select records.
+    </div>
+</div>
+<!-- --- END OF FILE help.mfi --- -->

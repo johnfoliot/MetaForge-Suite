@@ -1,0 +1,147 @@
+<!-- --- START OF FILE music-sharing.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Music Sharing Studio
+     Build 7.4.4: Global Help CSS Integration & Studio Layout Preservation.
+     Accessibility: WCAG 2.2 AA Compliance
+     ====================================================================== -->
+<h1 class="main" tabindex="-1">Music Sharing</h1>
+
+<section class="sharing-description" aria-labelledby="sharing-info-label">
+    <h2 id="sharing-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+        <p class="data-text tool_notes">
+			What fun is a large music library, if you can't share tracks with friends?<br> 
+            Convert your MP3 audio with album artwork into a square-format MP4 video optimized for social media. 
+        </p>
+        <button class="mf-button-gold-fixed" 
+                style="font-size:85%;margin-left:1.5rem; margin-right: 5rem;"
+                onclick="metaforge.sharing.openHelp()" 
+                aria-label="Open Music Sharing help documentation">
+            Help
+        </button>
+    </div>
+</section>
+
+
+
+<div class="active_stage" id="sharing-stage">
+    <!-- 50/50 STUDIO SPLIT -->
+    <div class="sharing-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; min-height: 400px; width: 100%;">
+        
+        <!-- COLUMN 1: STUDIO CONTROLS -->
+        <section class="sharing-column" aria-labelledby="sharing-controls-label" style="display: flex; flex-direction: column; gap: 15px; align-items: flex-start;">
+            <h2 id="sharing-controls-label" class="mf-grid-heading">Studio Controls</h2>
+            
+            <div class="control-group" style="width: 90%; margin-left:1rem;">
+                <label for="sharing-target-path" class="data-text" style="display:block; margin-bottom: 5px;">Target Track Path:</label>
+                <div style="display: flex; gap: 10px; width: 100%;">
+                    <input type="text" id="sharing-target-path" class="mf-input" readonly 
+                           placeholder="No file selected..." 
+                           style="flex: 1; background-color:white;">
+                    <button class="mf-button-gold-fixed" onclick="metaforge.sharing.pickFile()">Select Track</button>
+                </div>
+            </div>
+
+            <!-- STUDIO PROGRESS BAR -->
+            <div id="sharing-progress-wrapper" style="width: 100%; margin-top: 10px; display: none;">
+                <div class="mf-progress-track" style="width: 100%; height: 24px; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; overflow: hidden; position: relative;">
+                    <div id="sharing-progress-bar" 
+                         role="progressbar" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100" 
+                         aria-valuenow="0"
+                         style="width: 0%; height: 100%; background: var(--mf-gold); transition: width 0.3s ease;"></div>
+                </div>
+                <div id="sharing-status-msg" class="data-text" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold;"></div>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-top: 20px; margin-left:1rem;">
+                <button id="btn-generate-video" 
+                        class="mf-button-gold-fixed" 
+                        onclick="metaforge.sharing.runRender()" 
+                        disabled
+                        style="width: 160px; opacity: 0.5; cursor: not-allowed;"
+                        aria-label="Begin video rendering">
+                    Generate Video
+                </button>
+                
+                <button id="btn-open-output" 
+                        class="mf-button-gold-fixed" 
+                        onclick="metaforge.sharing.openOutputFolder()" 
+                        style="display: none; width: 160px;"
+                        aria-label="View rendered video in file explorer">
+                    View Output Folder
+                </button>
+            </div>
+        </section>
+
+        <!-- COLUMN 2: STUDIO PREVIEW -->
+        <section class="sharing-column" aria-labelledby="sharing-preview-label" style="display: flex; flex-direction: column; gap: 15px; align-items: center; justify-content: flex-start;">
+            <h2 id="sharing-preview-label" class="mf-grid-heading" style="align-self: flex-start;">Output Preview</h2>
+
+            <div class="render-preview-box" id="sharing-preview-container">
+                <!-- Watermark Simulation -->
+                <div class="watermark-sim"></div>
+                <!-- Album Art / Placeholder -->
+                <img id="sharing-preview-art" src="/ui/images/no-photo.png" alt="Album art preview" style="width: 240px; height: auto; object-fit: cover; opacity: 0.3;">
+            </div>
+            
+            <p class="data-text tool_notes" style="font-size: 0.65rem; text-align: center;">Rendering at 1080x1080 (Square)</p>
+        </section>
+    </div>
+</div>
+
+<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
+<div id="sharing-help-panel" 
+     class="mf-help-panel" 
+     role="dialog" 
+     aria-labelledby="sharing-help-title" 
+     style="display: none;">
+    <div class="mf-panel-header">
+        <h2 id="sharing-help-title" style="margin: 0; font-size: 0.85rem;">Help: Music Sharing</h2>
+        <button class="mf-panel-close" onclick="metaforge.sharing.closeHelp()" aria-label="Close help panel">×</button>
+    </div>
+    <div id="sharing-help-body" class="mf-panel-body">
+        <!-- Content injected via JS -->
+    </div>
+</div>
+
+<style>
+    /* LOCALIZED TOOL STYLES: music-sharing */
+    #sharing-stage { position: relative; }
+    
+    .render-preview-box {
+        width: 250px;
+        height: 250px;
+        background-color: #111;
+        border: 2px solid var(--mf-gold);
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    }
+
+    .watermark-sim {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('/ui/images/logo_silver.svg');
+        background-size: 40px;
+        background-repeat: no-repeat;
+        background-position: 10px 10px;
+        opacity: 0.5;
+        z-index: 2;
+        pointer-events: none;
+    }
+	.mf-input {
+	padding:5px;
+	color:var(input-foreground2)!important; 
+	background-color:var(input-background2)!important;
+	}
+    #sharing-status-msg.status-success { color: var(--status-success); }
+    #sharing-status-msg.status-error { color: var(--status-error); }
+    #sharing-status-msg.status-working { color: var(--mf-gold); }
+</style>
+<!-- --- END OF FILE music-sharing.mfi --- -->

@@ -1,0 +1,18 @@
+{
+  "name": "Personnel",
+  "id": "personnel",
+  "version": "1.0.0",
+  "description": "Scrape Wikipedia for Album Personnel and map relationship edges.",
+  "entry_point": "personnel.mfi",
+  "logic_bridge": "personnel.js",
+  "backend_logic": "personnel.py",
+  "scripts": [],
+  "icon": "personnel.svg",
+  "order": 7,
+  "permissions": [
+    "sqlite",
+    "wikipedia_api"
+  ],
+  "category": "Library Management",
+  "working_directory": "tools/personnel"
+}

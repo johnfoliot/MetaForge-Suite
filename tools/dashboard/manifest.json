@@ -1,0 +1,10 @@
+{
+  "name": "Dashboard",
+  "id": "dashboard",
+  "version": "1.0.0",
+  "description": "MetaForge Dashboard",
+  "entry_point": "dashboard.py",
+  "ui_template": "dashboard.mfi",
+  "icon": "gauge.svg",
+  "required": true
+}

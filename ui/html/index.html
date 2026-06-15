@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaForge Studio</title>
+
+    <link rel="stylesheet" href="/ui/css/layout.css?v={{ version_id }}">
+
+    <link rel="stylesheet" id="mf-theme-stylesheet" href="/ui/css/default_theme.css?v={{ version_id }}">
+
+    <link rel="stylesheet" href="/ui/css/help.css?v={{ version_id }}">
+	
+    <script src="/ui/js/metaforge_core.js?v={{ version_id }}"></script>
+    
+    <script src="/common/common_ui.js?v={{ version_id }}"></script>
+</head>
+<body>
+
+<header role="banner">
+    <nav class="global-nav" aria-label="Global Navigation">
+        <img src="/ui/images/logo.svg?v={{ version_id }}" 
+             id="mf-main-logo" 
+             class="mf-logo" 
+             alt="MetaForge Studio">
+
+        {% for tool in tools %}
+        <div class="nav-item" 
+             id="mode-{{ tool.id }}" 
+             role="button" 
+             tabindex="0"
+             aria-pressed="false" 
+             onclick="switchMode('{{ tool.id }}')"
+             onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); switchMode('{{ tool.id }}'); }"
+             title="{{ tool.name }}">
+            
+            <div class="mf-icon-mask" 
+                 style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}'); 
+                        mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
+                        background-color: var(--mf-gold);">
+            </div>
+        </div>
+        {% endfor %}
+    </nav>
+</header>
+<main id="main-stage" role="main" aria-live="polite">
+        <div id="mfi-content">
+            <p class="tool_notes">Initializing MetaForge logic layers...</p>
+        </div>
+    </main>
+
+    <footer role="contentinfo" style="display: flex; justify-content: flex-end; padding: 0 15px;">
+        <span class="data-text" style="font-size: 0.75rem;">
+            Your library currently has <span style="color: var(--mf-gold); font-weight: bold;">{{ track_count }}</span> .mp3 files | MetaForge Studio &copy; 2026
+        </span>
+    </footer>
+
+    <script>
+    /**
+     * LOCAL BRIDGE
+     * Connects UI triggers to the mfSwitchMode engine in core.js
+     */
+    function switchMode(mode) {
+        if (typeof window.mfSwitchMode === 'function') {
+            window.mfSwitchMode(mode);
+        } else {
+            console.error("MetaForge Error: Global engine (mfSwitchMode) not registered.");
+        }
+    }
+    </script>
+</body>
+</html>

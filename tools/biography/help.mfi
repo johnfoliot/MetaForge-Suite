@@ -1,0 +1,10 @@
+<h3>Bio Builder Help</h3>
+<p>This tool coordinates local file extraction, AI-driven narrative synthesis, and automated portrait normalization for your centralized MetaForge library archive.</p>
+
+<ul>
+    <li><strong>Local Source Integration:</strong> Pointing to a local directory or audio track allows the metadata engine to extract text context fields automatically if they are currently blank.</li>
+    <li><strong>Standard Biographies:</strong> Formatted strictly to an target window (~270 words) for direct reading flow compatibility. It filters out preambles, introductory filler text, and conversational pleasantries entirely.</li>
+    <li><strong>Long Biographies:</strong> Intended for deeper profiles covering extended chronological histories, structural label switches, or comprehensive career context.</li>
+    <li><strong>Portrait Assets:</strong> Images imported or recovered automatically via Discogs are routed through the graphics processing layer. They are converted, resized to a strict 500x500 square grid, and written down as physical assets inside the central <code>{root}\MetaForge Suite\photos</code> repository under normalized filenames.</li>
+    <li><strong>Database Serialization:</strong> Pressing "Save Biography" updates your core SQLite database records, appending both the visual path signature and raw rich-text copy directly to the active tables.</li>
+</ul>

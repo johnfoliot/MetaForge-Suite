@@ -1,0 +1,34 @@
+<!-- --- START OF FILE help.mfi --- -->
+<!-- --- MUSICBRAINZ IDS HELP DOCUMENTATION --- -->
+<div class="help-content-silo">
+<h3 class="help first">What it does:</h3>
+<p class="help">Due to the way that MusicBrainz collects and stores recording data, we MUST involve a human in some early decision making: specifically, <b><i><u>which</u></i></b> album are we processing today?</p> 
+<p class="help">MusicBrainz IDs queries the MusicBrainz database, allowing you to confirm which album you have, and then collects the correct data values for the following information:</p>
+<ul class="help" style="margin-left:1.2rem; font-size: 0.75rem; line-height: 1.5;">
+    <li class="help">Artist ID (mb_artist_id)</li>
+    <li class="help">Album ID (mb_album_id)</li>
+    <li class="help">Album Release Group (mb_release_group_id)</li>
+    <li class="help">Country of Release (mb_release_country)</li>
+</ul>
+
+<div class="tool_notes" style="margin-top: 20px; padding: 12px; border-left: 4px solid var(--mf-gold);">
+    <h3 class="help">How to use this tool:</h3> 
+    <p>The process is straightforward:</p>
+    <ol class="help" style="margin-left:1.2rem; font-size: 0.75rem; line-height: 1.5;">
+        <li class="help">Ensure the <b>Local Source</b>, <b>Album</b>, and <b>Artist</b> fields are accurately populated. The <b>Track</b> count field is optional, but useful when determining which potential album needs to be selected.<br><i><span style="font-size:80%">(NOTE: If you have previously used the Unpack &amp; Convert tool, these fields will auto-populate)</span></i></li>
+        <li class="help">Submit the data to MusicBrainz using the <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Search MusicBrainz</span> button. Potential match results will appear below the submission area.</li>
+        <li class="help">Based upon the results provided, select the row that most accurately represents your recording. The <span style="color:var(--mf-gold)!important; font-weight:bold; font-size:110%;">Confirm Choice</span> panel will update itself, allowing you to compare <u>YOUR</u> album against the database entry. <br><span style="font-size:80%"><i>(NOTE: If there is no record of your album at MusicBrainz, you are encouraged to contribute to the MusicBrainz effort. The provided button will open a browser window to allow you to do that.)</i></span></li>
+        <li class="help">If everything appears correct, click the <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Commit IDs to Files</span> button.</li>
+        <li class="help">MusicBrainz IDs will then write the appropriate values as metadata to each of your files. Upon successful completion, you will be advised and prompted to <br><span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">Move to the next step</span>. </li>
+    </ol> 
+</div>
+
+<h3 class="help">Why Are We Doing This?</h3>
+<p class="help">One of the core purposes of the entire MetaForge Suite is to produce high-quality metadata for each of your files. Embedding these four core values from MusicBrainz 'aligns' your album with the global database, which is the primary benefit of MusicBrainz today.</p>
+<p class="help">Additionally, these values allow us to determine extremely useful information during the next phase: the <span style="color:var(--mf-gold); font-size:110%; font-weight:bold;">Intelli-Tagger</span>. By collecting information such as original Release Dates (per track) and associated Personnel, our <span style="color:var(--mf-gold); font-size:110%; font-weight:bold;">Intelligent Playlist</span> creator can craft thoughtful and creative sets based on more than random generation. This is based on our philosophy: "Garbage In = Garbage Out; Quality In = Quality Out."</p>
+
+<h3 class="help">A Note About Accuracy</h3>
+<p class="help">MusicBrainz data is largely submitted and updated by a global community of enthusiasts. Due to the <i>crowdsourced</i> nature of this information, accuracy and specific details will vary from recording to recording. While the MetaForge Suite endeavours to maintain high-value metadata, we are limited by the information available in the MusicBrainz database.</p>
+</div>
+<!-- --- AUDIO REPAIR HELP END --- -->
+<!-- --- END OF FILE help.mfi --- -->

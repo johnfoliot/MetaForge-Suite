@@ -1,0 +1,45 @@
+<div id="panel-artist" class="database-panel" style="display:flex; flex-direction:column; padding: 0 20px; flex: 1; overflow-y: auto;">
+    
+    <div style="padding: 0.5rem 0; border-bottom: 1px solid var(--mf-gold); display: flex; align-items: center; justify-content: flex-start; gap: 15px; margin-bottom: 10px;">
+        <label for="search-artist" class="mf-card-label" style="font-size: 1.1rem; color: var(--mf-gold);">Search by Artist</label>
+        <input type="text" id="search-artist" class="mb-input-text" style="width: 250px; background: var(--input-background2); color: var(--input-foreground2);">
+        <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.search()">Search</button>
+    </div>
+
+    <div id="multiple-matches-container" style="display: none; padding: 5px 0; color: var(--mf-gold);">
+        <h2 style="font-size: 1.1rem; margin-bottom: 10px;">Matches identified. Select target identity:</h2>
+        <div id="matches-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+
+    <div id="artist-workspace" style="display: none; grid-template-columns: 400px 240px 1fr; gap: 20px; padding-top: 10px; flex: 1; overflow: hidden;">
+        
+        <div style="display: flex; flex-direction: column; gap: 5px; overflow: hidden;">
+            <label class="mf-card-label" style="color: var(--mf-gold);">Artist Name:</label>
+            <input type="text" id="art-name" class="mb-input-text" style="background:var(--input-background2); color:var(--input-foreground2);">
+           
+            <label class="mf-card-label" style="color: var(--mf-gold);">Country:</label>
+            <input type="text" id="art-country" class="mb-input-text" style="width: 100px; background:var(--input-background2); color:var(--input-foreground2);">
+            <button class="mf-button-gold-fixed" style="width: 150px;" onclick="window.metaforge.database_tools.artist_editor.handleBioAction()">Add a Bio</button>
+            <textarea id="art-bio" class="mb-input-text" style="flex: 1; min-height: 100px; background:var(--input-background2); color:var(--input-foreground2); margin-bottom:8px;"></textarea>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+            <div style="width: 180px; height: 180px; border: 1px solid var(--mf-gold); background: var(--bg-accent); overflow: hidden; box-sizing: border-box; display: flex; align-items: center; justify-content: center;">
+                <img id="artist-img" src="" style="width: 100%; height: 100%; max-width: 100%; max-height: 100%; object-fit: cover; display: none;">
+            </div>
+            <input type="text" id="photo-path" class="mb-input-text" placeholder="Add Photo" style="width: 100%; background:var(--input-background2); color:var(--input-foreground2); box-sizing: border-box;">
+            <button class="mf-button-gold-fixed" style="width:100%;" onclick="window.metaforge.database_tools.artist_editor.browsePhoto()">Browse</button>
+            <button class="mf-button-gold-fixed" style="width:100%; height: 40px; margin-top: 2px;" onclick="window.metaforge.database_tools.artist_editor.save()">Save Edits</button>
+        </div>
+
+        <div style="border: 1px solid var(--mf-gold); padding: 10px; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0;">Albums</h2>
+                
+            </div>
+            <div id="artist-album-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: flex-start; overflow-y: auto; flex: 1; padding-right: 5px;"></div>
+			<button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.editSelectedAlbum()" style="width:30%;">Edit</button>
+        </div>
+
+    </div>
+</div>

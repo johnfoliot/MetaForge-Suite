@@ -1,0 +1,99 @@
+<!-- --- START OF FILE acoustid.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: AcoustID Manager
+     Build 7.4.3: Global Help CSS Integration.
+     Accessibility: WCAG 2.2 AA Compliance
+     ====================================================================== -->
+<h1 class="main" tabindex="-1">AcoustID Manager</h1>
+<section class="acoustid-description" aria-labelledby="acoustid-info-label">
+    <h2 id="acoustid-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+        <p class="data-text tool_notes" style="margin: 0; max-width: 80%;">
+            Manage the AcoustID fingerprinting lifecycle. Submit unknown tracks to the global database, 
+            or check previously submitted tracks to resolve and finalize their identifiers.
+        </p>
+        <button class="mf-button-gold-fixed" 
+                style="font-size:85%; margin-right: 5rem;"
+                onclick="metaforge.acoustid.openHelp()" 
+                aria-label="Open AcoustID help documentation">
+            Help
+        </button>
+    </div>
+</section>
+
+<div class="active_stage" id="acoustid-stage">
+    <section class="acoustid-controls" aria-labelledby="acoustid-actions-label">
+        <h2 id="acoustid-actions-label" class="mf-grid-heading">Sync Operations</h2>
+        
+        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <button class="mf-button-gold-fixed" 
+                    onclick="metaforge.acoustid.runTask('submit')"
+                    aria-label="Step 1: Submit fingerprints to AcoustID">
+                1. Submit Fingerprints
+            </button>
+            
+            <button class="mf-button-gold-fixed" 
+                    onclick="metaforge.acoustid.runTask('resolve')"
+                    aria-label="Step 2: Check for resolved IDs and update library">
+                2. Resolve & Update
+            </button>
+        </div>
+
+        <div class="acoustid-console-container">
+            <div id="acoustid-console" 
+                 role="log" 
+                 aria-live="polite" 
+                 class="mf-console-output">
+                <p class="tool_notes">Awaiting operation...</p>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
+<div id="acoustid-help-panel" 
+     class="mf-help-panel" 
+     role="dialog" 
+     aria-labelledby="panel-title" 
+     style="display: none;">
+    <div class="mf-panel-header">
+        <h2 id="panel-title" style="margin: 0; font-size: 0.85rem;">Help: AcoustID Manager</h2>
+        <button class="mf-panel-close" onclick="metaforge.acoustid.closeHelp()" aria-label="Close help panel">×</button>
+    </div>
+    <div id="acoustid-help-body" class="mf-panel-body">
+        <!-- Content injected via JS -->
+    </div>
+</div>
+
+<style>
+    /* LOCALIZED TOOL STYLES: acoustid */
+    #acoustid-stage { display: flex; flex-direction: column; gap: 20px; position: relative; }
+    
+    .acoustid-console-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 300px;
+    }
+
+    .mf-console-output {
+        flex: 1;
+        background-color: var(--bg-main);
+        border: 3px solid var(--bg-accent);
+        border-radius: 4px;
+        padding: 15px;
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        color: var(--text-output);
+        overflow-y: auto;
+        white-space: pre-wrap;
+        line-height: 1.2;
+    }
+
+    .mf-console-output div { margin-bottom: 4px; }
+    .mf-console-output .status-ok { color: var(--status-success); }
+    .mf-console-output .status-err { color: var(--status-error); }
+    .mf-console-output .status-warn { color: var(--mf-gold); }
+    .mf-console-output .status-api { color: var(--mf-gold); font-weight: bold; }
+</style>
+<!-- --- END OF FILE acoustid.mfi --- -->

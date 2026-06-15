@@ -1,0 +1,35 @@
+<div style="margin:10px; margin-bottom:0px;">
+    <h2 class="mf-card-label" style="font-size: 1.1rem; color: var(--mf-gold); margin-bottom:4px;" tabindex="-1">Database Purge</h2>
+    <p style="border-bottom: 1px solid var(--mf-gold); padding-bottom: 8px;">Database Purge is the sharpest knife in the toolbox. <b>NOTE: At no time will your <i>physical music files</i> be touched:</b> this is exclusively a database tool.</p>
+</div>
+
+<div id="panel-fixer" class="database-panel" style="display:flex; flex-direction:row; padding: 20px; flex: 1; gap: 20px; overflow-y:auto;">
+    
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 15px; border-right: 1px solid var(--mf-gold); padding-right: 20px;">
+	<label for="fix-term" style="font-weight:bold; color:var(--mf-gold); margin:-10px; font-size:.8rem;">Search For:</label>
+        <input type="text" id="fix-term" class="mb-input-text" style="color: black;" placeholder="Search term...">
+        
+        <fieldset style="border: 1px solid var(--mf-gold); padding: 10px; color: var(--mf-gold);">
+            <legend>Filter by Category</legend>
+            <label><input type="radio" name="fix-cat" value="all" checked> All</label><br>
+            <label><input type="radio" name="fix-cat" value="artist"> Artist</label><br>
+            <label><input type="radio" name="fix-cat" value="album"> Album</label><br>
+            <label><input type="radio" name="fix-cat" value="track"> Track</label><br>
+            <label><input type="radio" name="fix-cat" value="personnel"> Personnel</label>
+        </fieldset>
+
+        <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.fixer_editor.diagnose()" >Search the Database</button><div style="height:1px!important; border-top:1px solid var(--mf-gold); background-color:var(--mf-gold); margin-bottom:4px;"></div>
+    </div>
+
+    <div id="fix-results-container" style="flex: 2; display: flex; flex-direction: column; gap: 15px;">
+        <div id="fix-results" tabindex="0" style="flex: 1; overflow-y: auto; background: var(--input-background2); padding: 15px; border-radius: 4px; color: var(--input-foreground2);">
+            <p>Results will appear here...</p>
+        </div>
+        
+        <button id="fix-nuke-btn" 
+                class="mf-button-gold-fixed" 
+                style="background: var(--status-error); width: 50%; margin:auto;" 
+                onclick="window.metaforge.database_tools.fixer_editor.purge()" 
+                disabled>Permanently Purge Selected Record</button>
+    </div>
+</div>

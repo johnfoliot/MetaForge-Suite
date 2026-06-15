@@ -1,0 +1,146 @@
+// --- START OF FILE biography.js ---
+/**
+ * MetaForge Logic Bridge: Biography Builder
+ * Build 1.0.19: Finalized button mapping and image pipeline.
+ */
+
+window.metaforge = window.metaforge || {};
+window.metaforge.biography = {
+    observer: null,
+    currentArtist: null,
+
+    init: function() {
+        const stage = document.getElementById('bio-container-main');
+        if (!stage) return;
+        if (stage.getAttribute('data-synced') === 'true') return;
+        stage.setAttribute('data-synced', 'true');
+
+        setTimeout(() => {
+            this.currentArtist = null;
+            this.bindEvents();
+            this.resetUI();
+        }, 10);
+    },
+
+    resetUI: function() {
+        document.getElementById('bio-artist').value = "";
+        document.getElementById('bio-text-editor').value = "";
+        document.getElementById('bio-img-element').src = '/ui/images/no-photo.png';
+        this.setButtonState('get', false);
+        this.setButtonState('save', false);
+    },
+
+    bindEvents: function() {
+        // Search Button: Correctly mapped
+        document.getElementById('btn-search-artist').onclick = async () => {
+            const name = document.getElementById('bio-artist').value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch(`/run_tool_logic/database_tools/search_artist?artist=${encodeURIComponent(name)}`);
+                const data = await res.json();
+                if (data.status === 'success') {
+                    this.loadArtist(data.artist.mf_artist_id);
+                } else {
+                    alert(data.message || "Artist not found.");
+                }
+            } catch (e) { console.error("Search failed:", e); }
+        };
+
+        // SAVE BUTTON: Correctly mapped to saveBiography
+        document.getElementById('btn-save-biography').onclick = () => this.saveBiography();
+        
+        // GET BIO BUTTON: Correctly mapped to generateBiography
+        document.getElementById('btn-get-biography').onclick = () => this.generateBiography();
+        
+        const toggle = document.getElementById('bio-profile-toggle');
+        if (toggle) toggle.onclick = () => this.toggleEnhancedMode(toggle);
+    },
+
+    loadArtist: async function(mf_id) {
+        try {
+            const res = await fetch(`/run_tool_logic/database_tools/get_artist_details?mf_artist_id=${mf_id}`);
+            const data = await res.json();
+            if (data.status === 'success') {
+                this.currentArtist = data.artist;
+                document.getElementById('bio-text-editor').value = data.artist.biography || "";
+                
+                // Ensure image src includes .jpg and a timestamp to force reload
+                if (data.artist.photo_path) {
+                    document.getElementById('bio-img-element').src = `/ui/artist_photo/${data.artist.md5_hash}.jpg?t=${Date.now()}`;
+                } else {
+                    document.getElementById('bio-img-element').src = '/ui/images/no-photo.png';
+                }
+                
+                this.setButtonState('get', true);
+                this.setButtonState('save', true);
+            }
+        } catch (e) { console.error("Load Error:", e); }
+    },
+
+    generateBiography: async function() {
+        if (!this.currentArtist) return;
+        this.toggleLoading(true);
+        try {
+            const res = await fetch('/run_tool_logic/biography/generate_bio', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    artist_name: this.currentArtist.artist_name, 
+                    enhanced: document.getElementById('bio-profile-toggle').getAttribute('aria-checked') === 'true'
+                })
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                document.getElementById('bio-text-editor').value = result.biography;
+                document.getElementById('bio-img-element').src = `/ui/artist_photo/${result.md5_hash}.jpg?t=${Date.now()}`;
+            } else {
+                alert("Error: " + result.message);
+            }
+        } catch (e) { console.error(e); } finally {
+            this.toggleLoading(false);
+        }
+    },
+
+    saveBiography: async function() {
+        if (!this.currentArtist) return;
+        const payload = {
+            mf_artist_id: this.currentArtist.mf_artist_id,
+            artist_name: this.currentArtist.artist_name,
+            biography: document.getElementById('bio-text-editor').value
+        };
+        const res = await fetch('/run_tool_logic/biography/save_bio', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        const data = await res.json();
+        if (data.status === 'success') {
+            alert("Biography saved successfully.");
+            // Refresh state to confirm save
+            this.loadArtist(this.currentArtist.mf_artist_id); 
+        } else {
+            alert("Save failed: " + data.message);
+        }
+    },
+
+    toggleEnhancedMode: function(el) {
+        const isChecked = el.getAttribute('aria-checked') === 'true';
+        el.setAttribute('aria-checked', (!isChecked).toString());
+        document.getElementById('bio-toggle-label').innerHTML = !isChecked ? "Enhanced<br>Bio: On" : "Enhanced<br>Bio: Off";
+    },
+
+    setButtonState: function(type, enabled) {
+        const btn = document.getElementById(type === 'get' ? 'btn-get-biography' : 'btn-save-biography');
+        if (btn) btn.disabled = !enabled;
+    },
+
+    toggleLoading: function(show) {
+        const overlay = document.getElementById('bio-loading-overlay');
+        if (overlay) overlay.style.display = show ? 'flex' : 'none';
+    }
+};
+
+window.metaforge.biography.init();
+window.metaforge.biography.setupReentryWatcher();
+// --- END OF FILE biography.js ---

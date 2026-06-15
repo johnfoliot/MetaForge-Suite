@@ -1,0 +1,10 @@
+{
+    "active_model": "gemini-2.5-flash",
+    "required_engine_version": "1.0.0",
+    "manifest_metadata": {
+        "schema_version": "2.0.0",
+        "last_checked": "2026-06-15T16:38:17Z",
+        "installed_version": "1.0.0"
+    },
+    "updates": []
+}

@@ -1,0 +1,148 @@
+// --- START OF FILE artist_editor.js ---
+/**
+ * MetaForge Studio: Database Tools - Artist Editor Spoke
+ * Physical Location: \tools\database_tools\artist\artist_editor.js
+ * Build 1.8.9: Restored automatic downstream chain-loading for album collections.
+ */
+
+window.metaforge = window.metaforge || {};
+window.metaforge.database_tools = window.metaforge.database_tools || {};
+
+window.metaforge.database_tools.artist_editor = {
+
+    search: async function() {
+        const query = document.getElementById('search-artist').value.trim();
+        if (!query) return;
+
+        document.getElementById('artist-workspace').style.display = 'none';
+        document.getElementById('multiple-matches-container').style.display = 'none';
+
+        try {
+            const res = await fetch(`/run_tool_logic/database_tools/search_artist?artist=${encodeURIComponent(query)}`);
+            const data = await res.json();
+            
+            // Directive III.2: 10ms Paint Guard
+            setTimeout(() => {
+                if (data.status === "multiple") {
+                    this.renderDisambiguation(data.candidates);
+                } else if (data.status === "success") {
+                    this.render(data.artist);
+                } else {
+                    alert(data.message || "No results found.");
+                }
+            }, 10);
+        } catch (e) { console.error("Artist search error:", e); }
+    },
+
+    renderDisambiguation: function(candidates) {
+        const container = document.getElementById('multiple-matches-container');
+        const list = document.getElementById('matches-list');
+        if (!container || !list) return;
+
+        container.style.display = 'block';
+        list.innerHTML = candidates.map(c => `
+            <div style="border: 1px solid var(--mf-gold); padding: 8px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-accent);">
+                <span style="color:var(--text-output); font-family: 'Cascadia Mono', monospace;">${c.artist_name}</span>
+                <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.load('${c.mf_artist_id}')">Select</button>
+            </div>
+        `).join('');
+    },
+
+    load: async function(aid) {
+        document.getElementById('multiple-matches-container').style.display = 'none';
+        try {
+            const res = await fetch(`/run_tool_logic/database_tools/get_artist_details?mf_artist_id=${aid}`);
+            const data = await res.json();
+            
+            // Directive III.2: 10ms Paint Guard
+            setTimeout(() => {
+                if (data.status === "success") this.render(data.artist);
+                else alert("Error loading artist details: " + data.message);
+            }, 10);
+        } catch (e) { console.error("Load artist error:", e); }
+    },
+
+    render: function(data) {
+        const workspace = document.getElementById('artist-workspace');
+        if (workspace) workspace.style.display = 'grid';
+        
+        window.metaforge.database_tools.state.activeId = data.mf_artist_id;
+        
+        document.getElementById('art-name').value = data.artist_name || '';
+        document.getElementById('art-country').value = data.country || '';
+        document.getElementById('art-bio').value = data.biography || '';
+        document.getElementById('photo-path').value = data.photo_path || '';
+        
+        const img = document.getElementById('artist-img');
+        if (img) {
+            img.onerror = () => { img.src = '/ui/images/no-photo.png'; };
+            img.src = data.photo_path ? `/ui/artist_photo/${data.mf_artist_id}` : '/ui/images/no-photo.png';
+            img.style.display = 'block';
+        }
+        
+        // If the payload does not contain the albums array, it means this was the initial 
+        // short search response. Chain-load the full detailed record immediately.
+        if (!data.albums) {
+            this.load(data.mf_artist_id);
+            return;
+        }
+        
+        const grid = document.getElementById('artist-album-grid');
+        if (!grid) return;
+        grid.innerHTML = ''; 
+        
+        if (data.albums && data.albums.length > 0) {
+            data.albums.forEach((alb, idx) => {
+                const card = document.createElement('div');
+                card.style = "position:relative; display:flex; flex-direction:column; padding:8px; border:1px solid var(--mf-gold); border-radius:3px; background:var(--bg-main); overflow-x:clip;";
+                card.innerHTML = `
+                    <img src="/ui/covers/${alb.mf_id}.jpg" onerror="this.src='/ui/images/no-cover.png'" style="width:100%; aspect-ratio:1/1; object-fit:cover; margin-bottom:5px;">
+                    <div style="font-size:0.8rem; color:var(--text-output); font-weight:bold; margin-bottom:4px; font-family: 'Cascadia Mono', monospace;">${alb.album_title}</div>
+                    <div style="font-size:0.7rem; color:var(--mf-gold); margin-bottom:10px!important; font-family: 'Cascadia Code', monospace;">${alb.role || 'Primary Artist'}</div>
+                    <input type="radio" name="artist-album-select" value="${alb.mf_id}" id="alb-rad-${idx}" 
+                           style="position:absolute; bottom:8px; right:8px; accent-color:var(--mf-gold);"
+                           aria-label="Select ${alb.album_title}">
+                `;
+                grid.appendChild(card);
+            });
+        }
+    },
+
+    save: async function() {
+        const payload = {
+            mf_artist_id: window.metaforge.database_tools.state.activeId,
+            name: document.getElementById('art-name').value,
+            country: document.getElementById('art-country').value,
+            biography: document.getElementById('art-bio').value,
+            photo_path: document.getElementById('photo-path').value
+        };
+        const res = await fetch('/run_tool_logic/database_tools/save_artist', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if ((await res.json()).status === "success") alert("Artist identity committed.");
+    },
+
+    browsePhoto: async function() {
+        const res = await fetch('/select_file');
+        const data = await res.json();
+        if (data.path) document.getElementById('photo-path').value = data.path;
+    },
+
+    handleBioAction: function() {
+        if (window.mfSwitchMode) window.mfSwitchMode('biography');
+    },
+
+    editSelectedAlbum: function() {
+        const selected = document.querySelector('input[name=\"artist-album-select\"]:checked');
+        if (!selected) return alert("Select an album card first.");
+        
+        const tab = document.getElementById('tab-album');
+        if (tab) {
+            window.metaforge.database_tools.showPanel('album', tab);
+            setTimeout(() => { window.metaforge.database_tools.album_editor.load(selected.value); }, 10);
+        }
+    }
+};
+// --- END OF FILE artist_editor.js ---
