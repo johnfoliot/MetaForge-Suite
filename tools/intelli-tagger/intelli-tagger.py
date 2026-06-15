@@ -122,4 +122,4 @@ def _render_deep_view_line(idx, total, filename, data):
 
     return f'<div class="it-log-row"><span class="it-log-line1">{line1}</span><span class="it-log-subline">{subline}</span></div>'
 
-# --- END OF FILE intelli-tagger.py ---
+# --- END OF FILE intelli-tagger.py 
