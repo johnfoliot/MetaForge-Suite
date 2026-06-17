@@ -9,7 +9,7 @@ from pathlib import Path
 from common import tag_engine
 
 # --- [ THE AUTHORITATIVE WHITELIST ] ---
-# Build 1.0.4: Synchronized with Commit Engine Build 1.4.6.
+# Build 1.0.4: Synchronized with Commit Engine Build 1.6.0.
 # Frames not starting with these strings are purged to maintain a Clean Room.
 WHITELIST = [
     'TIT2',   # Track Title
@@ -17,11 +17,14 @@ WHITELIST = [
     'TALB',   # Album Title
     'TRCK',   # Track Number
     'TCON',   # Genre
+    'TMOO',   # Mood
+    'TBPM',   # BPM
+    'TKEY',   # Key
     'APIC',   # Embedded Album cover
     'UFID',   # MusicBrainz Recording ID (Track ID)
     'COMM',   # MetaForge Forensic Signature
-    'TYER',   # Release Year (Bimodal)
-    'TORY',   # Original Year (Bimodal)
+    'TYER',   # Release Year
+    'TORY',   # Original Year
     'TPUB',   # Historical Label
     
     # --- SURGICAL TXXX WHITELIST ---
@@ -33,8 +36,7 @@ WHITELIST = [
     'TXXX:Sub-Genre',
     'TXXX:Intensity',
     'TXXX:Country',
-    'TXXX:Personnel',
-    'TXXX:Release Year'
+    'TXXX:Mood_Modifiers'
 ]
 
 def scrub_tags(root_path):
@@ -46,21 +48,15 @@ def scrub_tags(root_path):
     if not files:
         return
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:5px;">🧼 Cleaning metadata</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;">🧼 Cleaning metadata...</div>'
 
     scrub_count = 0
     for f in files:
         # tag_engine.sanitize_file logic protects frames starting with whitelist entries.
-        # Fixed Build 1.0.4: Corrected concatenated string error.
         success, message = tag_engine.sanitize_file(f, WHITELIST)
         
         if success:
             scrub_count += 1
             if scrub_count % 5 == 0 or scrub_count == len(files):
-                yield f'<div class="it-log-entry" style="margin-left:15px;"><img src="/ui/images/cleaned.png" alt="" style="height:15px; width:auto;"> Cleaned {scrub_count}/{len(files)} files...</div>'
-        else:
-            yield f'<div class="it-log-entry it-val-red">⚠️ Scrub Error on {f.name}: {message}</div>'
-
-    yield f'<div class="it-log-entry it-val-success">✅ Scrubbing Complete</div>'
-
+                yield f'<div class="it-log-entry" style="margin-left:15px;">✅ Cleaned {scrub_count}/{len(files)} files.</div>'
 # --- END OF FILE scrub_engine.py ---

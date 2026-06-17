@@ -8,6 +8,7 @@ venv/
 .venv/
 env/
 photos/
+debug/
 
 # Ignore local data and configuration secrets
 data/
