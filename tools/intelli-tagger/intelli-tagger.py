@@ -107,18 +107,22 @@ def _orchestrate_tagger_batch(data, env_path):
     yield ''
 
 def _render_deep_view_line(idx, total, filename, data):
+
     idx_str = f"[{str(idx).rjust(len(str(total)))}/{total}]"
+
     line1 = f'<span class="it-val-gold">{idx_str}</span> <span class="it-val-white">{filename[:30].ljust(30)}</span> | '
     line1 += f'<span class="it-val-gold">Date:</span> <span class="it-val-white">{str(data.get("display_date", "Unknown")).ljust(4)}</span> | '
     line1 += f'<span class="it-val-gold">Genre:</span> <span class="it-val-white">{data.get("parent", "Unknown")[:15].ljust(15)}</span> | '
     line1 += f'<span class="it-val-gold">Sub Genre:</span> <span class="it-val-white">{data.get("sub", "Unknown")[:18].ljust(18)}</span>'
-    
+ 
     subline = f'<div style="margin-right:10px; text-align:left;">| <span class="it-val-gold">BPM:</span> <span class="it-val-white">{str(data.get("bpm", "0")).ljust(3)}</span> | '
     subline += f'<span class="it-val-gold">Key:</span> <span class="it-val-white">{data.get("key", "??").ljust(5)}</span> | '
     subline += f'<span class="it-val-gold">Intensity:</span> <span class="it-val-white">{str(data.get("intensity", "1")).ljust(2)}</span> | '
-    subline += f'<span class="it-val-gold">Mood:</span> <span class="it-val-white">{data.get("mood", "Animated")[:12].ljust(12)}</span> | '
-    subline += f'<span class="it-val-gold">MB TrackID:</span> <span class="it-val-white">{str(data.get("mb_track_id", "None"))[:8]}</span> | '
-    subline += f'<span class="it-val-gold">AcoustID:</span> <span class="it-val-white">{str(data.get("acoustid", "None"))[:8]}</span></div>'
+    subline += f'<span class="it-val-gold">Mood:</span> <span class="it-val-white">{data.get("mood", "Unknown")[:12].ljust(12)}</span> | '
+    subline += f'<span class="it-val-gold">Sonic Texture:</span> <span class="it-val-white">{data.get("sonic_texture", "Unknown")[:12].ljust(12)}</span> | '
+    subline += f'<span class="it-val-gold">Emotional Flavor:</span> <span class="it-val-white">{data.get("emotional_flavor", "Unknown")[:12].ljust(12)}</span> <br>'
+    subline += f'<span class="it-val-gold">| MB TrackID:</span> <span class="it-val-white">{str(data.get("mb_track_id", "None"))[:37]}</span> | '
+    subline += f'<span class="it-val-gold">AcoustID:</span> <span class="it-val-white">{str(data.get("acoustid", "None"))[:37]}</span></div>'
 
     return f'<div class="it-log-row"><span class="it-log-line1">{line1}</span><span class="it-log-subline">{subline}</span></div>'
 
