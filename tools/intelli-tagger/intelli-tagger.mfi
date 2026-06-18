@@ -290,7 +290,7 @@ display: none;
     <main class="it-output-silo">
         <div id="it-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
             <div id="it-progress-fill" class="it-progress-fill"></div>
-            <br><br><h3 id="it-progress-label" class="it-progress-text" style-"padding:4px!important;">Standing By</h3>
+            <br><br><h3 id="it-progress-label" class="it-progress-text" style-"padding:4px!important; width:100px;">Standing By</h3>
         </div>
 
         <div id="it-console" class="it-console" aria-live="polite">

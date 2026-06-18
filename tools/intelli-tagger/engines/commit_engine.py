@@ -61,10 +61,14 @@ def execute_commit(root_path, track_results, db_write=True, manifest_seeds=None)
 
     conn = None
     if db_write:
-        conn = sqlite3.connect(str(DB_PATH))
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM tracks WHERE mf_id = ?", (mf_id,))
-        cursor.execute("DELETE FROM edges WHERE source_id = ?", (mf_id,))
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM tracks WHERE mf_id = ?", (mf_id,))
+            cursor.execute("DELETE FROM edges WHERE source_id = ?", (mf_id,))
+        except Exception as e:
+            yield f'<div class="it-log-entry it-val-red">🚨 DB Connection Error: {str(e)}</div>'
+            db_write = False
 
     forensic_context = track_results[0][1]
     label_val = forensic_context.get('label', 'Unknown')
@@ -75,90 +79,114 @@ def execute_commit(root_path, track_results, db_write=True, manifest_seeds=None)
     session.headers.update({"User-Agent": "MetaForgeStudio/1.2 ( johnfoliot@gmail.com )", "Accept": "application/json"})
 
     for idx, (f_path, data) in enumerate(track_results, 1):
-        current_title = data.get('title', '').strip()
-        mb_track_id = data.get('mb_track_id', 'None')
-        
-        verified_length_seconds = 0
-        
-        if mb_track_id != 'None':
-            try:
-                time.sleep(1.1)
-                rec_res = session.get(f"{MB_BASE_URL}/recording/{mb_track_id}").json()
-                
-                if not current_title or current_title == f_path.stem:
-                    mb_verified_title = rec_res.get('title', '').strip()
-                    if mb_verified_title:
-                        data['title'] = mb_verified_title
-                
-                mb_ms = rec_res.get('length')
-                if mb_ms:
-                    verified_length_seconds = int(mb_ms // 1000)
-            except Exception:
-                pass 
+        try:
+            current_title = data.get('title', '').strip()
+            mb_track_id = data.get('mb_track_id', 'None')
+            
+            verified_length_seconds = 0
+            
+            if mb_track_id != 'None':
+                try:
+                    time.sleep(1.1)
+                    rec_res = session.get(f"{MB_BASE_URL}/recording/{mb_track_id}").json()
+                    
+                    if not current_title or current_title == f_path.stem:
+                        mb_verified_title = rec_res.get('title', '').strip()
+                        if mb_verified_title:
+                            data['title'] = mb_verified_title
+                    
+                    mb_ms = rec_res.get('length')
+                    if mb_ms:
+                        verified_length_seconds = int(mb_ms // 1000)
+                except Exception:
+                    pass 
 
-        if not data.get('title'):
-            data['title'] = f_path.stem
+            if not data.get('title'):
+                data['title'] = f_path.stem
 
-        if verified_length_seconds <= 0:
-            try:
-                verified_length_seconds = int(data.get('duration', 0))
-            except:
-                verified_length_seconds = 0
+            if verified_length_seconds <= 0:
+                try:
+                    verified_length_seconds = int(data.get('duration', 0))
+                except:
+                    verified_length_seconds = 0
 
-        _write_physical_tags(f_path, data, album_reissue_year)
+            _write_physical_tags(f_path, data, album_reissue_year)
 
-        if db_write and conn:
-            cursor.execute("""
-                INSERT INTO tracks (
-                    file_path, mf_id, mf_artist_id, mb_artist_id, mb_track_id, 
-                    acoustid, title, genre, sub_genre, original_year, 
-                    bpm, key_val, mood, intensity, is_remediated, 
-                    last_updated, mb_work_id, orig_year_conf, orig_year_source, leak_flag,
-                    length, sonic_texture, emotional_flavor
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                str(f_path.resolve()).replace('\\', '/'), mf_id, mf_artist_id,
-                current_mb_artist_id, data.get('mb_track_id', 'None'),
-                data.get('acoustid', 'None'), data.get('title'), data.get('parent', 'Unknown'), 
-                data.get('sub', 'Unknown'), data.get('original_year', 'Unknown'),
-                data.get('bpm', 0), data.get('key', '??'), data.get('mood', 'Unknown'), 
-                data.get('intensity', 1), 1, now, data.get('mb_work_id', 'None'),
-                100, "MetaForge Forensic", 0,
-                verified_length_seconds, data.get('sonic_texture', 'Unknown'), data.get('emotional_flavor', 'Unknown')
-            ))
-            success_count += 1
+            if db_write and conn:
+                cursor.execute("""
+                    INSERT INTO tracks (
+                        file_path, mf_id, mf_artist_id, mb_artist_id, mb_track_id,
+                        acoustid, title, genre, sub_genre, original_year,
+                        bpm, key_val, mood, intensity, is_remediated,
+                        last_updated, mb_work_id, orig_year_conf, orig_year_source, leak_flag,
+                        length, sonic_texture, emotional_flavor
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(f_path.resolve()).replace('\\', '/'),  # file_path
+                    mf_id,                                      # mf_id
+                    mf_artist_id,                               # mf_artist_id
+                    current_mb_artist_id,                       # mb_artist_id
+                    data.get('mb_track_id', 'None'),            # mb_track_id
+                    data.get('acoustid', 'None'),               # acoustid
+                    data.get('title'),                          # title
+                    data.get('parent', 'Unknown'),              # genre
+                    data.get('sub', 'Unknown'),                 # sub_genre
+                    data.get('original_year', 'Unknown'),       # original_year
+                    data.get('bpm', 0),                         # bpm
+                    data.get('key', '??'),                      # key_val
+                    data.get('mood', 'Unknown'),                # mood
+                    data.get('intensity', 1),                   # intensity
+                    1,                                          # is_remediated
+                    now,                                        # last_updated
+                    data.get('mb_work_id', 'None'),             # mb_work_id
+                    100,                                        # orig_year_conf
+                    "MetaForge Forensic",                       # orig_year_source
+                    0,                                          # leak_flag
+                    verified_length_seconds,                    # length
+                    data.get('sonic_texture', 'Unknown'),       # sonic_texture
+                    data.get('emotional_flavor', 'Unknown'),    # emotional_flavor
+                ))
+                success_count += 1
+        except Exception as e:
+            yield f'<div class="it-log-entry it-val-red">🔥 Commit Error on {f_path.name}: {str(e)}</div>'
 
     if db_write and conn:
-        _sync_relational_masters(cursor, mf_id, mf_artist_id, artist_name, album_title, historical_year, label_val, personnel_str, current_mb_artist_id, manifest_seeds, now)
-        
-        if personnel_list:
-            _extract_and_write_edges(cursor, mf_id, personnel_list)
-        
-        conn.commit()
-        conn.close()
+        try:
+            _sync_relational_masters(cursor, mf_id, mf_artist_id, artist_name, album_title, historical_year, label_val, personnel_str, current_mb_artist_id, manifest_seeds, now)
+            
+            if personnel_list:
+                _extract_and_write_edges(cursor, mf_id, personnel_list)
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            yield f'<div class="it-log-entry it-val-red">🚨 Graph Layer Update Failed: {str(e)}</div>'
 
     _update_audit_trail(root_path, manifest_seeds, track_results, label_val, personnel_list, db_write, historical_year)
     yield f'<div class="it-log-entry">✅ {success_count} tracks synchronized.</div>'
 
 def _extract_and_write_edges(cursor, album_mf_id, personnel):
     for entry in personnel:
-        if ":" not in entry: continue
-        role_part, name_part = entry.split(":", 1)
-        role = role_part.strip()
-        name = name_part.strip()
+        try:
+            if ":" not in entry: continue
+            role_part, name_part = entry.split(":", 1)
+            role = role_part.strip()
+            name = name_part.strip()
 
-        relation = ROLE_MAP.get(role, "contributed")
-        if "Vocal" in role: relation = "performed"
-        if "Instrument" in role: relation = "performed"
+            relation = ROLE_MAP.get(role, "contributed")
+            if "Vocal" in role: relation = "performed"
+            if "Instrument" in role: relation = "performed"
 
-        target_id = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
+            target_id = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
 
-        cursor.execute("""
-            INSERT INTO edges (
-                source_type, source_id, target_type, target_id, 
-                relation_type, role, confidence, source_system, provenance
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, ("album", album_mf_id, "artist", target_id, relation, role, 0.95, "musicbrainz", entry))
+            cursor.execute("""
+                INSERT INTO edges (
+                    source_type, source_id, target_type, target_id, 
+                    relation_type, role, confidence, source_system, provenance
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, ("album", album_mf_id, "artist", target_id, relation, role, 0.95, "musicbrainz", entry))
+        except:
+            continue
 
 def _sync_relational_masters(cursor, mf_id, mf_artist_id, artist_name, album_title, historical_year, label_val, personnel_str, mb_artist_id, seeds, now):
     cursor.execute("SELECT 1 FROM library_master WHERE mf_id = ?", (mf_id,))
@@ -180,6 +208,7 @@ def _sync_relational_masters(cursor, mf_id, mf_artist_id, artist_name, album_tit
 def _write_physical_tags(file_path, data, album_reissue_year):
     tags = ID3(str(file_path))
     
+    # Remove existing comment frames and add the new one with a blank descriptor
     tags.delall("COMM")
     tags.add(COMM(encoding=3, lang='eng', desc='', text=[SIGNATURE]))
     
@@ -248,6 +277,8 @@ def _update_audit_trail(root, seeds, results, label, personnel, db_sync, histori
         f"GRAPH_EDGES_EMITTED  - {len(personnel) if db_sync else 0}\n"
         f"DATABASE_SYNC        - {'SUCCESS' if db_sync else 'DISABLED'}\n{'='*60}\n"
     )
-    with open(log_path, 'a', encoding='utf-8') as f: f.write(log_entry)
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f: f.write(log_entry)
+    except: pass
 
 # --- END OF FILE commit_engine.py ---

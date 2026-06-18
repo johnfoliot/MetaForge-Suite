@@ -202,7 +202,7 @@ window.metaforge.intelli_tagger = {
                 const chunk = decoder.decode(value);
                 
                 // Progress Hook Extraction (Meta-parsing for the Progress Bar)
-                const progMatch = chunk.match(/PROGRESS:(\d+):([^\s>]+)/);
+                const progMatch = chunk.match(/PROGRESS:(\d+):([^-]+)/);
                 if (progMatch) {
                     if (progressFill) progressFill.style.width = `${progMatch[1]}%`;
                     if (progressLabel) progressLabel.innerText = progMatch[2];
