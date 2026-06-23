@@ -25,9 +25,6 @@ window.metaforge.musicbrainz_id = {
         isLocked: false
     },
 
-    /**
-     * Directive III.2: 50ms Paint Guard Initialization
-     */
     init: function() {
         setTimeout(() => {
             const header = document.getElementById('mb-id-header');
@@ -178,10 +175,10 @@ window.metaforge.musicbrainz_id = {
             if (local) {
                 colLocal.innerHTML = `
                     <div class="mb-sort-ctrls">
-                        <button class="mb-btn-sort" onclick="metaforge.musicbrainz_id.moveTrack(${i}, -1)" ${i === 0 ? 'disabled' : ''} aria-label="Move Up">▲</button>
-                        <button class="mb-btn-sort" onclick="metaforge.musicbrainz_id.moveTrack(${i}, 1)" ${i === this.state.localFiles.length - 1 ? 'disabled' : ''} aria-label="Move Down">▼</button>
+                        <button class="mb-btn-sort" onclick="metaforge.musicbrainz_id.moveTrack(${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+                        <button class="mb-btn-sort" onclick="metaforge.musicbrainz_id.moveTrack(${i}, 1)" ${i === this.state.localFiles.length - 1 ? 'disabled' : ''}>▼</button>
                     </div>
-                    <span class="mb-track-text" title="${local.filename}">${i + 1}. ${local.filename}</span>
+                    <span class="mb-track-text">${i + 1}. ${local.filename}</span>
                 `;
             }
 
@@ -202,15 +199,10 @@ window.metaforge.musicbrainz_id = {
         const newIndex = index + direction;
         if (newIndex < 0 || newIndex >= this.state.localFiles.length) return;
 
-        [this.state.localFiles[index], this.state.localFiles[newIndex]] = 
+        [this.state.localFiles[index], this.state.localFiles[newIndex]] =
         [this.state.localFiles[newIndex], this.state.localFiles[index]];
 
         this.renderComparison();
-
-        const row = document.querySelectorAll('.mb-handshake-row')[newIndex];
-        const buttons = row.querySelectorAll('.mb-btn-sort');
-        const targetBtn = (direction === -1) ? buttons[0] : buttons[1];
-        if (targetBtn && !targetBtn.disabled) targetBtn.focus();
     },
 
     commit: async function() {
@@ -219,13 +211,18 @@ window.metaforge.musicbrainz_id = {
 
         const artistSeed = document.getElementById('mb-artist-input').value.trim();
 
-        // Create mapping including rename seeds
+        // ✅ FIX: include recording_id + work_id from remoteTracks
         const mapping = this.state.localFiles.map((file, index) => {
             const remote = this.state.remoteTracks[index];
+
             return {
                 current_filename: file.filename,
                 target_title: remote ? remote.title : "Unknown Title",
+
                 track_id: remote ? remote.track_id : "",
+                recording_id: remote ? remote.recording_id : "",
+                work_id: remote ? remote.work_id : "",
+
                 track_num: index + 1,
                 artist_id: this.state.currentArtistId,
                 album_id: this.state.currentReleaseId,
@@ -245,13 +242,17 @@ window.metaforge.musicbrainz_id = {
                     mapping: mapping 
                 })
             });
+
             const data = await response.json();
             if (data.status === "success") {
                 this.announceStatus(`✅ Sync Complete:<br> ${data.summary.success} files updated/renamed.`, "success");
                 this.injectHandoffButton();
             }
-        } catch (err) { this.announceStatus("⚠️ Commit failure.", "error"); }
-        finally { this.state.isLocked = false; }
+        } catch (err) {
+            this.announceStatus("⚠️ Commit failure.", "error");
+        } finally {
+            this.state.isLocked = false;
+        }
     },
 
     injectHandoffButton: function() {
@@ -274,10 +275,14 @@ window.metaforge.musicbrainz_id = {
             const res = await fetch('/tool_asset/musicbrainz_id/help.mfi');
             body.innerHTML = await res.text();
             document.getElementById('mb-help-panel').style.display = 'flex';
-        } catch (e) { body.innerHTML = "Help unavailable."; }
+        } catch (e) {
+            body.innerHTML = "Help unavailable.";
+        }
     },
 
-    closeHelp: function() { document.getElementById('mb-help-panel').style.display = 'none'; }
+    closeHelp: function() {
+        document.getElementById('mb-help-panel').style.display = 'none';
+    }
 };
 
 window.metaforge.musicbrainz_id.init();

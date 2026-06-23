@@ -77,7 +77,7 @@ def run_logic(action, tools_dir, env_path):
                       f"Structure: 1:Origins, 2:Musical style and milestones, 3:Legacy. "
                       f"Start with the artist name.")
         
-        client = genai.Client(api_key=config_handler.GEMINI_API_KEY)
+        client = genai.Client(api_key=config_handler.GEMINI_API_KEY())
         try:
             response = client.models.generate_content(model="gemini-flash-latest", contents=prompt)
             bio_text = response.text

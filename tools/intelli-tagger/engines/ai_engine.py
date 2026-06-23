@@ -1,72 +1,140 @@
 # --- START OF FILE ai_engine.py ---
 # ======================================================================
 # MetaForge Engine: AI Taxonomy Mapping (Phase 4)
-# Role: Maps Genre/Sub-Genre/Mood/Modifiers using Gemini 1.5 Flash.
-# Build 1.1.9: Track-Level Forensic Injection (Logic Only).
-# Physical Location: \tools\intelli-tagger\engines\ai_engine.py
+# Role: Semantic Classification Layer (Authority-Locked)
+# Build 2.0.1: Stable Gemini client + strict semantic enforcement
 # ======================================================================
+
 import json
-import time
 from pathlib import Path
 from google import genai
-from google.genai import types
 from common import config_handler
+
 
 TAXONOMY_PATH = Path(__file__).parent.parent.parent.parent / "data" / "taxonomy.json"
 MOODS_PATH = Path(__file__).parent.parent.parent.parent / "data" / "moods.json"
-GEMINI_KEY = config_handler.GEMINI_API_KEY
 
-client = genai.Client(
-    api_key=GEMINI_KEY
-)
+# ---------------------------------------------------------
+# SAFE CONFIG BINDING (CRITICAL FIX)
+# ---------------------------------------------------------
+GEMINI_KEY = config_handler.GEMINI_API_KEY()
+
+if not GEMINI_KEY:
+    raise RuntimeError("GEMINI_API_KEY missing from environment (.env)")
+
+GEMINI_KEY = str(GEMINI_KEY).strip()
+
+client = genai.Client(api_key=GEMINI_KEY)
+
+
+# =========================================================
+# AUTHORITY CONTRACT
+# =========================================================
+# This engine is the ONLY authority for:
+# - parent (genre)
+# - sub (subgenre)
+# - mood
+# - sonic_texture
+# - emotional_flavor
+# =========================================================
+
 
 def map_track_taxonomy(artist, title, acoustic_data):
-    """
-    Per-track forensic mapping.
-    acoustic_data: dict from acoustic_engine (bpm, key, intensity)
-    """
-    with open(TAXONOMY_PATH, 'r') as f:
+
+    # -------------------------------
+    # LOAD TAXONOMY SOURCES
+    # -------------------------------
+    with open(TAXONOMY_PATH, "r", encoding="utf-8") as f:
         taxonomy = f.read()
-    with open(MOODS_PATH, 'r') as f:
+
+    with open(MOODS_PATH, "r", encoding="utf-8") as f:
         moods_taxonomy = f.read()
 
-    # The AI now receives the acoustic 'fingerprint' for this specific track
-    # No UI messaging inside the engine; reporting is now orchestrated externally.
-    prompt = f"""Analyze track '{title}' by '{artist}'.
-    Forensic Data: {json.dumps(acoustic_data)}
-    Return ONLY a JSON object with these exact keys:
-    "parent", "sub", "mood", "sonic_texture", "emotional_flavor", "intensity", "bpm", "key", "mb_track_id".
+    # -------------------------------
+    # PROMPT
+    # -------------------------------
+    prompt = f"""
+You are a STRICT semantic classification engine.
 
-    Constraints:
-    Genre Taxonomy: {taxonomy}
-    Mood Taxonomy: {moods_taxonomy}
+Return ONLY valid JSON with:
+- parent
+- sub
+- mood
+- sonic_texture
+- emotional_flavor
 
-    The "sonic_texture" and "emotional_flavor" values MUST be selected from the Sonic_Texture and Emotional_Flavor lists in the Mood Taxonomy above, respectively.
-    Ensure the full analysis is based on the forensic data provided."""
+DO NOT include any other fields.
 
+Artist: {artist}
+Title: {title}
+
+Acoustic Data:
+{json.dumps(acoustic_data)}
+
+Taxonomy Reference:
+{taxonomy}
+
+Mood Reference:
+{moods_taxonomy}
+"""
+
+    # -------------------------------
+    # MODEL CALL (CORRECT MODEL NAME)
+    # -------------------------------
     response = client.models.generate_content(
-        model='gemini-flash-latest',
+        model="gemini-flash-latest",
         contents=prompt
     )
 
-    # Parse and Update
-    data = json.loads(response.text.replace("```json", "").replace("```", ""))
+    raw_text = (response.text or "").replace("```json", "").replace("```", "").strip()
 
-    # Structural Validation: Ensure sonic_texture and emotional_flavor are present and strings
-    sonic_texture = data.get('sonic_texture')
-    if not isinstance(sonic_texture, str) or not sonic_texture.strip():
-        raise ValueError(
-            f"AI Engine returned invalid or missing 'sonic_texture' for '{title}': "
-            f"expected a non-empty string, got {repr(sonic_texture)}."
-        )
-    emotional_flavor = data.get('emotional_flavor')
-    if not isinstance(emotional_flavor, str) or not emotional_flavor.strip():
-        raise ValueError(
-            f"AI Engine returned invalid or missing 'emotional_flavor' for '{title}': "
-            f"expected a non-empty string, got {repr(emotional_flavor)}."
-        )
+    try:
+        data = json.loads(raw_text)
+    except Exception as e:
+        raise ValueError(f"Gemini returned invalid JSON: {raw_text}") from e
 
-    # Merge forensic data with AI taxonomy for the final result packet
-    data.update(acoustic_data)
-    return data
+    # -------------------------------
+    # HARD SANITIZATION LAYER
+    # -------------------------------
+    forbidden_keys = {
+        "mb_track_id",
+        "acoustid",
+        "mb_artist_id",
+        "mb_album_id",
+        "mb_work_id",
+        "title",
+        "duration"
+    }
+
+    for k in forbidden_keys:
+        data.pop(k, None)
+
+    # -------------------------------
+    # VALIDATION
+    # -------------------------------
+    required = [
+        "parent",
+        "sub",
+        "mood",
+        "sonic_texture",
+        "emotional_flavor"
+    ]
+
+    for k in required:
+        if k not in data:
+            raise ValueError(f"Missing field from AI response: {k}")
+        if not isinstance(data[k], str) or not data[k].strip():
+            raise ValueError(f"Invalid field '{k}' from AI response")
+
+    # -------------------------------
+    # RETURN CONTRACT
+    # -------------------------------
+    return {
+        "parent": data["parent"],
+        "sub": data["sub"],
+        "mood": data["mood"],
+        "sonic_texture": data["sonic_texture"],
+        "emotional_flavor": data["emotional_flavor"]
+    }
+
 # --- END OF FILE ai_engine.py ---

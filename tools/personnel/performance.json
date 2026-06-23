@@ -1,0 +1,14 @@
+{
+  "performance": {
+    "keywords": [
+      "drum", "bass", "percussion", "tambourine", "conga", "shaker",
+      "guitar", "bass guitar", "acoustic guitar", "electric guitar", "12-string guitar", "dobro", "pedal steel", "banjo", "mandolin", "violin", "cello",
+      "piano", "keyboard", "synth", "synthesizer", "organ", "harpsichord", "mellotron",
+      "vocal", "voice", "harmonica", "saxophone", "trumpet", "flute", "theremin"
+    ],
+    "patterns": ["ist$", "er$"]
+  },
+  "production": {
+    "keywords": ["producer", "engineer", "mixing", "mastering", "director"]
+  }
+}

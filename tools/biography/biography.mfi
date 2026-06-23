@@ -7,7 +7,7 @@
     <div id="bio-loading-overlay" class="bio-overlay" style="display: none;">
         <div  style="font-size:.85rem; color:#000; padding-left:300px;">
 		<div class="bio-spinner"></div>
-        <img src="/ui/images/intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;"> <p>Generating biography and searching a portrait...</p></div>
+        <img src="/ui/images/intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;"> <p>Generating biography and searching for a portrait...</p></div>
     </div>
 
     <div class="bio-container">

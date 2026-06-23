@@ -1,0 +1,220 @@
+(Project Plan)
+Goal (simple version)
+
+Turn messy scraped personnel data into:
+
+consistent, reusable, IPM-ready graph edges
+
+without losing raw information.
+
+PHASE 1 — DATABASE PREPARATION (do this first)
+1. Modify edges table (minimal but necessary)
+
+You only add fields — no redesign.
+
+Add these columns:
+ALTER TABLE edges ADD COLUMN evidence_scope TEXT;
+ALTER TABLE edges ADD COLUMN evidence_detail TEXT;
+Meaning:
+Field	Purpose
+evidence_scope	album / track / unknown
+evidence_detail	raw structured hint like "tracks: 2,5"
+2. DO NOT change anything else in DB
+
+Keep:
+
+relation_type
+role
+confidence
+provenance
+
+unchanged.
+
+PHASE 2 — DEFINE RELATION TYPES (lightweight, not full ontology yet)
+
+This is NOT a full taxonomy project yet.
+
+Just lock down canonical relation types:
+
+Start with 6–7 max:
+PERFORMED_ON
+COMPOSED
+PRODUCED
+ENGINEERED_BY
+ARRANGED_BY
+WRITTEN_BY
+ASSOCIATED_WITH (fallback)
+Rule:
+NEVER expand beyond this without explicit redesign phase later
+PHASE 3 — CREATE NEW MODULE (IMPORTANT)
+Create file:
+tools/personnel/edge_normalizer.py
+Purpose:
+
+This is the only place where messy data becomes structured edges
+
+Responsibilities:
+
+It will:
+
+1. Parse raw role strings
+
+Example input:
+
+"producer (2,5), drums, percussion (6)"
+2. Split into atomic role units
+
+Becomes:
+
+producer (2,5)
+drums
+percussion (6)
+3. Extract track evidence
+(2,5)
+(4, 6–9)
+etc
+4. Convert to canonical edge format
+
+Output:
+
+{
+  source: person,
+  target: album_id,
+  relation_type: PRODUCED,
+  role: "producer",
+  evidence_scope: "track",
+  evidence_detail: "2,5"
+}
+5. Apply fallback logic
+
+If unknown:
+
+ASSOCIATED_WITH
+scope = unknown
+PHASE 4 — MODIFY personnel.py
+
+This is a targeted change, not a rewrite.
+
+Current behavior (bad for future scaling):
+INSERT INTO edges (... role ...)
+VALUES (... "lead vocals, guitars (3)" ...)
+New behavior:
+Step 1:
+
+Call normalization module:
+
+from edge_normalizer import normalize_personnel
+Step 2:
+
+Replace commit loop:
+
+edges = normalize_personnel(personnel)
+Step 3:
+
+Insert atomic edges:
+
+for edge in edges:
+    db_engine.execute_query(
+        """
+        INSERT INTO edges (
+            source_type,
+            source_id,
+            target_type,
+            target_id,
+            relation_type,
+            role,
+            evidence_scope,
+            evidence_detail,
+            provenance
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "album",
+            mf_id,
+            "artist",
+            edge["artist_id"],
+            edge["relation_type"],
+            edge["role"],
+            edge["evidence_scope"],
+            edge["evidence_detail"],
+            "Wikipedia"
+        ),
+        commit=True
+    )
+PHASE 5 — PRESERVE YOUR RAW DATA (IMPORTANT)
+
+Do NOT lose current flexibility.
+
+So:
+
+Keep this intact:
+role = raw scraped string
+
+You are NOT deleting richness.
+
+You are adding structure alongside it
+
+PHASE 6 — OPTIONAL UI CHANGE (later, not now)
+
+Your .mfi + .js layer can later show:
+
+Role
+Scope (album/track)
+Evidence (track numbers)
+
+But DO NOT do this yet.
+
+PHASE 7 — WHAT YOU ARE BUILDING (CLEAR VIEW)
+
+After this change, your system becomes:
+
+1. Ingestion layer
+
+(personnel.py)
+→ collects messy truth
+
+2. Normalization layer
+
+(edge_normalizer.py)
+→ structures truth
+
+3. Storage layer
+
+(edges table)
+→ stores atomic graph facts
+
+4. Future IPM layer
+
+→ consumes clean graph
+
+KEY DESIGN RULE (IMPORTANT)
+
+You are adopting:
+
+“store messy evidence, but only traverse clean atoms”
+
+NOT:
+
+“clean everything at ingestion”
+
+WHY THIS ORDER MATTERS
+
+If you reverse it:
+
+you lose Wikipedia richness
+you over-design taxonomy too early
+you lock yourself into wrong assumptions
+
+If you do it this way:
+
+you preserve all data
+you gain control layer
+IPM becomes deterministic later
+FINAL SUMMARY (ONE LINE)
+Step-by-step:
+Add 2 DB columns (evidence_scope, evidence_detail)
+Freeze 6–7 canonical relation types
+Create edge_normalizer.py
+Modify personnel.py to call it
+Insert atomic edges instead of raw role strings
+Keep raw data intact for safety
