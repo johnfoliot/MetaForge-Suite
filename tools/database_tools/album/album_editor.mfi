@@ -1,8 +1,9 @@
+
 <div id="panel-album" class="database-panel" style="display:none; flex-direction:column; padding: 0 20px; flex:1; height: 100%; min-height: 0;">
     
     <div style="padding: 0.5rem 0; border-bottom: 1px solid var(--mf-gold); display: flex; align-items: center; justify-content: flex-start; gap: 15px; margin-bottom: 10px;">
         <label for="search-album" class="mf-card-label" style="font-size: 1.1rem; color: var(--mf-gold);">Search by Album&nbsp;</label>
-        <input type="text" id="search-album" class="mb-input-text" style="width: 250px; background: var(--input-background2); color: var(--input-foreground2);">
+        <input type="text" id="search-album" class="mb-input-text" style="width: 250px; background:white; color: black;">
         <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.search()">Search</button>
     </div>
 
@@ -11,13 +12,13 @@
             <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px; flex-shrink: 0;">
                 <div style="grid-column: 1;">
                     <label class="mf-card-label" style="color: var(--mf-gold);">Album Title:</label>
-                    <input type="text" id="alb-title" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
+                    <input type="text" id="alb-title" class="mb-input-text" style="background:white; color: black;">
                     <label class="mf-card-label" style="color: var(--mf-gold); margin-top: 4px; display: block;">Artist:</label>
-                    <input type="text" id="alb-artist" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
+                    <input type="text" id="alb-artist" class="mb-input-text" style="background: white; color: black;">
                 </div>
                 <div style="grid-column: 2;">
                     <label class="mf-card-label" style="color: var(--mf-gold);">Orig. Year:</label>
-                    <input type="text" id="alb-year" class="mb-input-text" style="text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
+                    <input type="text" id="alb-year" class="mb-input-text" style="text-align: center; background: white; color: black;">
                 </div>
                 <div style="grid-column: 3; display: flex; flex-direction: column; align-items: center; gap: 4px;">
                     <div style="width: 80px; height: 80px; border: 1px solid var(--mf-gold); background: var(--bg-accent);">
@@ -27,12 +28,12 @@
                 </div>
             </div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0;">
-                <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Genre:</label><select id="alb-genre" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);"></select></div>
-                <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Sub Genre:</label><select id="alb-subgenre" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);"></select></div>
-                <div><label class="mf-card-label" style="color: var(--mf-gold);">Label:</label><input type="text" id="alb-label" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);"></div>
-                <div><label class="mf-card-label" style="color: var(--mf-gold);">Country:</label><input type="text" id="alb-country" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);"></div>
+                <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Genre:</label><select id="alb-genre" class="mb-input-text" style="background: var(--input-background2); color: black;"></select></div>
+                <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Sub Genre:</label><select id="alb-subgenre" class="mb-input-text" style="background: white; color: black;"></select></div>
+                <div><label class="mf-card-label" style="color: var(--mf-gold);">Label:</label><input type="text" id="alb-label" class="mb-input-text" style="background: white; color: black;"></div>
+                <div><label class="mf-card-label" style="color: var(--mf-gold);">Country:</label><input type="text" id="alb-country" class="mb-input-text" style="background: white; color: black;"></div>
             </div>
-            <div style="flex: 1; border: 1px solid #444; background: var(--input-background2); overflow-y: auto; margin-top: 5px; min-height: 0;">
+            <div style="flex: 1; border: 1px solid #444; background: white; overflow-y: auto; margin-top: 5px; min-height: 0;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; margin-bottom:8px!important;">
                     <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 1; border-bottom:1px solid var(--mf-gold);">
                         <tr><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 50px; border-bottom: 1px solid var(--mf-gold);">Track</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 60%; border-bottom: 1px solid var(--mf-gold);">Title</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 35%; border-bottom: 1px solid var(--mf-gold);">Artist</th></tr>
@@ -44,7 +45,14 @@
         <div style="flex: 1; border-left: 1px solid #444; padding-left: 15px; display: flex; flex-direction: column; gap: 8px; min-height: 0; height: 100%;">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;"><h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 1rem;">Personnel:</h2></div>
             <div id="personnel-rows-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; min-height: 0; max-height: calc(100% - 80px); padding-right: 4px;"></div>
-            <button class="mf-button-gold-fixed" style="align-self: flex-end; background: transparent; border: 1px solid var(--mf-gold); color: var(--mf-gold) !important; flex-shrink: 0;" onclick="window.metaforge.database_tools.album.addBlankPersonnel()">Add Another <span aria-hidden="true">+</span></button>
+			
+			<div style="display: flex; gap: 10px; justify-content: flex-end;">
+				<button class="mf-button-gold-fixed" style="align-self: flex-end; background: transparent; border: 1px solid var(--mf-gold); color: var(--mf-gold) !important; flex-shrink: 0;" onclick="window.metaforge.database_tools.album.addBlankPersonnel()">Add Another <span aria-hidden="true">+</span></button>
+				
+				<!-- modify this button to launch the modal for the json input -->
+				<button class="mf-button-gold-fixed" style="align-self: flex-end; background: transparent; border: 1px solid var(--mf-gold); color: var(--mf-gold) !important; flex-shrink: 0;" onclick="window.metaforge.album_importer.openModal()">Add via json</button>
+			</div>
+			
             <div style="margin-top: auto; padding-top: 8px; border-top: 1px solid #444; display: flex; justify-content: space-between; align-items: flex-end; flex-shrink: 0; margin-bottom:8px;">
                 <div><span class="mf-card-label" style="color: var(--mf-gold); font-size: 0.7rem;">Last Update:</span><span id="alb-last-update" class="mf-card-label" style="font-size: 0.7rem; margin-left: 4px; color: var(--text-message);">MM-DD-YYYY</span></div>
                 <button class="mf-button-gold-fixed" style="width: 140px; height: 35px;" onclick="window.metaforge.database_tools.album.save()">Save Edits</button>

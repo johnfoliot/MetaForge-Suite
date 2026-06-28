@@ -1,14 +1,27 @@
 {
-  "performance": {
-    "keywords": [
-      "drum", "bass", "percussion", "tambourine", "conga", "shaker",
-      "guitar", "bass guitar", "acoustic guitar", "electric guitar", "12-string guitar", "dobro", "pedal steel", "banjo", "mandolin", "violin", "cello",
-      "piano", "keyboard", "synth", "synthesizer", "organ", "harpsichord", "mellotron",
-      "vocal", "voice", "harmonica", "saxophone", "trumpet", "flute", "theremin"
-    ],
-    "patterns": ["ist$", "er$"]
+  "mappings": {
+    "drum": "PERFORMED_ON",
+    "drums": "PERFORMED_ON",
+    "percussion": "PERFORMED_ON",
+    "bass": "PERFORMED_ON",
+    "bass guitar": "PERFORMED_ON",
+    "guitar": "PERFORMED_ON",
+    "guitars": "PERFORMED_ON",
+	"lead guitar": "PERFORMED_ON",
+    "lead guitars": "PERFORMED_ON",
+    "vocal": "PERFORMED_ON",
+    "vocals": "PERFORMED_ON",
+	"lead vocals": "PERFORMED_ON",
+	"background vocals": "PERFORMED_ON",
+    "keyboard": "PERFORMED_ON",
+    "keyboards": "PERFORMED_ON",
+    "producer": "PRODUCED",
+    "engineer": "ENGINEERED_BY",
+    "mixing": "ENGINEERED_BY",
+    "mastering": "ENGINEERED_BY"
   },
-  "production": {
-    "keywords": ["producer", "engineer", "mixing", "mastering", "director"]
+  "patterns": {
+    "ist$": "PERFORMED_ON",
+    "er$": "PERFORMED_ON"
   }
 }

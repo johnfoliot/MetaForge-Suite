@@ -5,11 +5,12 @@ import os
 from tools.personnel.edge_constants import RelationType
 
 def load_config():
-    """Loads classification configuration from performance.json."""
-    config_path = 'performance.json'
+    """Loads classification configuration from absolute path."""
+    config_path = r'D:\MetaForge Suite\tools\personnel\performance.json'
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             return json.load(f)
+    print(f"CRITICAL ERROR: Could not find performance.json at {config_path}")
     return {"mappings": {}, "patterns": {}}
 
 def classify_role(raw_role: str, config: dict) -> tuple[str, float]:
@@ -20,6 +21,7 @@ def classify_role(raw_role: str, config: dict) -> tuple[str, float]:
     clean_role = raw_role.strip().lower()
     
     # 1. Check direct mapping
+    # Note: Ensure your performance.json keys are lowercase to match this
     mappings = config.get("mappings", {})
     if clean_role in mappings:
         return RelationType[mappings[clean_role]].value, 0.9
@@ -36,28 +38,46 @@ def classify_role(raw_role: str, config: dict) -> tuple[str, float]:
 def normalize_personnel(personnel_string: str) -> list[dict]:
     """
     Parses a comma-separated string of roles into a list of normalized 
-    dictionaries including metadata scoring.
+    dictionaries using a strict, multi-step pipeline.
     """
     if not personnel_string:
         return []
 
     config = load_config()
-    roles = [role.strip() for role in personnel_string.split(',')]
+    # Split by comma but respect commas inside parentheses
+    raw_roles = re.split(r',(?![^\(]*\))', personnel_string)
     normalized_list = []
 
-    for role_entry in roles:
-        # Extract evidence in parentheses
-        match = re.search(r'\((.*?)\)', role_entry)
-        evidence_detail = match.group(1) if match else None
+    for role_entry in raw_roles:
+        # Step 1: Strip HTML artifacts (e.g., <small>)
+        text = re.sub(r'<[^>]+>', '', role_entry)
         
-        # Clean role name (remove parenthetical part)
-        base_role = re.sub(r'\(.*?\)', '', role_entry).strip()
+        # Step 2: Qualifier Isolation
+        evidence_detail = None
+        evidence_scope = "album"
         
-        # Determine classification and confidence
-        relation_type, confidence = classify_role(base_role, config)
+        match = re.search(r'\((.*?)\)', text)
+        if match:
+            qualifier = match.group(1).strip()
+            # Numeric track data check (rejects date ranges and text)
+            if re.match(r'^\s*[\d,\s\-\–]+\s*$', qualifier) and not re.search(r'\d{4}', qualifier):
+                evidence_detail = qualifier
+                evidence_scope = "track"
+            else:
+                evidence_detail = None
+                evidence_scope = "album"
+            
+            # Remove parenthetical block for classification
+            text = re.sub(r'\(.*?\)', '', text)
         
-        # Determine scope
-        evidence_scope = "track" if evidence_detail else "album"
+        # Step 3: Base Role Normalization
+        final_role = text.strip().lower()
+        
+        # Debug Output
+        print(f"DEBUG: Original: [{role_entry}], Cleaned: [{final_role}], Qualifier: [{evidence_detail}]")
+        
+        # Step 4: Classification
+        relation_type, confidence = classify_role(final_role, config)
         
         normalized_list.append({
             "source_type": "album",

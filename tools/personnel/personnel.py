@@ -10,9 +10,11 @@ import re
 import json
 import hashlib
 import traceback
+import datetime
 from pathlib import Path
 from flask import jsonify, request
 from common import db_engine
+from tools.personnel.edge_normalizer import normalize_personnel
 
 USER_AGENT = "MetaForgeStudio/1.0 (contact: forensic-dev@metaforge.studio)"
 API_URL = "https://en.wikipedia.org/w/api.php"
@@ -79,13 +81,12 @@ def _fetch_content():
 
     if not combined_content: return jsonify({"status": "error", "message": "No credit sections identified."})
 
-    # Variable defined BEFORE re.sub usage
     full_extracted_text = "\n".join(combined_content)
     
     text = re.sub(r'\{\{[^|}]+\|([^}]+)\}\}', r'\1', full_extracted_text) 
     text = re.sub(r'\[\[(?:[^|\]]*\|)?([^\]]+)\]\]', r'\1', text)      
     text = re.sub(r'<ref.*?>.*?</ref>', '', text, flags=re.DOTALL)     
-    text = re.sub(r"'{3,}", "", text) # Remove wiki bold/italic
+    text = re.sub(r"'{3,}", "", text) 
     text = re.sub(r"''", "", text)
 
     candidates = []
@@ -106,13 +107,31 @@ def _commit():
     
     mf_id = res[0]['mf_id']
     count = 0
+    now = datetime.datetime.now().isoformat()
+    
     for p in personnel:
-        name, role = p.get('name', '').strip(), p.get('role', '').strip()
-        if not name or not role: continue
+        name, role_string = p.get('name', '').strip(), p.get('role', '').strip()
+        if not name or not role_string: continue
+        
         tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
         db_engine.execute_query("INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name) VALUES (?, ?)", (tid, name), commit=True)
-        db_engine.execute_query("INSERT INTO edges (source_type, source_id, target_type, target_id, relation_type, role, provenance) VALUES (?,?,?,?,?,?,?)",
-            ("album", mf_id, "artist", tid, role.lower(), role, "Wikipedia"), commit=True)
-        count += 1
+        
+        atomic_edges = normalize_personnel(role_string)
+        
+        for edge in atomic_edges:
+            db_engine.execute_query("""
+                INSERT INTO edges (
+                    source_type, source_id, target_type, target_id, 
+                    relation_type, role, weight, confidence, provenance, 
+                    evidence_scope, evidence_detail, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                "album", mf_id, "artist", tid, 
+                edge['relation_type'], edge['role'], edge['weight'], 
+                edge['confidence'], "Wikipedia", edge['evidence_scope'], 
+                edge['evidence_detail'], now
+            ), commit=True)
+            count += 1
+            
     return jsonify({"status": "success", "count": count}), 200
 # --- END OF FILE personnel.py ---

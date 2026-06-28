@@ -135,8 +135,8 @@ def _orchestrate_tagger_batch(data, env_path):
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;margin-bottom:15px;"><img src="/ui/images/genre.png" style="height:13px; width:auto;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
-    yield '<div class="it-log-entry" style="margin-left:16px; margin-bottom:15px; border-bottom:1px solid var(--mf-gold); padding-bottom:10px;"><img src="/ui/images/prescan.png" style="height:15px; width:auto;" alt=""> Pre-scanning files for BPM, Inititial Key, and Track Intensity ...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;margin-bottom:5px;"><img src="/ui/images/genre.png" style="height:13px; width:auto;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
+    yield '<div class="it-log-entry" style="margin-left:16px; margin-bottom:15px; border-bottom:1px solid var(--mf-gold); padding-bottom:10px;"><img src="/ui/images/prescan.png" style="height:15px; width:auto;" alt=""> Pre-scanning files for BPM, Initial Key, and Track Intensity ...</div>'
 
     files = sorted(list(root_path.glob("*.mp3")))
     total_files = len(files)
