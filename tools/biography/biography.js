@@ -2,11 +2,9 @@
 /**
  * ======================================================================
  * MetaForge Logic Bridge: Biography Builder
- * Build 1.0.15: Fixed Toggle Logic & Enhanced State Pass-through
+ * Build 1.0.16: Added Local Photo Upload & Resizing Logic
  * ======================================================================
  */
-
-console.log("METAFORGE: biography.js Build 1.0.15 active...");
 
 window.metaforge = window.metaforge || {};
 window.metaforge.biography = {
@@ -20,29 +18,10 @@ window.metaforge.biography = {
         stage.setAttribute('data-synced', 'true');
 
         setTimeout(() => {
-            console.log("[BioBuilder] Synchronizing...");
             this.currentArtist = null;
             this.bindEvents();
             this.resetUI();
         }, 10);
-    },
-
-    setupReentryWatcher: function() {
-        if (this.observer) this.observer.disconnect();
-        const stage = document.getElementById('mfi-content');
-        if (!stage) { setTimeout(() => this.setupReentryWatcher(), 100); return; }
-
-        this.observer = new MutationObserver((mutations) => {
-            for (let mutation of mutations) {
-                if (mutation.addedNodes.length > 0) {
-                    if (document.getElementById('bio-container-main')) {
-                        this.init();
-                        break;
-                    }
-                }
-            }
-        });
-        this.observer.observe(stage, { childList: true, subtree: false });
     },
 
     resetUI: function() {
@@ -54,7 +33,6 @@ window.metaforge.biography = {
         if (bioEd) bioEd.value = "";
         if (img) img.src = '/ui/images/no-photo.png';
         
-        // Reset Toggle to Off
         const toggle = document.getElementById('bio-profile-toggle');
         if (toggle) {
             toggle.setAttribute('aria-checked', 'false');
@@ -70,10 +48,12 @@ window.metaforge.biography = {
         const searchBtn = document.getElementById('btn-search-artist');
         const saveBtn = document.getElementById('btn-save-biography');
         const getBtn = document.getElementById('btn-get-biography');
+        const browseBtn = document.getElementById('btn-browse-photo');
 
         if (searchBtn) searchBtn.onclick = () => this.performSearch(document.getElementById('bio-artist').value);
         if (saveBtn) saveBtn.onclick = () => this.saveBiography();
         if (getBtn) getBtn.onclick = () => this.generateBiography();
+        if (browseBtn) browseBtn.onclick = () => this.handleLocalPhoto();
         
         const toggle = document.getElementById('bio-profile-toggle');
         if (toggle) toggle.onclick = () => this.toggleEnhancedMode(toggle);
@@ -84,7 +64,6 @@ window.metaforge.biography = {
         const newState = !isChecked;
         el.setAttribute('aria-checked', newState.toString());
         document.getElementById('bio-toggle-label').innerHTML = newState ? "Enhanced<br>Bio: On" : "Enhanced<br>Bio: Off";
-        console.log("[BioBuilder] Enhanced Mode:", newState);
     },
 
     setButtonState: function(type, enabled) {
@@ -127,12 +106,31 @@ window.metaforge.biography = {
         } catch (e) { console.error("Load Error:", e); }
     },
 
+    handleLocalPhoto: async function() {
+        const localPath = document.getElementById('bio-add-photo').value;
+        if (!localPath || !this.currentArtist) return alert("Select artist and enter path.");
+        
+        this.toggleLoading(true);
+        const res = await fetch('/run_tool_logic/biography/upload_local_photo', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ 
+                artist_name: this.currentArtist.artist_name, 
+                local_path: localPath 
+            })
+        });
+        const result = await res.json();
+        if (result.status === 'success') {
+            document.getElementById('bio-img-element').src = `/ui/artist_photo/${result.md5_hash}?t=${Date.now()}`;
+        } else {
+            alert("Error: " + result.message);
+        }
+        this.toggleLoading(false);
+    },
+
     generateBiography: async function() {
         if (!this.currentArtist) return;
-        
-        // Capture toggle state
         const isEnhanced = document.getElementById('bio-profile-toggle').getAttribute('aria-checked') === 'true';
-        
         this.toggleLoading(true);
         try {
             const res = await fetch('/run_tool_logic/biography/generate_bio', {
@@ -178,6 +176,4 @@ window.metaforge.biography = {
 };
 
 window.metaforge.biography.init();
-window.metaforge.biography.setupReentryWatcher();
-
 // --- END OF FILE biography.js ---

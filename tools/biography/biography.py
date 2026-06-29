@@ -2,10 +2,11 @@
 # ======================================================================
 # MetaForge Tool: Biography Builder Logic
 # File Location: \tools\biography\biography.py
-# Build 1.0.6: Enforced Word Count via Strict Prompt Engineering
+# Build 1.0.7: Enforced Image Resizing and Local File Handling
 # ======================================================================
 import hashlib
 import requests
+import shutil
 from flask import request, jsonify
 from google import genai
 from common import config_handler, db_engine, image_processor
@@ -20,6 +21,19 @@ def get_hashed_path(artist_name):
         photos_dir.mkdir(parents=True)
     return photos_dir / f"{hash_val}.jpg"
 
+def process_and_save_image(source_data_or_path, target_path, is_local=False):
+    """Handles binary data or local file copy with 500x500 archival resizing."""
+    try:
+        if is_local:
+            shutil.copy2(source_data_or_path, target_path)
+            raw_data = open(target_path, 'rb').read()
+        else:
+            raw_data = source_data_or_path
+        return image_processor.apply_archival_fit(raw_data, target_path, size=(500, 500))
+    except Exception as e:
+        print(f"[BioBuilder] Processing Error: {e}")
+        return False
+
 def fetch_artist_portrait(artist_name, target_path):
     token = config_handler.DISCOGS_TOKEN
     headers = {"User-Agent": "MetaForge/1.0", "Authorization": f"Discogs token={token}"}
@@ -33,13 +47,12 @@ def fetch_artist_portrait(artist_name, target_path):
         img_url = next((i['uri'] for i in images if i.get('type') == 'primary'), None)
         if img_url:
             img_req = requests.get(img_url, headers=headers, timeout=10)
-            return image_processor.apply_archival_fit(img_req.content, target_path)
+            return process_and_save_image(img_req.content, target_path)
     except Exception as e:
         print(f"[BioBuilder] Image Fetch Error: {e}")
-    return {"status": "error"}
+    return False
 
 def run_logic(action, tools_dir, env_path):
-    # 1. Search Action
     if action == "search":
         query = request.args.get('q', '').strip()
         sql = "SELECT mf_artist_id, artist_name, biography, photo_path FROM library_artist WHERE artist_name LIKE ?"
@@ -48,7 +61,6 @@ def run_logic(action, tools_dir, env_path):
             r['md5_hash'] = get_md5_hash(r['artist_name'])
         return jsonify({"status": "success", "data": results})
 
-    # 2. Get Details
     elif action == "get_details":
         mf_id = request.args.get('mf_id')
         sql = "SELECT * FROM library_artist WHERE mf_artist_id = ?"
@@ -59,23 +71,15 @@ def run_logic(action, tools_dir, env_path):
             return jsonify({"status": "success", "data": data})
         return jsonify({"status": "error", "message": "Not found"})
 
-    # 3. Generate Bio & Portrait
     elif action == "generate_bio":
         data = request.json
         artist_name = data.get('artist_name')
         is_enhanced = data.get('enhanced', False)
         
-        # Prompt Engineering: Force Structure & Length
-        if is_enhanced:
-            prompt = (f"Write a deep, comprehensive 5-paragraph professional biography for the artist '{artist_name}'. "
-                      f"The total word count MUST be between 450 and 500 words. "
-                      f"Structure: 1:Origins, 2:Musical style, 3:Career milestones, 4:Challenges and innovations, 5:Legacy. "
-                      f"Start with the artist name. Be detailed and verbose.")
-        else:
-            prompt = (f"Write a concise, 3-paragraph professional biography for the artist '{artist_name}'. "
-                      f"The total word count MUST be between 250 and 300 words. "
-                      f"Structure: 1:Origins, 2:Musical style and milestones, 3:Legacy. "
-                      f"Start with the artist name.")
+        prompt = (f"Write a {'deep, comprehensive 5-paragraph' if is_enhanced else 'concise, 3-paragraph'} "
+                  f"professional biography for the artist '{artist_name}'. "
+                  f"Word count: {'450-500' if is_enhanced else '250-300'} words. "
+                  f"Start with the artist name.")
         
         client = genai.Client(api_key=config_handler.GEMINI_API_KEY())
         try:
@@ -93,7 +97,15 @@ def run_logic(action, tools_dir, env_path):
             "md5_hash": get_md5_hash(artist_name)
         })
 
-    # 4. Save
+    elif action == "upload_local_photo":
+        data = request.json
+        artist_name = data.get('artist_name')
+        local_path = data.get('local_path')
+        target_path = get_hashed_path(artist_name)
+        if process_and_save_image(local_path, target_path, is_local=True):
+            return jsonify({"status": "success", "md5_hash": get_md5_hash(artist_name)})
+        return jsonify({"status": "error", "message": "Failed to process local image"})
+
     elif action == "save_bio":
         data = request.json
         sql = "UPDATE library_artist SET biography = ?, photo_path = ?, bio_updated_at = CURRENT_TIMESTAMP WHERE mf_artist_id = ?"
