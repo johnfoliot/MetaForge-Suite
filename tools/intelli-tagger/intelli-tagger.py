@@ -198,6 +198,7 @@ def _orchestrate_tagger_batch(data, env_path):
                 "title": fast_track.get("title", f_path.stem),
                 "mb_track_id": fast_track.get("mb_track_id", "None"),
                 "mb_recording_id": fast_track.get("mb_recording_id", "None"),
+                "mb_work_id": fast_track.get("mb_work_id", "None"),
                 "acoustid": acoustic_data.get("acoustid", "None"),
                 "original_year": release_year,
                 "label": release_label,

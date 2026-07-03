@@ -326,6 +326,7 @@ def _update_manifest(root, mapping, year, artist_seed, album_seed):
             "title": item["target_title"],
             "mb_track_id": item.get("track_id", ""),
             "mb_recording_id": item.get("recording_id", ""),
+            "mb_work_id": item.get("work_id", ""),
         })
 
     m.update({
