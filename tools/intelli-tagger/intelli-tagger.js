@@ -1,7 +1,7 @@
 /* --- START OF FILE intelli-tagger.js --- */
 /**
  * MetaForge Studio: Intelli-Tagger Logic Bridge
- * Build 4.0.7: Help Panel Focus and Accessibility Fix
+ * Build 4.0.8: Acoustic Wait Indicator Removal
  * Role: Orchestrates UI state, manifest ingestion, and forensic feedback.
  * Accessibility: WCAG 2.2 AA | COGA 4.5.4
  */
@@ -214,6 +214,13 @@ window.metaforge.intelli_tagger = {
                 }
 
                 consoleBox.insertAdjacentHTML('beforeend', chunk);
+
+                // Remove acoustic wait indicator on first track result
+                if (chunk.includes('it-log-row')) {
+                    const wait = document.getElementById('it-acoustic-wait');
+                    if (wait) wait.parentNode.removeChild(wait);
+                }
+
                 consoleBox.scrollTop = consoleBox.scrollHeight;
             }
         } catch (err) {

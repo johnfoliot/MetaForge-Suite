@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Tool Hub: Intelli-Tagger
 # Role: Master Orchestrator for Forensic Analysis & Metadata Mapping.
-# Build 4.2.0: Full MB WorkID + RecordingID hydration lock
+# Build 4.2.5: Label resolution via MBResolutionEngine
 # ======================================================================
 
 import os
@@ -93,6 +93,7 @@ def _orchestrate_tagger_batch(data, env_path):
     import id_engine
     import commit_engine
     import fingerprint_engine
+    from mb_resolution_engine import MBResolutionEngine
 
     root_path = Path(data.get('path'))
     artist = data.get('artist')
@@ -103,11 +104,6 @@ def _orchestrate_tagger_batch(data, env_path):
 
     mb_track_map_list = data.get('mb_track_map', [])
 
-    # =========================================================
-    # FULL TRACK OBJECT HYDRATION LOCK
-    # Previously only mb_track_id was cached.
-    # Now entire manifest object is cached.
-    # =========================================================
     mb_track_lookup = {}
 
     for entry in mb_track_map_list:
@@ -119,6 +115,20 @@ def _orchestrate_tagger_batch(data, env_path):
 
         if position is not None:
             mb_track_lookup[("position", position)] = entry
+
+    # ----------------------------------------------------------
+    # RELEASE LABEL — fetched once here; label is release-level,
+    # not track-level, so a single call covers the whole batch.
+    # ----------------------------------------------------------
+    release_label = "Unknown"
+    release_mbid = mb_ids.get("album", "")
+
+    if release_mbid and release_mbid not in ("None", "Unknown", ""):
+        try:
+            mb = MBResolutionEngine()
+            release_label = mb.get_release_label(release_mbid)
+        except Exception:
+            release_label = "Unknown"
 
     yield '<!-- PROGRESS:5:Ingesting Content -->'
     yield f'<h2 class="it-log-entry it-val-gold"><img src="/ui/images/stamp.png" style="height:14px; width:auto; color:var(--mf-gold);" alt=""> Beginning Intelli-Tagging: <span style="color:var(--text-output);">{album}</span></h2>'
@@ -135,17 +145,38 @@ def _orchestrate_tagger_batch(data, env_path):
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;margin-bottom:5px;"><img src="/ui/images/genre.png" style="height:13px; width:auto;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
-    yield '<div class="it-log-entry" style="margin-left:16px; margin-bottom:15px; border-bottom:1px solid var(--mf-gold); padding-bottom:10px;"><img src="/ui/images/prescan.png" style="height:15px; width:auto;" alt=""> Pre-scanning files for BPM, Initial Key, and Track Intensity ...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/genre.png" style="height:13px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
 
+    # =========================================================
+    # ACOUSTIC WAIT INDICATOR
+    # Removal is handled by intelli-tagger.js when the first
+    # it-log-row chunk arrives in the stream reader.
+    # Scoped keyframe — no external CSS dependencies.
+    # =========================================================
+    yield '''<style>
+@keyframes mf-wait-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+#it-acoustic-wait {
+    animation: mf-wait-pulse 1.8s ease-in-out infinite;
+    color: var(--mf-gold);
+    padding: 6px 0;
+    font-size: 0.7rem;
+}
+</style>
+<div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
+    <img src="/ui/images/fingerprint.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Acoustic fingerprinting in progress - analysing all tracks, please wait...
+</div>'''
+    yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
     files = sorted(list(root_path.glob("*.mp3")))
     total_files = len(files)
 
     track_results = []
-
+    
     for idx, f_path in enumerate(files, 1):
         progress = int(40 + ((idx / total_files) * 45))
-        yield f'<!-- PROGRESS:{progress}:Analyzing Track {idx}/{total_files} -->'
+        yield f'<!-- PROGRESS:{progress}:Tagging Track {idx}/{total_files} -->'
 
         acoustic_data = acoustic_engine.analyze_file(f_path)
 
@@ -162,7 +193,6 @@ def _orchestrate_tagger_batch(data, env_path):
 
         fast_track = mb_track_lookup.get(("filename", filename))
 
-        # fallback by physical position
         if not fast_track:
             fast_track = mb_track_lookup.get(("position", idx))
 
@@ -170,18 +200,12 @@ def _orchestrate_tagger_batch(data, env_path):
 
             identity_data = {
                 "title": fast_track.get("title", f_path.stem),
-
-                # canonical IDs
                 "mb_track_id": fast_track.get("mb_track_id", "None"),
                 "mb_recording_id": fast_track.get("mb_recording_id", "None"),
-
                 "acoustid": acoustic_data.get("acoustid", "None"),
-
                 "original_year": release_year,
-                "label": "None",
+                "label": release_label,
                 "personnel": [],
-
-                # authoritative release entities
                 "mb_artist_id": mb_ids.get("artist", "None"),
                 "mb_album_id": mb_ids.get("album", "None"),
                 "mb_group_id": mb_ids.get("release_group", "None"),
@@ -225,11 +249,9 @@ def _orchestrate_tagger_batch(data, env_path):
         combined.update(identity_data)
         combined.update(ai_results)
 
-        # =========================================================
-        # FINAL AUTHORITATIVE YEAR LOCK
-        # =========================================================
         combined["original_year"] = release_year
         combined["display_date"] = release_year
+        combined["label"] = release_label
 
         combined["file_path"] = str(f_path)
 

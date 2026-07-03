@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 # CONFIGURATION
-DB_PATH = r"F:\MetaForge.db"
+DB_PATH = r"C:\Users\John Foliot\AppData\Roaming\MetaForge\metaforge.db"
 
 def run_queue_logic():
     if not os.path.exists(DB_PATH):

@@ -2,7 +2,7 @@
 # MetaForge Studio: MusicBrainz Resolution Engine
 # File: mb_resolution_engine.py
 # Role: Isolated external truth layer (MusicBrainz only)
-# Build: 1.0.0 (Boundary Isolation Release)
+# Build: 1.1.0 — Added get_release_label() for label resolution
 # ==============================================================
 
 from __future__ import annotations
@@ -100,6 +100,40 @@ class MBResolutionEngine:
             params["inc"] = "+".join(inc)
 
         return self._get(f"release/{release_id}", params)
+
+    # ----------------------------------------------------------
+    # RELEASE LABEL LOOKUP
+    # ----------------------------------------------------------
+
+    def get_release_label(self, release_id: str) -> str:
+        """
+        Fetch the record label name for a given MusicBrainz release MBID.
+
+        Uses the label-info sub-query on the release endpoint. Label is a
+        release-level attribute in MusicBrainz — not track- or recording-level —
+        so this should be called once per batch, not per track.
+
+        Returns the label name string, or "Unknown" if unavailable or on error.
+        """
+
+        if not release_id or release_id in ("None", "Unknown", ""):
+            return "Unknown"
+
+        try:
+            data = self.get_release(release_id, inc=["labels"])
+            label_info = data.get("label-info", [])
+
+            if label_info:
+                first = label_info[0]
+                label_obj = first.get("label")
+
+                if label_obj and label_obj.get("name"):
+                    return label_obj["name"].strip()
+
+        except Exception:
+            pass
+
+        return "Unknown"
 
     # ----------------------------------------------------------
     # RELEASE GROUP LOOKUP
