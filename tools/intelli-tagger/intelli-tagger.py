@@ -138,10 +138,6 @@ def _orchestrate_tagger_batch(data, env_path):
     yield '<!-- PROGRESS:15:Health Check -->'
     yield from health_engine.check_health(root_path)
 
-    if health_engine.has_critical_failures(root_path):
-        yield '<div>CRITICAL FAILURE</div>'
-        return
-
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
