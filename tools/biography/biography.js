@@ -2,7 +2,7 @@
 /**
  * ======================================================================
  * MetaForge Logic Bridge: Biography Builder
- * Build 1.0.16: Added Local Photo Upload & Resizing Logic
+ * Build 1.0.17: Browse Button Wired to Native File Dialog
  * ======================================================================
  */
 
@@ -53,7 +53,7 @@ window.metaforge.biography = {
         if (searchBtn) searchBtn.onclick = () => this.performSearch(document.getElementById('bio-artist').value);
         if (saveBtn) saveBtn.onclick = () => this.saveBiography();
         if (getBtn) getBtn.onclick = () => this.generateBiography();
-        if (browseBtn) browseBtn.onclick = () => this.handleLocalPhoto();
+        if (browseBtn) browseBtn.onclick = () => this.browsePhoto();
         
         const toggle = document.getElementById('bio-profile-toggle');
         if (toggle) toggle.onclick = () => this.toggleEnhancedMode(toggle);
@@ -104,6 +104,15 @@ window.metaforge.biography = {
                 this.setButtonState('save', hasBio);
             }
         } catch (e) { console.error("Load Error:", e); }
+    },
+
+    browsePhoto: async function() {
+        if (!this.currentArtist) return alert("Search for and load an artist first.");
+        const res = await fetch('/select_file');
+        const data = await res.json();
+        if (!data.path) return;
+        document.getElementById('bio-add-photo').value = data.path;
+        await this.handleLocalPhoto();
     },
 
     handleLocalPhoto: async function() {
