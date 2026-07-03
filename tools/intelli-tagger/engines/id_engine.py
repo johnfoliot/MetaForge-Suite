@@ -136,7 +136,7 @@ def _get_bitstream_acoustid(file_path):
         audio = ID3(str(file_path))
 
         for frame in audio.getall("TXXX"):
-            if frame.desc.strip().lower() == "acoustid":
+            if frame.desc.strip().lower() in ("acoustid", "acoustid id"):
                 return str(frame.text[0]).strip()
 
     except Exception:

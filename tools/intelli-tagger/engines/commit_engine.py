@@ -189,8 +189,20 @@ def _write_physical_tags(file_path, data, album_reissue_year):
         tags = ID3()
 
     tags.delall("UFID:http://musicbrainz.org")
-    tags.delall("TXXX")
     tags.delall("COMM")
+    # Only clear the specific TXXX fields MetaForge itself manages (current
+    # names plus prior MetaForge-internal names, for migration) -- leave any
+    # other TXXX data on the file (Picard tags MetaForge doesn't own, tags
+    # from earlier pipeline stages like Unpack/Convert's CATEGORY, etc.) untouched.
+    MANAGED_TXXX = [
+        "MusicBrainz Artist Id", "MusicBrainz Album Id",
+        "MusicBrainz Release Group Id", "MusicBrainz Release Track Id",
+        "Acoustid Id",
+        "MB Artist ID", "MB Album ID", "MB Release Group ID", "MB Recording ID", "AcoustID",
+        "Sub-Genre", "Intensity", "Sonic Texture", "Emotional Flavor",
+    ]
+    for desc in MANAGED_TXXX:
+        tags.delall(f"TXXX:{desc}")
 
     tags.add(
         COMM(
@@ -217,19 +229,19 @@ def _write_physical_tags(file_path, data, album_reissue_year):
         )
 
     if mb_artist_id:
-        tags.add(TXXX(encoding=3, desc="MB Artist ID", text=[mb_artist_id]))
+        tags.add(TXXX(encoding=3, desc="MusicBrainz Artist Id", text=[mb_artist_id]))
 
     if mb_album_id:
-        tags.add(TXXX(encoding=3, desc="MB Album ID", text=[mb_album_id]))
+        tags.add(TXXX(encoding=3, desc="MusicBrainz Album Id", text=[mb_album_id]))
 
     if mb_group_id:
-        tags.add(TXXX(encoding=3, desc="MB Release Group ID", text=[mb_group_id]))
+        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Group Id", text=[mb_group_id]))
 
     if mb_recording_id:
-        tags.add(TXXX(encoding=3, desc="MB Recording ID", text=[mb_recording_id]))
+        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Track Id", text=[mb_recording_id]))
 
     if acoustid:
-        tags.add(TXXX(encoding=3, desc="AcoustID", text=[acoustid]))
+        tags.add(TXXX(encoding=3, desc="Acoustid Id", text=[acoustid]))
 
     tags.add(TIT2(encoding=3, text=[data.get("title", "")]))
     tags.add(TYER(encoding=3, text=[str(album_reissue_year)]))
