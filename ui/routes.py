@@ -16,17 +16,6 @@ def initialize_routes(app, window_func, TOOLS_DIR, ENV_PATH, set_file_attribute)
     This replaces all hardcoded tool routes.
     """
 
-    # --- [ NEW: DYNAMIC ARTIST PHOTO ROUTE ] ---
-    @app.route('/ui/artist_photo/<filename>')
-    def serve_artist_photo(filename):
-        photos_dir = r"D:\MetaForge Suite\photos"
-        file_path = os.path.join(photos_dir, filename)
-        if os.path.exists(file_path):
-            return send_from_directory(photos_dir, filename)
-        else:
-            # Fallback to default if image hasn't been generated yet
-            return send_from_directory(r"D:\MetaForge Suite\ui\images", "no-photo.png")
-
     @app.route('/run_tool_logic/<tool_id>', methods=['GET', 'POST'])
     @app.route('/run_tool_logic/<tool_id>/<action>', methods=['GET', 'POST'])
     def universal_dispatcher(tool_id, action=None):

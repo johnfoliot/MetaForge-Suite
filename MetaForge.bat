@@ -26,7 +26,7 @@ COLOR 06
 
 :: 1. Navigate to the project root
 echo [SYSTEM] Moving to MetaForge Suite...
-cd /d "D:\MetaForge Suite_CORRUPT_STATE"
+cd /d "D:\MetaForge Suite"
 
 :: 2. Activate the Virtual Environment
 echo [SYSTEM] Activating Sandbox...
