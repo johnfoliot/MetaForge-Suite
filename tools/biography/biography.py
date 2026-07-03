@@ -36,11 +36,10 @@ def run_logic(action, tools_dir, env_path):
             r['md5_hash'] = get_md5_hash(r['artist_name'])
         return jsonify({"status": "success", "data": results})
 
-    # GENERATE BIO
+    # GENERATE BIO (draft only — nothing is persisted until save_bio)
     elif action == "generate_bio":
         data = request.json
         artist_name = data.get('artist_name')
-        mf_id = data.get('mf_artist_id')
         is_enhanced = data.get('enhanced', False)
 
         # Dual Prompt: Standard vs Enhanced
@@ -86,12 +85,6 @@ def run_logic(action, tools_dir, env_path):
                         img = Image.open(BytesIO(img_req.content)).convert("RGB")
                         img = ImageOps.pad(img, (500, 500), method=Image.Resampling.LANCZOS, color=(0, 0, 0))
                         img.save(target_path, "JPEG", quality=90)
-
-                        # Atomic DB update once image is confirmed saved
-                        db_engine.execute_query(
-                            "UPDATE library_artist SET biography = ?, photo_path = ?, bio_updated_at = CURRENT_TIMESTAMP WHERE mf_artist_id = ?",
-                            (bio_text, target_path, mf_id), commit=True
-                        )
         except Exception as e:
             print(f"[BioBuilder] IO/Fetch Exception: {e}")
 
