@@ -9,11 +9,42 @@ import re
 import subprocess
 from pathlib import Path
 from mutagen.id3 import ID3, ID3NoHeaderError, TXXX, TPE1, TALB, TIT2, TRCK, TPOS
-from common.config_handler import FFMPEG_EXE
+from common.config_handler import FFMPEG_EXE, MP3VAL_EXE, DATA_DIR
 
 # --- [ PROTOCOLS ] ---
 EXTENSIONS_TO_CONVERT = {'.flac', '.ape', '.wav', '.m4a', '.wma', '.ogg', '.aiff', '.aif', '.wv', '.shn', '.tta'}
 ID3_WHITELIST = {'TIT2', 'TPE1', 'TALB', 'TRCK', 'TYER', 'TDRC', 'TCON', 'TPOS'}
+REMEDIATION_LOG = DATA_DIR / "repair" / "remediation_queue.log"
+
+
+def _queue_for_repair(file_path, reason):
+    """Appends a file to data/repair/remediation_queue.log for tools/repair to rebuild."""
+    resolved = str(Path(file_path).resolve())
+    REMEDIATION_LOG.parent.mkdir(parents=True, exist_ok=True)
+    existing_paths = set()
+    if REMEDIATION_LOG.exists():
+        for line in REMEDIATION_LOG.read_text(encoding="utf-8").splitlines():
+            existing_paths.add(line.split("|")[0].strip())
+    if resolved not in existing_paths:
+        with open(REMEDIATION_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{resolved} | {reason}\n")
+
+
+def _check_mp3val(mp3_path):
+    """
+    Runs mp3val in fix mode (handles container/header-level issues), then
+    re-checks. If corruption remains, queues the file for tools/repair's
+    FFmpeg raw-stream rebuild. Returns True if the file was queued.
+    """
+    try:
+        subprocess.run([str(MP3VAL_EXE), "-f", str(mp3_path)], capture_output=True, timeout=30)
+        verify = subprocess.run([str(MP3VAL_EXE), str(mp3_path)], capture_output=True, timeout=30)
+        if verify.returncode != 0:
+            _queue_for_repair(mp3_path, "Bitstream Data Corruption (Unpack/Convert)")
+            return True
+    except Exception:
+        pass
+    return False
 
 def process_targets(root, artist, album, category, report_data, disc_num=1, total_discs=1, offset=0, is_multidisc=False, do_norm=False):
     """
@@ -107,7 +138,11 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             
             if mp3_path.name not in report_data['conversion']:
                 report_data['conversion'].append(mp3_path.name)
-        
+
+            # 6. BITSTREAM VALIDATION (mp3val runs on every resulting file)
+            if _check_mp3val(mp3_path):
+                yield f'<div class="status-warn" style="font-size:0.7rem; color:var(--mf-gold); margin-left:25px;"><span aria-hidden="true">🩹</span> Bitstream corruption queued for Repair: {mp3_path.name}</div>'
+
         yield f"<!-- PROGRESS:2:{idx}:{total_to_process} -->"
 
 def _rescue_embedded_art(source_file, root):
@@ -166,8 +201,10 @@ def _convert_to_mp3(f_path, artist, filing_id, title, do_norm, report_data):
         yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:20px;"><span aria-hidden="true">✨</span> Converted: {out_name}</div>'
         if do_norm:
             yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px;"><span aria-hidden="true">⚖️</span> Normalized: {out_name}</div>'
-    else: 
+    else:
+        _queue_for_repair(f_path, "FFmpeg Conversion Failure - Source Likely Corrupted")
         yield f'<div class="status-error">❌ Processing failed: {f_path.name}</div>'
+        yield f'<div class="status-warn" style="font-size:0.7rem; color:var(--mf-gold); margin-left:25px;"><span aria-hidden="true">🩹</span> Source queued for Repair: {f_path.name}</div>'
 
 def _rename_existing_mp3(f_path, artist, filing_id, title):
     """Aligns existing MP3 filenames with the standard."""

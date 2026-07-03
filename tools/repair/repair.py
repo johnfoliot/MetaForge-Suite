@@ -95,13 +95,14 @@ def execute_batch_rebuild():
         yield f'<div class="status-message"><span aria-hidden="true">🛠️</span> [{index}/{total}] Rebuilding: {input_path.name}...</div>\n'
         
         success = perform_surgical_rebuild(input_path)
-        
+        final_path = input_path.with_suffix('.mp3')
+
         if success:
-            yield f'<div class="status-message" style="margin-left:20px;"><span aria-hidden="true">✅</span> [{index}/{total}] REPAIRED: {input_path.name}</div>\n'
-            update_database_remediation_status(input_path)
+            yield f'<div class="status-message" style="margin-left:20px;"><span aria-hidden="true">✅</span> [{index}/{total}] REPAIRED: {final_path.name}</div>\n'
+            update_database_remediation_status(final_path)
             try:
                 with open(REPAIRED_LOG, 'a', encoding='utf-8') as rl:
-                    rl.write(f"{input_path}\n")
+                    rl.write(f"{final_path}\n")
             except Exception as e:
                 yield f'<div class="status-warn"><span aria-hidden="true">⚠</span> Error writing to hand-off log: {str(e)}</div>\n'
         else:
@@ -119,8 +120,9 @@ def perform_surgical_rebuild(input_path):
     Deconstructs and rebuilds the bitstream via RAW buffer.
     Enforces ID3v2.3 and UTF-16 (Encoding 1) for wide compatibility.
     """
+    final_path = input_path.with_suffix('.mp3')
     temp_path = input_path.with_suffix('.rebuild.tmp.mp3')
-    
+
     try:
         try:
             original_tags = ID3(str(input_path))
@@ -144,7 +146,7 @@ def perform_surgical_rebuild(input_path):
                 new_audio.save(v2_version=3)
 
             os.remove(input_path)
-            os.rename(temp_path, input_path)
+            os.rename(temp_path, final_path)
             return True
         else:
             if temp_path.exists(): os.remove(temp_path)
