@@ -72,6 +72,19 @@ def get_identity(file_path, target_artist, duration, mb_ids, track_map=None):
     mb_group_id = mb_ids.get("release_group", mb_ids.get("group", "None"))
 
     # --------------------------------------------------
+    # LEGACY BITSTREAM FALLBACK
+    # If no manifest seed was supplied (e.g. this album was never run
+    # through the MusicBrainz ID tool), recover MB IDs already embedded
+    # as Picard-standard tags from a prior tagging tool.
+    # --------------------------------------------------
+    if mb_artist_id in (None, "None", ""):
+        mb_artist_id = _get_bitstream_txxx(file_path, LEGACY_ARTIST_DESCS)
+    if mb_album_id in (None, "None", ""):
+        mb_album_id = _get_bitstream_txxx(file_path, LEGACY_ALBUM_DESCS)
+    if mb_group_id in (None, "None", ""):
+        mb_group_id = _get_bitstream_txxx(file_path, LEGACY_GROUP_DESCS)
+
+    # --------------------------------------------------
     # CRITICAL FIX: DO NOT ZERO OUT WORK ID
     # (pass-through only; upstream owns truth)
     # --------------------------------------------------
@@ -130,5 +143,45 @@ def _get_bitstream_acoustid(file_path):
         pass
 
     return "None"
+
+
+# =========================================================
+# LEGACY BITSTREAM MB ID RECOVERY (Picard-standard tags)
+# =========================================================
+# Covers both Picard's current naming and the older non-namespaced
+# variant seen in some legacy libraries.
+LEGACY_ARTIST_DESCS = ["MusicBrainz Artist Id", "MUSICBRAINZ_ARTISTID"]
+LEGACY_ALBUM_DESCS = ["MusicBrainz Album Id", "MUSICBRAINZ_ALBUMID"]
+LEGACY_GROUP_DESCS = ["MusicBrainz Release Group Id", "MUSICBRAINZ_RELEASEGROUPID"]
+
+
+def _get_bitstream_txxx(file_path, desc_candidates):
+    try:
+        audio = ID3(str(file_path))
+        for frame in audio.getall("TXXX"):
+            desc = frame.desc.strip().lower()
+            for candidate in desc_candidates:
+                if desc == candidate.lower():
+                    value = str(frame.text[0]).strip()
+                    if value:
+                        return value
+    except Exception:
+        pass
+
+    return "None"
+
+
+def get_legacy_mb_seeds(file_path):
+    """
+    Reads legacy/Picard-standard MusicBrainz TXXX tags directly from a
+    file's bitstream. Used when no manifest.json seed data exists (e.g.
+    an album tagged before it was ever run through MetaForge's own
+    MusicBrainz ID tool).
+    """
+    return {
+        "mb_artist_id": _get_bitstream_txxx(file_path, LEGACY_ARTIST_DESCS),
+        "mb_album_id": _get_bitstream_txxx(file_path, LEGACY_ALBUM_DESCS),
+        "mb_group_id": _get_bitstream_txxx(file_path, LEGACY_GROUP_DESCS),
+    }
 
 # --- END OF FILE id_engine.py ---

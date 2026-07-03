@@ -59,10 +59,35 @@ def _handle_get_context():
                 "manifest": json.loads(manifest_file.read_text(encoding="utf-8"))
             })
 
+        # No manifest -- this album may never have been run through the
+        # MusicBrainz ID tool. Check for legacy/Picard MB tags already
+        # embedded in the files so the UI can still be pre-filled.
+        recovered = _recover_legacy_mb_seeds(target_path)
+        if recovered:
+            return jsonify({"status": "success", "manifest": recovered})
+
         return jsonify({"status": "success", "manifest": None})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
+
+def _recover_legacy_mb_seeds(target_path):
+    mp3_files = sorted(target_path.glob("*.mp3"))
+    if not mp3_files:
+        return None
+
+    import id_engine
+    seeds = id_engine.get_legacy_mb_seeds(mp3_files[0])
+
+    if all(v == "None" for v in seeds.values()):
+        return None
+
+    return {
+        "mb_artist_id": seeds["mb_artist_id"],
+        "mb_album_id": seeds["mb_album_id"],
+        "mb_release_group_id": seeds["mb_group_id"],
+    }
 
 
 def _extract_acoustid(obj):
