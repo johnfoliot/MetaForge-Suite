@@ -80,6 +80,7 @@ def execute_commit(
             if db_write and cursor:
 
                 mb_track_id = _normalize(data.get("mb_track_id"))
+                mb_recording_id = _normalize(data.get("mb_recording_id"))
                 mb_work_id = _normalize(data.get("mb_work_id"))
                 acoustid = _normalize(data.get("acoustid"))
                 mb_artist_id = _normalize(data.get("mb_artist_id"))
@@ -101,8 +102,9 @@ def execute_commit(
                         leak_flag,
                         length,
                         sonic_texture,
-                        emotional_flavor
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        emotional_flavor,
+                        mb_recording_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     str(f_path.resolve()).replace('\\', '/'),
                     mf_id,
@@ -127,6 +129,7 @@ def execute_commit(
                     verified_length_seconds,
                     data.get('sonic_texture', 'Unknown'),
                     data.get('emotional_flavor', 'Unknown'),
+                    mb_recording_id,
                 ))
 
                 success_count += 1
@@ -220,11 +223,14 @@ def _write_physical_tags(file_path, data, album_reissue_year):
     mb_recording_id = _normalize(data.get("mb_recording_id"))
     acoustid = _normalize(data.get("acoustid"))
 
-    if mb_track_id:
+    # UFID holds the Recording ID (Picard convention -- the true, cross-release
+    # identity anchor). mb_track_id is release-specific (e.g. "which reissue/
+    # compilation this copy came from") and gets its own TXXX field instead.
+    if mb_recording_id:
         tags.add(
             UFID(
                 owner="http://musicbrainz.org",
-                data=mb_track_id.encode("utf-8")
+                data=mb_recording_id.encode("utf-8")
             )
         )
 
@@ -237,8 +243,8 @@ def _write_physical_tags(file_path, data, album_reissue_year):
     if mb_group_id:
         tags.add(TXXX(encoding=3, desc="MusicBrainz Release Group Id", text=[mb_group_id]))
 
-    if mb_recording_id:
-        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Track Id", text=[mb_recording_id]))
+    if mb_track_id:
+        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Track Id", text=[mb_track_id]))
 
     if acoustid:
         tags.add(TXXX(encoding=3, desc="Acoustid Id", text=[acoustid]))

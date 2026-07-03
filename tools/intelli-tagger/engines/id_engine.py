@@ -24,6 +24,7 @@ def get_identity(file_path, target_artist, duration, mb_ids, track_map=None):
     """
 
     mb_track_id = "None"
+    mb_recording_id = "None"
     track_title = ""
 
     # --------------------------------------------------
@@ -49,15 +50,21 @@ def get_identity(file_path, target_artist, duration, mb_ids, track_map=None):
 
                 if manifest_title == track_title.lower():
                     mb_track_id = entry.get("mb_track_id", "None")
+                    mb_recording_id = entry.get("mb_recording_id", "None")
                     break
         except Exception:
             mb_track_id = "None"
+            mb_recording_id = "None"
 
     # --------------------------------------------------
-    # UFID FALLBACK (BITSTREAM AUTHORITATIVE)
+    # BITSTREAM FALLBACK
+    # UFID holds the Recording ID (Picard convention); the release-specific
+    # Track ID, when present, lives in its own TXXX field.
     # --------------------------------------------------
+    if mb_recording_id == "None":
+        mb_recording_id = _get_bitstream_mb_recording_id(file_path)
     if mb_track_id == "None":
-        mb_track_id = _get_bitstream_mb_track_id(file_path)
+        mb_track_id = _get_bitstream_txxx(file_path, RELEASE_TRACK_DESCS)
 
     # --------------------------------------------------
     # ACOUSTID EXTRACTION (BITSTREAM AUTHORITATIVE)
@@ -96,6 +103,7 @@ def get_identity(file_path, target_artist, duration, mb_ids, track_map=None):
     return {
         "title": track_title,
         "mb_track_id": mb_track_id,
+        "mb_recording_id": mb_recording_id,
         "acoustid": acoustid if acoustid != "None" else None,
 
         # preserve identity layer inputs
@@ -112,9 +120,9 @@ def get_identity(file_path, target_artist, duration, mb_ids, track_map=None):
 
 
 # =========================================================
-# BITSTREAM MB TRACK RECOVERY
+# BITSTREAM MB RECORDING RECOVERY
 # =========================================================
-def _get_bitstream_mb_track_id(file_path):
+def _get_bitstream_mb_recording_id(file_path):
     try:
         audio = ID3(str(file_path))
         ufid = audio.get("UFID:http://musicbrainz.org")
@@ -153,6 +161,7 @@ def _get_bitstream_acoustid(file_path):
 LEGACY_ARTIST_DESCS = ["MusicBrainz Artist Id", "MUSICBRAINZ_ARTISTID"]
 LEGACY_ALBUM_DESCS = ["MusicBrainz Album Id", "MUSICBRAINZ_ALBUMID"]
 LEGACY_GROUP_DESCS = ["MusicBrainz Release Group Id", "MUSICBRAINZ_RELEASEGROUPID"]
+RELEASE_TRACK_DESCS = ["MusicBrainz Release Track Id"]
 
 
 def _get_bitstream_txxx(file_path, desc_candidates):

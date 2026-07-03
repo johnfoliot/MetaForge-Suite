@@ -104,6 +104,16 @@ def initialize_database():
 
     cursor.execute("CREATE TABLE IF NOT EXISTS library_master (mf_id TEXT PRIMARY KEY, mf_artist_id TEXT, artist_name TEXT, album_title TEXT NOT NULL, mb_album_id TEXT, original_year TEXT, label TEXT, personnel TEXT, is_compilation INTEGER, last_updated TEXT, date_audit_status INTEGER)")
     cursor.execute("CREATE TABLE IF NOT EXISTS tracks (file_path TEXT PRIMARY KEY, mf_id TEXT, mf_artist_id TEXT, mb_artist_id TEXT, mb_track_id TEXT, acoustid TEXT, title TEXT, genre TEXT, sub_genre TEXT, original_year TEXT, bpm INTEGER, key_val TEXT, mood TEXT, intensity INTEGER, is_remediated INTEGER, last_updated TEXT, mb_work_id TEXT, orig_year_conf INTEGER, orig_year_source TEXT, leak_flag INTEGER)")
+    for col_name, col_type in [
+        ("mb_recording_id", "TEXT"),
+        ("length", "INTEGER"),
+        ("sonic_texture", "TEXT"),
+        ("emotional_flavor", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"SELECT {col_name} FROM tracks LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute(f"ALTER TABLE tracks ADD COLUMN {col_name} {col_type}")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS edges (
             id INTEGER PRIMARY KEY AUTOINCREMENT, source_type TEXT NOT NULL, source_id TEXT NOT NULL, 
