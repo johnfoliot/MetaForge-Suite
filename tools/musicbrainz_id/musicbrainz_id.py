@@ -252,18 +252,23 @@ def commit_ids_to_files(env_path):
             audio.delall("TRCK")
             audio.add(TRCK(encoding=1, text=[str(item["track_num"])]))
 
-            if item.get("track_id"):
+            # UFID holds the Recording ID (Picard convention -- the true,
+            # cross-release identity anchor). track_id is release-specific
+            # and gets its own TXXX field instead (see commit_engine.py's
+            # matching physical-tag write for the same convention).
+            if item.get("recording_id"):
                 audio.delall("UFID")
                 audio.add(UFID(
                     owner="http://musicbrainz.org",
-                    data=item["track_id"].encode("utf-8")
+                    data=item["recording_id"].encode("utf-8")
                 ))
 
             tags = {
                 "MusicBrainz Artist Id": item["artist_id"],
                 "MusicBrainz Album Id": item["album_id"],
                 "MusicBrainz Release Group Id": item["release_group_id"],
-                "MusicBrainz Release Country": item["country_code"]
+                "MusicBrainz Release Country": item["country_code"],
+                "MusicBrainz Release Track Id": item.get("track_id"),
             }
 
             for desc, val in tags.items():
