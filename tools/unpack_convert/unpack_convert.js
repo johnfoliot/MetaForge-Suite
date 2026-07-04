@@ -248,16 +248,21 @@ window.metaforge.unpack_convert = {
         if (!consoleBox || document.getElementById('upk-handoff-gate')) return;
 
         const path = passedPath || document.getElementById('upk-path').value.trim();
-        const escapedPath = path.replace(/\\/g, "\\\\");
 
-        const handoffHTML = `
-            <div id="upk-handoff-gate" style="margin-top: 20px; text-align: right; border-top: 1px solid var(--bg-accent); padding-top: 15px;">
-                <button class="mf-button-gold-fixed" onclick="window.mfAdvanceWorkflow('musicbrainz_id', '${escapedPath}')">
-                    Continue to: MusicBrainzIDs
-                </button>
-            </div>
-        `;
-        consoleBox.insertAdjacentHTML('beforeend', handoffHTML);
+        // Built via the DOM API (not string-interpolated HTML) so a path
+        // containing a single quote or other special character can't break
+        // the handler -- no escaping needed since path is a real closure
+        // variable, not text embedded into an onclick attribute string.
+        const gate = document.createElement('div');
+        gate.id = 'upk-handoff-gate';
+        gate.style.cssText = 'margin-top: 20px; text-align: right; border-top: 1px solid var(--bg-accent); padding-top: 15px;';
+        const btn = document.createElement('button');
+        btn.className = 'mf-button-gold-fixed';
+        btn.textContent = 'Continue to: MusicBrainzIDs';
+        btn.onclick = () => window.mfAdvanceWorkflow('musicbrainz_id', path);
+        gate.appendChild(btn);
+
+        consoleBox.appendChild(gate);
         consoleBox.scrollTop = consoleBox.scrollHeight;
     },
 
@@ -340,14 +345,21 @@ window.metaforge.unpack_convert = {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let hasArtReady = false;
+            let buffer = '';
 
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
-                const chunk = decoder.decode(value);
-                
+                // stream:true correctly buffers a multi-byte UTF-8 character
+                // split across two reads instead of mangling it.
+                const chunk = decoder.decode(value, { stream: true });
+                // Marker checks run against the full accumulated buffer --
+                // a marker can land split across two separate reads, and
+                // checking only the latest chunk would silently miss it.
+                buffer += chunk;
+
                 // 1. Process Metadata / Non-DOM updates
-                const progMatch = chunk.match(/<!-- PROGRESS:(\d+):(\d+):(\d+) -->/);
+                const progMatch = buffer.match(/<!-- PROGRESS:(\d+):(\d+):(\d+) -->/);
                 if (progMatch) this.updateProgress(progMatch[1], progMatch[2], progMatch[3]);
 
                 // 2. Commit chunk to DOM (This must happen first to ensure correct vertical ordering)
@@ -356,15 +368,15 @@ window.metaforge.unpack_convert = {
                 }
 
                 // 3. Evaluate Workflow Triggers based on cumulative state
-                if (chunk.includes('<!-- ART_READY -->')) {
+                if (buffer.includes('<!-- ART_READY -->') && !hasArtReady) {
                     hasArtReady = true;
                     this.loadArtGallery();
                 }
 
-                if (chunk.includes('ready for tagging.')) {
+                if (buffer.includes('ready for tagging.')) {
                      this.injectHandoffButton(path);
                 }
-                
+
                 if (consoleBox) {
                     consoleBox.scrollTop = consoleBox.scrollHeight;
                 }

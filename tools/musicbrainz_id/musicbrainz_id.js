@@ -258,8 +258,17 @@ window.metaforge.musicbrainz_id = {
     injectHandoffButton: function() {
         const container = document.getElementById('mb-handoff-container');
         if (!container) return;
-        const path = this.state.localPath.replace(/\\/g, "\\\\");
-        container.innerHTML = `<button class="mf-button-gold-fixed" onclick="window.mfAdvanceWorkflow('intelli-tagger', '${path}')">Continue to: Intelli-Tagger</button>`;
+        const path = this.state.localPath;
+        // Built via the DOM API (not string-interpolated HTML) so a path
+        // containing a single quote or other special character can't break
+        // the handler -- no escaping needed since path is a real closure
+        // variable, not text embedded into an onclick attribute string.
+        container.innerHTML = '';
+        const btn = document.createElement('button');
+        btn.className = 'mf-button-gold-fixed';
+        btn.textContent = 'Continue to: Intelli-Tagger';
+        btn.onclick = () => window.mfAdvanceWorkflow('intelli-tagger', path);
+        container.appendChild(btn);
     },
 
     announceStatus: function(msg, type) {
