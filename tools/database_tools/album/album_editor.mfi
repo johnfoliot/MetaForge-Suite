@@ -34,7 +34,7 @@
                 <div><label class="mf-card-label" style="color: var(--mf-gold);">Country:</label><input type="text" id="alb-country" class="mb-input-text" style="background: white; color: black;"></div>
             </div>
             <div style="flex: 1; border: 1px solid #444; background: white; overflow-y: auto; margin-top: 5px; min-height: 0;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; margin-bottom:8px!important;">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; table-layout: fixed; margin-bottom:8px!important;">
                     <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 1; border-bottom:1px solid var(--mf-gold);">
                         <tr><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 50px; border-bottom: 1px solid var(--mf-gold);">Track</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 60%; border-bottom: 1px solid var(--mf-gold);">Title</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 35%; border-bottom: 1px solid var(--mf-gold);">Artist</th></tr>
                     </thead>

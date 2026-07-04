@@ -42,7 +42,7 @@
 
             <!-- CANDIDATE TABLE: FIXED HEIGHT (Directive: UI Stability) -->
             <div id="p-search-results-container" style="height: 155px; flex-shrink: 0; border: 1px solid var(--mf-gold); background: var(--bg-accent); overflow-y: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem;">
                     <thead style="position: sticky; top: 0; background: var(--bg-main); color: var(--mf-gold); border-bottom: 1px solid var(--mf-gold);">
                         <tr>
                             <th style="padding: 4px; text-align: left;">Wikipedia Candidate</th>
@@ -70,7 +70,7 @@
             </div>
 
             <div id="p-mapping-viewport" style="flex: 1; overflow-y: auto; background: var(--bg-stage); border: 1px solid #000;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;">
                     <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--mf-gold);">
 						<tr>
 							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;" 
