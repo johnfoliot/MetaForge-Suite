@@ -36,6 +36,8 @@ client = genai.Client(api_key=GEMINI_KEY)
 # - mood
 # - sonic_texture
 # - emotional_flavor
+# - country (artist nationality inference -- NOT a release/distribution
+#   territory; that comes from MusicBrainz separately)
 # =========================================================
 
 
@@ -62,6 +64,7 @@ Return ONLY valid JSON with:
 - mood
 - sonic_texture
 - emotional_flavor
+- country
 
 DO NOT include any other fields.
 
@@ -76,6 +79,10 @@ Taxonomy Reference:
 
 Mood Reference:
 {moods_taxonomy}
+
+For "country", infer the artist's country of origin/nationality (e.g. "US",
+"UK", "Canada") based on general knowledge of the artist. This is NOT the
+release or distribution territory of this specific recording.
 """
 
     # -------------------------------
@@ -117,7 +124,8 @@ Mood Reference:
         "sub",
         "mood",
         "sonic_texture",
-        "emotional_flavor"
+        "emotional_flavor",
+        "country"
     ]
 
     for k in required:
@@ -134,7 +142,8 @@ Mood Reference:
         "sub": data["sub"],
         "mood": data["mood"],
         "sonic_texture": data["sonic_texture"],
-        "emotional_flavor": data["emotional_flavor"]
+        "emotional_flavor": data["emotional_flavor"],
+        "country": data["country"]
     }
 
 # --- END OF FILE ai_engine.py ---

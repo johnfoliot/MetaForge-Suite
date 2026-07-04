@@ -158,7 +158,7 @@ def get_release_details():
         res = session.get(
             f"{BASE_URL}/release/{release_id}",
             params={
-                "inc": "recordings+artist-credits+release-groups",
+                "inc": "recordings+artist-credits+release-groups+work-rels",
                 "fmt": "json"
             }
         )

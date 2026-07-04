@@ -263,7 +263,8 @@ def _orchestrate_tagger_batch(data, env_path):
                 "sub": "Unknown",
                 "mood": "Unknown",
                 "sonic_texture": "Unknown",
-                "emotional_flavor": "Unknown"
+                "emotional_flavor": "Unknown",
+                "country": "Unknown"
             }
 
         combined = {}
