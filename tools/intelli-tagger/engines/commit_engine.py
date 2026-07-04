@@ -185,7 +185,10 @@ def execute_commit(
 # PHYSICAL TAG WRITER
 # =========================================================
 def _write_physical_tags(file_path, data, album_reissue_year):
-
+    # encoding=1 (UTF-16) throughout: ID3v2.3 (v2_version=3 below) only
+    # officially permits Latin-1 or UTF-16 for text frames -- UTF-8 wasn't
+    # added to the spec until v2.4. Matches bitstream_engine.py and
+    # musicbrainz_id.py's writers.
     try:
         tags = ID3(str(file_path))
     except ID3NoHeaderError:
@@ -209,7 +212,7 @@ def _write_physical_tags(file_path, data, album_reissue_year):
 
     tags.add(
         COMM(
-            encoding=3,
+            encoding=1,
             lang="XXX",
             desc="",
             text=[SIGNATURE]
@@ -235,35 +238,35 @@ def _write_physical_tags(file_path, data, album_reissue_year):
         )
 
     if mb_artist_id:
-        tags.add(TXXX(encoding=3, desc="MusicBrainz Artist Id", text=[mb_artist_id]))
+        tags.add(TXXX(encoding=1, desc="MusicBrainz Artist Id", text=[mb_artist_id]))
 
     if mb_album_id:
-        tags.add(TXXX(encoding=3, desc="MusicBrainz Album Id", text=[mb_album_id]))
+        tags.add(TXXX(encoding=1, desc="MusicBrainz Album Id", text=[mb_album_id]))
 
     if mb_group_id:
-        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Group Id", text=[mb_group_id]))
+        tags.add(TXXX(encoding=1, desc="MusicBrainz Release Group Id", text=[mb_group_id]))
 
     if mb_track_id:
-        tags.add(TXXX(encoding=3, desc="MusicBrainz Release Track Id", text=[mb_track_id]))
+        tags.add(TXXX(encoding=1, desc="MusicBrainz Release Track Id", text=[mb_track_id]))
 
     if acoustid:
-        tags.add(TXXX(encoding=3, desc="Acoustid Id", text=[acoustid]))
+        tags.add(TXXX(encoding=1, desc="Acoustid Id", text=[acoustid]))
 
-    tags.add(TIT2(encoding=3, text=[data.get("title", "")]))
-    tags.add(TYER(encoding=3, text=[str(album_reissue_year)]))
-    tags.add(TORY(encoding=3, text=[str(data.get("original_year", album_reissue_year))]))
-    tags.add(TCON(encoding=3, text=[data.get("parent", "Unknown")]))
-    tags.add(TMOO(encoding=3, text=[data.get("mood", "Unknown")]))
-    tags.add(TBPM(encoding=3, text=[str(data.get("bpm", 0))]))
-    tags.add(TKEY(encoding=3, text=[data.get("key", "??")]))
+    tags.add(TIT2(encoding=1, text=[data.get("title", "")]))
+    tags.add(TYER(encoding=1, text=[str(album_reissue_year)]))
+    tags.add(TORY(encoding=1, text=[str(data.get("original_year", album_reissue_year))]))
+    tags.add(TCON(encoding=1, text=[data.get("parent", "Unknown")]))
+    tags.add(TMOO(encoding=1, text=[data.get("mood", "Unknown")]))
+    tags.add(TBPM(encoding=1, text=[str(data.get("bpm", 0))]))
+    tags.add(TKEY(encoding=1, text=[data.get("key", "??")]))
 
-    tags.add(TXXX(encoding=3, desc="Sub-Genre", text=[data.get("sub", "Unknown")]))
-    tags.add(TXXX(encoding=3, desc="Intensity", text=[str(data.get("intensity", 1))]))
-    tags.add(TXXX(encoding=3, desc="Sonic Texture", text=[data.get("sonic_texture", "Unknown")]))
-    tags.add(TXXX(encoding=3, desc="Emotional Flavor", text=[data.get("emotional_flavor", "Unknown")]))
+    tags.add(TXXX(encoding=1, desc="Sub-Genre", text=[data.get("sub", "Unknown")]))
+    tags.add(TXXX(encoding=1, desc="Intensity", text=[str(data.get("intensity", 1))]))
+    tags.add(TXXX(encoding=1, desc="Sonic Texture", text=[data.get("sonic_texture", "Unknown")]))
+    tags.add(TXXX(encoding=1, desc="Emotional Flavor", text=[data.get("emotional_flavor", "Unknown")]))
 
     if data.get("label"):
-        tags.add(TPUB(encoding=3, text=[data["label"]]))
+        tags.add(TPUB(encoding=1, text=[data["label"]]))
 
     tags.save(str(file_path), v2_version=3)
 
