@@ -115,7 +115,29 @@ def get_album_snapshot(input_path):
                     print(f"    {Color.WHITE}{col:<20}{Color.RESET} : {get_energy_bar(val)}")
                 else:
                     print(f"    {Color.WHITE}{col:<20}{Color.RESET} : {format_val(val)}")
-        
+
+        # --- DISPLAY: edges (Personnel) ---
+        # library_master.personnel is a legacy flat field Intelli-Tagger writes
+        # (almost always "Unknown"); real personnel data lives in edges instead.
+        print(f"\n  {Color.YELLOW}{Color.BOLD}TABLE: Personnel [edges]{Color.RESET}")
+        print(f"  {Color.YELLOW}{'-'*71}{Color.RESET}")
+        cursor.execute(
+            "SELECT e.role, e.relation_type, a.artist_name as name, e.confidence, e.provenance "
+            "FROM edges e JOIN library_artist a ON e.target_id = a.mf_artist_id "
+            "WHERE e.source_id = ? AND e.source_type = 'album'",
+            (mf_id,)
+        )
+        personnel_rows = cursor.fetchall()
+        if personnel_rows:
+            for row in personnel_rows:
+                name = row['name'] or "Unknown Artist"
+                role = (row['role'] or "Unknown Role").strip()
+                conf = row['confidence']
+                conf_str = f"{conf:.1f}" if conf is not None else "N/A"
+                print(f"    {Color.WHITE}{name:<25}{Color.RESET} : {role:<25} ({row['relation_type']}, conf {conf_str}, {format_val(row['provenance'])})")
+        else:
+            print(f"    {Color.GRAY}No personnel/edges records found for this album.{Color.RESET}")
+
         print(f"\n{Color.YELLOW}{'='*75}{Color.RESET}")
 
     except Exception as e:
