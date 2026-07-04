@@ -240,6 +240,9 @@ def _enforce_metadata_truth(f_path, artist, album, title, track, category, disc_
             tags.add(TPOS(encoding=1, text=[f"{disc_num}/{total_discs}"]))
         if category:
             tags.add(TXXX(encoding=1, description='CATEGORY', text=[category]))
+        # save() alone doesn't downgrade v2.4-native frames (e.g. TDRC ->
+        # TYER) even when v2_version=3 is requested -- must call this first.
+        tags.update_to_v23()
         tags.save(v2_version=3)
     except ID3NoHeaderError:
         tags = ID3()
@@ -251,6 +254,7 @@ def _enforce_metadata_truth(f_path, artist, album, title, track, category, disc_
             tags.add(TPOS(encoding=1, text=[f"{disc_num}/{total_discs}"]))
         if category:
             tags.add(TXXX(encoding=1, description='CATEGORY', text=[category]))
+        tags.update_to_v23()
         tags.save(str(f_path), v2_version=3)
 
 # --- END OF FILE bitstream_engine.py ---

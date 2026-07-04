@@ -143,6 +143,9 @@ def perform_surgical_rebuild(input_path):
                     if hasattr(frame, 'encoding'):
                         frame.encoding = 1
                     new_audio.add(frame)
+                # save() alone doesn't downgrade v2.4-native frames (e.g.
+                # TDRC -> TYER) even when v2_version=3 is requested.
+                new_audio.update_to_v23()
                 new_audio.save(v2_version=3)
 
             os.remove(input_path)

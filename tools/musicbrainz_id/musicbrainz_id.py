@@ -276,6 +276,9 @@ def commit_ids_to_files(env_path):
                 audio.delall("TYER")
                 audio.add(TYER(encoding=1, text=[str(release_year)]))
 
+            # save() alone doesn't downgrade v2.4-native frames (e.g. TDRC ->
+            # TYER) even when v2_version=3 is requested -- must call this first.
+            audio.update_to_v23()
             audio.save(str(old_path), v2_version=3)
 
             t_num = str(item["track_num"]).zfill(2)

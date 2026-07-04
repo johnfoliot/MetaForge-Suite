@@ -268,6 +268,12 @@ def _write_physical_tags(file_path, data, album_reissue_year):
     if data.get("label"):
         tags.add(TPUB(encoding=1, text=[data["label"]]))
 
+    # Mutagen's save() alone does not downgrade v2.4-native frames -- per
+    # its own docs, it defaults to v2.4 internally and only the on-disk
+    # header/serialization respects v2_version. Without this call, TYER/
+    # TORY get silently replaced by TDRC/TDOR (v2.4-only frame types)
+    # even though the file is declared ID3v2.3.
+    tags.update_to_v23()
     tags.save(str(file_path), v2_version=3)
 
 
