@@ -9,6 +9,7 @@ import sys
 import hashlib
 from flask import jsonify, request
 from pathlib import Path
+from PIL import Image
 from common import db_engine, tag_engine
 
 # --- [ RELATIONSHIP MAP ] ---
@@ -142,6 +143,18 @@ def _save_album():
         (clean_mf_id,)
     )
     old_titles_map = {t['file_path']: t['title'] for t in old_tracks} if old_tracks else {}
+
+    # Replace the album's folder.jpg with the newly browsed cover, if one
+    # was staged. serve_album_cover() (ui/app.py) always reads folder.jpg
+    # from the album's own directory, not a dedicated covers folder.
+    cover_path = data.get('cover_path')
+    if cover_path and old_tracks:
+        album_dir = Path(old_tracks[0]['file_path']).parent
+        try:
+            img = Image.open(cover_path).convert("RGB")
+            img.save(str(album_dir / "folder.jpg"), "JPEG", quality=90)
+        except Exception as ex:
+            print(f"⚠️ Cover image save failed: {ex}")
 
     db_engine.execute_query(
         "UPDATE library_master SET album_title=?, artist_name=?, original_year=?, label=?, last_updated=CURRENT_TIMESTAMP WHERE mf_id=?",
