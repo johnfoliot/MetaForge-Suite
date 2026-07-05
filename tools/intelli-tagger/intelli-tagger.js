@@ -14,7 +14,8 @@ window.metaforge.intelli_tagger = {
         dbWriteEnabled: true,
         lastTrigger: null,
         observer: null,
-        releaseYear: "Unknown"
+        releaseYear: "Unknown",
+        mbTrackMap: []
     },
 
     /**
@@ -83,6 +84,11 @@ window.metaforge.intelli_tagger = {
                 
                 // Persist Year for reporting fallback
                 this.state.releaseYear = m.release_year || "Unknown";
+                // Persist per-track MB IDs so run() can send them for the FAST_PATH lookup
+                this.state.mbTrackMap = m.mb_track_map || [];
+            } else {
+                // No manifest for this path -- don't carry over a previous album's track map
+                this.state.mbTrackMap = [];
             }
         } catch (err) {
             console.error("METAFORGE: Context ingestion failure:", err);
@@ -181,6 +187,7 @@ window.metaforge.intelli_tagger = {
                 group: document.getElementById('it-mb-group-id').value,
                 country: document.getElementById('it-mb-country').value
             },
+            mb_track_map: this.state.mbTrackMap,
             release_year: this.state.releaseYear,
             db_write: this.state.dbWriteEnabled
         };

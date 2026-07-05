@@ -63,6 +63,7 @@ def execute_commit(
     label_val = primary.get('label', 'Unknown')
     personnel_list = primary.get('personnel', [])
     personnel_str = "; ".join(personnel_list) if personnel_list else "Unknown"
+    country_val = primary.get('country', 'Unknown')
 
     success_count = 0
 
@@ -151,6 +152,7 @@ def execute_commit(
                 release_year,
                 label_val,
                 personnel_str,
+                country_val,
                 manifest_seeds,
                 now
             )
@@ -302,6 +304,7 @@ def _sync_relational_masters(
     release_year,
     label_val,
     personnel_str,
+    country_val,
     manifest_seeds,
     now
 ):
@@ -350,23 +353,25 @@ def _sync_relational_masters(
     if cursor.fetchone():
         cursor.execute("""
             UPDATE library_artist
-            SET artist_name=?, last_updated=?, mb_artist_id=?
+            SET artist_name=?, last_updated=?, mb_artist_id=?, country=?
             WHERE mf_artist_id=?
         """, (
             artist_name,
             now,
             manifest_seeds.get("mb_ids", {}).get("artist", "None"),
+            country_val,
             mf_artist_id
         ))
     else:
         cursor.execute("""
             INSERT INTO library_artist (
-                mf_artist_id, mb_artist_id, artist_name, last_updated
+                mf_artist_id, mb_artist_id, artist_name, last_updated, country
             )
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         """, (
             mf_artist_id,
             manifest_seeds.get("mb_ids", {}).get("artist", "None"),
             artist_name,
-            now
+            now,
+            country_val
         ))

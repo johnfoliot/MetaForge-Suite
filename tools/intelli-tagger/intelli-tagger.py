@@ -230,7 +230,7 @@ def _orchestrate_tagger_batch(data, env_path):
                 "personnel": [],
                 "mb_artist_id": mb_ids.get("artist", "None"),
                 "mb_album_id": mb_ids.get("album", "None"),
-                "mb_group_id": mb_ids.get("release_group", "None"),
+                "mb_group_id": mb_ids.get("release_group", mb_ids.get("group", "None")),
             }
 
             yield (
@@ -263,7 +263,8 @@ def _orchestrate_tagger_batch(data, env_path):
                 "sub": "Unknown",
                 "mood": "Unknown",
                 "sonic_texture": "Unknown",
-                "emotional_flavor": "Unknown"
+                "emotional_flavor": "Unknown",
+                "country": "Unknown"
             }
 
         combined = {}
@@ -282,7 +283,7 @@ def _orchestrate_tagger_batch(data, env_path):
 
         combined["mb_artist_id"] = mb_ids.get("artist", "None")
         combined["mb_album_id"] = mb_ids.get("album", "None")
-        combined["mb_group_id"] = mb_ids.get("release_group", "None")
+        combined["mb_group_id"] = mb_ids.get("release_group", mb_ids.get("group", "None"))
 
         track_results.append((f_path, combined))
 
