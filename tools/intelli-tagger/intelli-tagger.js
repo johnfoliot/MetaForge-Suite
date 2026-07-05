@@ -194,21 +194,30 @@ window.metaforge.intelli_tagger = {
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
+            let buffer = '';
 
             while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
 
-                const chunk = decoder.decode(value);
-                
+                // stream:true correctly buffers a multi-byte UTF-8 character
+                // (e.g. a curly apostrophe) that gets split across two reads,
+                // instead of mangling it into a replacement character.
+                const chunk = decoder.decode(value, { stream: true });
+                // Marker checks run against the full accumulated buffer, not
+                // just this one chunk -- a marker like HANDOFF_READY can land
+                // split across two separate reads, and checking only the
+                // latest chunk would silently miss it.
+                buffer += chunk;
+
                 // Progress Hook Extraction (Meta-parsing for the Progress Bar)
-                const progMatch = chunk.match(/PROGRESS:(\d+):([^-]+)/);
+                const progMatch = buffer.match(/PROGRESS:(\d+):([^-]+)/);
                 if (progMatch) {
                     if (progressFill) progressFill.style.width = `${progMatch[1]}%`;
                     if (progressLabel) progressLabel.innerText = progMatch[2];
                 }
 
-                if (chunk.includes('HANDOFF_READY')) {
+                if (buffer.includes('HANDOFF_READY')) {
                     const handoff = document.getElementById('it-handoff-area');
                     if (handoff) handoff.style.display = 'block';
                 }
@@ -216,7 +225,7 @@ window.metaforge.intelli_tagger = {
                 consoleBox.insertAdjacentHTML('beforeend', chunk);
 
                 // Remove acoustic wait indicator on first track result
-                if (chunk.includes('it-log-row')) {
+                if (buffer.includes('it-log-row')) {
                     const wait = document.getElementById('it-acoustic-wait');
                     if (wait) wait.parentNode.removeChild(wait);
                 }
