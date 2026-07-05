@@ -130,6 +130,24 @@ window.metaforge.database_tools.album = {
         }
     },
 
+    browseCover: async function() {
+        const res = await fetch('/select_file');
+        const data = await res.json();
+        if (!data.path) return;
+
+        window.metaforge.database_tools.state.stagedCoverPath = data.path;
+
+        // Best-effort local preview; falls back silently to the existing
+        // cover art if the webview blocks the file:// URI.
+        const img = document.getElementById('alb-img');
+        if (img) {
+            const normalized = data.path.replace(/\\/g, '/');
+            img.onerror = () => { img.style.display = 'none'; };
+            img.src = 'file:///' + normalized;
+            img.style.display = 'block';
+        }
+    },
+
     addBlankPersonnel: function() { this.appendPersonnelRow('', ''); },
 
     appendPersonnelRow: function(role, name) {
