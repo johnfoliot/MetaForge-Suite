@@ -12,9 +12,10 @@ import json
 import sys
 import hashlib
 import traceback
+from datetime import datetime
 from pathlib import Path
 from flask import jsonify, request
-from common import db_engine
+from common import db_engine, config_handler
 from tools.personnel.edge_normalizer import normalize_personnel
 from tools.personnel import edge_store
 from tools.personnel import mb_personnel_engine
@@ -31,6 +32,16 @@ from mb_resolution_engine import MBResolutionEngine  # noqa: E402
 
 USER_AGENT = "MetaForgeStudio/1.0 (contact: forensic-dev@metaforge.studio)"
 API_URL = "https://en.wikipedia.org/w/api.php"
+
+# Evidence-collection log for a future MB contribution tool (see
+# project_mb_contribution_tool memory) -- the submission tool itself is
+# still deferred (MB relationship-editor seeding is unconfirmed for
+# existing recordings), but there's no reason to let this evidence
+# disappear in the meantime, and it lets it be visually spot-checked
+# before that tool exists. One JSON line per candidate: a personnel
+# credit committed from a non-MusicBrainz source for a person/relation
+# MusicBrainz's own data doesn't yet have on this album.
+MB_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "personnel_correction_candidates.jsonl"
 
 # Below this many distinct credited names, the merged MB+Discogs result
 # counts as "thin" and triggers the automatic Wikipedia fallback tier.
@@ -286,6 +297,26 @@ def _parse_allmusic_html():
 # COMMIT (SHARED BY EVERY TIER)
 # ==========================================================================
 
+def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation_type, role,
+                                  provenance, confidence, evidence_scope, evidence_detail):
+    """Appends one JSONL entry to MB_CANDIDATE_LOG. Never raises -- a
+    logging failure must never break a real commit."""
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "mf_id": mf_id, "artist": artist, "album": album,
+        "name": name, "target_id": target_id,
+        "relation_type": relation_type, "role": role,
+        "provenance": provenance, "confidence": confidence,
+        "evidence_scope": evidence_scope, "evidence_detail": evidence_detail,
+    }
+    try:
+        MB_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(MB_CANDIDATE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as ex:
+        print(f"⚠️ MB correction candidate log write failed: {ex}")
+
+
 def _commit():
     """
     Shared commit path for every source. Rows already carrying a
@@ -295,6 +326,13 @@ def _commit():
     go through normalize_personnel()/classify_role() first, same as
     always. Either way, upsert_edge() handles dedup -- a re-commit of the
     same fact updates the existing row instead of duplicating it.
+
+    Also logs a candidate MB correction (see MB_CANDIDATE_LOG above) for
+    any committed edge whose provenance isn't MusicBrainz AND for which
+    no MusicBrainz-provenance edge already exists for the same
+    (target, relation_type) on this album -- i.e. something MB's own
+    data doesn't have yet. The check is a single query per commit, not
+    per row.
     """
     data = request.json
     artist, album, personnel = data.get('artist'), data.get('album'), data.get('personnel', [])
@@ -303,6 +341,19 @@ def _commit():
 
     mf_id = res[0]['mf_id']
     count = 0
+
+    mb_rows = db_engine.execute_query(
+        "SELECT target_id, relation_type FROM edges WHERE source_id=? AND source_type='album' AND provenance='MusicBrainz'",
+        (mf_id,)
+    )
+    mb_known = {(r['target_id'], r['relation_type']) for r in mb_rows} if mb_rows else set()
+
+    def _maybe_log_candidate(name, tid, relation_type, role, provenance, confidence, evidence_scope, evidence_detail):
+        if provenance != "MusicBrainz" and (tid, relation_type) not in mb_known:
+            _log_mb_correction_candidate(
+                mf_id, artist, album, name, tid, relation_type, role,
+                provenance, confidence, evidence_scope, evidence_detail
+            )
 
     for p in personnel:
         name = (p.get('name') or '').strip()
@@ -314,12 +365,17 @@ def _commit():
         if p.get('relation_type'):
             role = (p.get('role') or '').strip()
             if not role: continue
+            confidence = p.get('confidence', 0.9)
+            provenance = p.get('provenance', 'MetaForge')
+            evidence_scope = p.get('evidence_scope')
+            evidence_detail = p.get('evidence_detail')
             edge_store.upsert_edge(
                 source_type="album", source_id=mf_id, target_type="artist", target_id=tid,
                 relation_type=p['relation_type'], role=role,
-                confidence=p.get('confidence', 0.9), provenance=p.get('provenance', 'MetaForge'),
-                evidence_scope=p.get('evidence_scope'), evidence_detail=p.get('evidence_detail'),
+                confidence=confidence, provenance=provenance,
+                evidence_scope=evidence_scope, evidence_detail=evidence_detail,
             )
+            _maybe_log_candidate(name, tid, p['relation_type'], role, provenance, confidence, evidence_scope, evidence_detail)
             count += 1
         else:
             role_string = (p.get('role') or '').strip()
@@ -334,6 +390,8 @@ def _commit():
                     evidence_scope=edge['evidence_scope'], evidence_detail=edge['evidence_detail'],
                     weight=edge['weight']
                 )
+                _maybe_log_candidate(name, tid, edge['relation_type'], edge['role'], provenance,
+                                      edge['confidence'], edge['evidence_scope'], edge['evidence_detail'])
                 count += 1
 
     return jsonify({"status": "success", "count": count}), 200
