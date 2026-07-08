@@ -30,7 +30,7 @@ window.metaforge.settings.toolbar = {
      */
     render: function(data) {
         const grid = document.getElementById('toolbar-customizer-grid');
-        
+
         let html = `
             <table class="meta-table">
                 <thead>
@@ -44,7 +44,26 @@ window.metaforge.settings.toolbar = {
 
         let visibleCounter = 1;
 
-        data.layout.forEach((entry) => {
+        // "Plug and play" discovery was previously scan-only: the backend
+        // (toolbar_engine.py's discover()) re-scans tools_dir for
+        // manifests on every load, but nothing ever reconciled a newly
+        // found tool folder into the SAVED layout this render() actually
+        // iterates -- so a brand-new tool directory was invisible here
+        // (and therefore in the main toolbar, which only shows what's in
+        // the saved layout too) until someone hand-edited
+        // toolbar_layout.json. Any manifest id not already in data.layout
+        // gets appended here, defaulting to visible only if the manifest
+        // itself declares required:true. Still needs one Save click to
+        // actually persist into toolbar_layout.json, same as any other
+        // layout change.
+        const knownIds = new Set(data.layout.map(e => e.id));
+        const effectiveLayout = data.layout.concat(
+            Object.keys(data.manifests)
+                .filter(id => !knownIds.has(id))
+                .map(id => ({ id, visible: !!data.manifests[id].required }))
+        );
+
+        effectiveLayout.forEach((entry) => {
             if (["dashboard", "settings"].includes(entry.id)) return;
 
             const tool = data.manifests[entry.id];

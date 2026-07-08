@@ -1,10 +1,10 @@
 {
   "name": "MusicBrainz Submit",
-  "id": "mb_submit",
+  "id": "musicbrainz_submit",
   "version": "1.0.0",
   "description": "MusicBrainz Submit",
-  "entry_point": "mb_submit.py",
-  "ui_template": "mb_submit.mfi",
+  "entry_point": "musicbrainz_submit.py",
+  "ui_template": "musicbrainz_submit.mfi",
   "icon": "musicbrainz_submit.svg",
   "required": true
 }
