@@ -136,18 +136,16 @@ def _resolve_waterfall():
 
     all_edges.extend(discogs_personnel_engine.resolve_album_personnel(artist, album, discogs_preseed))
 
-    distinct_names = {e['name'].strip().lower() for e in all_edges if e.get('name')}
-    thin = len(distinct_names) < THIN_THRESHOLD
+    thin = _is_thin(all_edges)
 
-    wiki_candidates = []
+    wiki_edges = []
     if thin and artist and album:
-        wiki_candidates = _auto_wikipedia_personnel(artist, album)
-        distinct_names |= {c['name'].strip().lower() for c in wiki_candidates if c.get('name')}
-        thin = len(distinct_names) < THIN_THRESHOLD
+        wiki_edges = _classify_free_text_candidates(_auto_wikipedia_personnel(artist, album), "Wikipedia")
+        thin = _is_thin(all_edges + wiki_edges)
 
-    ai_candidates = []
+    ai_edges = []
     if thin and artist and album:
-        ai_candidates = _auto_ai_personnel(artist, album)
+        ai_edges = _classify_free_text_candidates(_auto_ai_personnel(artist, album), "AI Web Search")
 
     candidates = [
         {
@@ -155,16 +153,55 @@ def _resolve_waterfall():
             "confidence": e['confidence'], "provenance": e['provenance'],
             "evidence_scope": e.get('evidence_scope'), "evidence_detail": e.get('evidence_detail'),
         }
-        for e in all_edges
-    ] + [
-        {"name": c['name'], "role": c['role'], "provenance": "Wikipedia"}
-        for c in wiki_candidates
-    ] + [
-        {"name": c['name'], "role": c['role'], "provenance": "AI Web Search"}
-        for c in ai_candidates
+        for e in all_edges + wiki_edges + ai_edges
     ]
 
     return jsonify({"status": "success", "candidates": candidates, "thin": thin})
+
+
+def _is_thin(edges):
+    """
+    "Thin" counts only musically-relevant credits (anything classified
+    to a real RelationType, not the ASSOCIATED_WITH catch-all) -- a
+    photographer and a producer used to count identically toward "we
+    have enough data", which meant an album with one real credit and two
+    package-art credits looked fully resolved. Junk roles (photography,
+    album design, etc.) never even reach this point now -- they're
+    filtered out entirely in edge_normalizer.is_junk_role() before
+    classification -- but a genuinely unclassified-but-real role could
+    still land in ASSOCIATED_WITH, so that bucket still doesn't count as
+    "answered" either.
+    """
+    valuable_names = {
+        e['name'].strip().lower() for e in edges
+        if e.get('name') and e.get('relation_type') != 'ASSOCIATED_WITH'
+    }
+    return len(valuable_names) < THIN_THRESHOLD
+
+
+def _classify_free_text_candidates(candidates, provenance):
+    """
+    Runs raw {name, role} candidates (Wikipedia/AI, which return free
+    text, not pre-classified data like MB/Discogs) through the same
+    normalize_personnel() atomization/classification/junk-filter every
+    other source uses -- so junk is excluded from the PREVIEW too, not
+    just eventually at commit time, and so _is_thin() can accurately
+    judge whether these results were actually valuable. One raw
+    candidate can expand into zero (fully junk), one, or several atomic
+    edges (a multi-role credit like "Producer, Photography").
+    """
+    edges = []
+    for c in candidates:
+        name, role = c.get('name'), c.get('role')
+        if not name or not role:
+            continue
+        for atom in normalize_personnel(role):
+            edges.append({
+                "name": name, "role": atom['role'], "relation_type": atom['relation_type'],
+                "confidence": atom['confidence'], "provenance": provenance,
+                "evidence_scope": atom['evidence_scope'], "evidence_detail": atom['evidence_detail'],
+            })
+    return edges
 
 
 # ==========================================================================
@@ -283,9 +320,14 @@ def _fetch_content():
     if page_id == "-1": return jsonify({"status": "error", "message": "Page unavailable."})
 
     full_text = data['query']['pages'][page_id]['revisions'][0]['slots']['main']['*']
-    text, candidates = _extract_credits_from_wikitext(full_text)
+    text, raw_candidates = _extract_credits_from_wikitext(full_text)
 
     if text is None: return jsonify({"status": "error", "message": "No credit sections identified."})
+
+    # Junk-filtered/pre-classified here too, same as the automatic tier
+    # and the AllMusic paste path -- package credits never reach the
+    # review table at all, regardless of which source found them.
+    candidates = _classify_free_text_candidates(raw_candidates, "Wikipedia")
 
     return jsonify({"status": "success", "raw_text": text, "candidates": candidates})
 
@@ -310,15 +352,23 @@ def _parse_allmusic_html():
     pattern = r'<span class="artist">\s*<a[^>]*>(.*?)</a>\s*</span>\s*<span class="artistCredits">(.*?)</span>'
     matches = re.findall(pattern, html_content, re.DOTALL)
 
-    candidates = []
+    raw_candidates = []
     for name, role in matches:
         clean_name = re.sub(r'<[^>]+>', '', name).strip()
         clean_role = re.sub(r'<[^>]+>', '', role).strip()
         if clean_name and clean_role:
-            candidates.append({"name": clean_name, "role": clean_role})
+            raw_candidates.append({"name": clean_name, "role": clean_role})
+
+    if not raw_candidates:
+        return jsonify({"status": "error", "message": "No recognizable credits table found in the pasted content."})
+
+    # Junk-filtered/pre-classified here too (not just at eventual commit)
+    # so package credits (photography, design, etc.) never show up in
+    # the review table for John to have to notice and delete by hand.
+    candidates = _classify_free_text_candidates(raw_candidates, "AllMusic")
 
     if not candidates:
-        return jsonify({"status": "error", "message": "No recognizable credits table found in the pasted content."})
+        return jsonify({"status": "error", "message": "Found a credits table, but every entry was a non-musical package credit (photography, design, etc.) -- nothing to add."})
 
     return jsonify({"status": "success", "candidates": candidates})
 

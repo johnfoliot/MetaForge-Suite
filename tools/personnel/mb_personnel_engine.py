@@ -12,6 +12,8 @@
 # ======================================================================
 from typing import Any, Dict, List, Optional
 
+from tools.personnel.edge_normalizer import is_junk_role, load_config
+
 CONFIDENCE_MB = 0.95  # MB's own structured relationship data -- highest
                        # trust tier, above Wikipedia's 0.9 direct-mapped
                        # ceiling (see edge_normalizer.classify_role).
@@ -30,10 +32,14 @@ _TYPE_MAP = {
     "vocal": "PERFORMED_ON",
     "performer": "PERFORMED_ON",
     "arranger": "ARRANGED_BY",
+    "conductor": "ARRANGED_BY",
     "composer": "COMPOSED",
     "lyricist": "WRITTEN_BY",
     "writer": "WRITTEN_BY",
+    "a&r": "A_AND_R",
 }
+
+_JUNK_CONFIG = load_config()
 
 
 def relations_to_edges(relations: List[Dict[str, Any]], track_number: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -64,6 +70,14 @@ def relations_to_edges(relations: List[Dict[str, Any]], track_number: Optional[i
 
         attributes = rel.get("attributes") or []
         role = ", ".join(attributes) if attributes else rel_type_raw.title() or "Contributed"
+
+        # Defense-in-depth -- MB's recording-level relationships are a
+        # controlled vocabulary and rarely include package credits (those
+        # are almost always release-level, out of scope here), but the
+        # check is cheap and keeps this consistent with every other
+        # source if MB ever does surface one (e.g. "photography").
+        if is_junk_role(role, _JUNK_CONFIG) or is_junk_role(rel_type_raw, _JUNK_CONFIG):
+            continue
 
         edges.append({
             "name": name,

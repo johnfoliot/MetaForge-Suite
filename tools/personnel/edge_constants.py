@@ -8,5 +8,13 @@ class RelationType(Enum):
     ENGINEERED_BY = "ENGINEERED_BY"
     ARRANGED_BY = "ARRANGED_BY"
     WRITTEN_BY = "WRITTEN_BY"
+    # A&R (Artists & Repertoire) -- talent discovery/career-shaping
+    # figures like Mitch Miller or John Hammond Sr. Real, distinct IPM
+    # connective tissue from PRODUCED (hands-on studio involvement isn't
+    # the same relationship as discovering/signing/steering an artist).
+    # Added 2026-07-08 as a deliberate, explicit exception to this
+    # taxonomy's normal "don't expand without a real reason" rule --
+    # John's own call as chief architect, not a casual addition.
+    A_AND_R = "A_AND_R"
     ASSOCIATED_WITH = "ASSOCIATED_WITH"
 # --- END OF FILE edge_constants.py ---

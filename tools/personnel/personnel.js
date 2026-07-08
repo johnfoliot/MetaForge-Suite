@@ -169,9 +169,9 @@ window.metaforge.personnel = {
                 rawContainer.innerText = data.raw_text;
                 // A manual Wikipedia search ADDS to whatever the automatic
                 // waterfall already staged, rather than replacing it --
-                // MB/Discogs edges already found stay put.
-                const additions = data.candidates.map(c => ({ name: c.name, role: c.role, provenance: "Wikipedia" }));
-                this.state.mapping = this.state.mapping.concat(additions);
+                // MB/Discogs edges already found stay put. Candidates
+                // arrive already junk-filtered and classified.
+                this.state.mapping = this.state.mapping.concat(data.candidates);
                 this.renderMapping();
                 this.updateStatus("Extraction complete. Map identities on right.", "success");
             } else {
@@ -302,8 +302,11 @@ window.metaforge.personnel = {
             });
             const data = await res.json();
             if (data.status === "success" && data.candidates.length > 0) {
-                const additions = data.candidates.map(c => ({ name: c.name, role: c.role, provenance: "AllMusic" }));
-                this.state.mapping = this.state.mapping.concat(additions);
+                // Candidates arrive already junk-filtered and classified
+                // (relation_type/confidence/evidence_scope/evidence_detail
+                // included) -- carry all of it through, not just name/role,
+                // so these commit the same way MB/Discogs results do.
+                this.state.mapping = this.state.mapping.concat(data.candidates);
                 this.renderMapping();
                 this.updateStatus(`Added ${data.candidates.length} credits from AllMusic.`, "success");
                 const modal = document.getElementById('p-allmusic-modal');

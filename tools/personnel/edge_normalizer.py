@@ -13,25 +13,39 @@ def load_config():
     print(f"CRITICAL ERROR: Could not find performance.json at {config_path}")
     return {"mappings": {}, "patterns": {}}
 
+def is_junk_role(raw_role: str, config: dict) -> bool:
+    """
+    True if this role is a known non-musical package/administrative
+    credit (photography, album design, liner notes, etc.) -- carries no
+    IPM "connective tissue" value and John deletes these manually today.
+    Checked as a substring match against performance.json's junk_roles
+    list, case-insensitive. Checked BEFORE classification -- a junk role
+    is excluded outright, never even reaches ASSOCIATED_WITH.
+    """
+    clean_role = raw_role.strip().lower()
+    junk_terms = config.get("junk_roles", [])
+    return any(term in clean_role for term in junk_terms)
+
+
 def classify_role(raw_role: str, config: dict) -> tuple[str, float]:
     """
     Classifies a role based on config mappings and regex patterns.
     Returns a tuple of (relation_type_value, confidence_score).
     """
     clean_role = raw_role.strip().lower()
-    
+
     # 1. Check direct mapping
     # Note: Ensure your performance.json keys are lowercase to match this
     mappings = config.get("mappings", {})
     if clean_role in mappings:
         return RelationType[mappings[clean_role]].value, 0.9
-    
+
     # 2. Check regex patterns
     patterns = config.get("patterns", {})
     for pattern, relation in patterns.items():
         if re.search(pattern, clean_role):
             return RelationType[relation].value, 0.9
-            
+
     # 3. Fallback
     return RelationType.ASSOCIATED_WITH.value, 0.5
 
@@ -72,10 +86,17 @@ def normalize_personnel(personnel_string: str) -> list[dict]:
         
         # Step 3: Base Role Normalization
         final_role = text.strip().lower()
-        
+
         # Debug Output
         print(f"DEBUG: Original: [{role_entry}], Cleaned: [{final_role}], Qualifier: [{evidence_detail}]")
-        
+
+        # Step 3.5: Junk filter -- a non-musical package/admin credit
+        # (photography, album design, liner notes, etc.) is excluded
+        # entirely here, never added to normalized_list at all, rather
+        # than landing in ASSOCIATED_WITH for John to delete by hand.
+        if is_junk_role(final_role, config):
+            continue
+
         # Step 4: Classification
         relation_type, confidence = classify_role(final_role, config)
         
