@@ -113,8 +113,16 @@ def search_musicbrainz():
     artist = data.get("artist", "")
     album = data.get("album", "")
 
+    # Exact-phrase artist matching (artist:"...") is too brittle for real-
+    # world naming variation -- an artist's as-credited name on a specific
+    # release can differ from their canonical MB entity name (e.g. "Golden
+    # Gate Quartet" credited vs. "The Golden Gate Jubilee Quartet" entity),
+    # and phrase queries can't bridge that. Unquoted, parenthesized matching
+    # (same style already used for the album title below) is more forgiving
+    # and still lets the user pick the right result from the returned list.
+    scrubbed_artist = re.sub(r'[:\-\(\)\[\]/]', ' ', artist)
     scrubbed_album = re.sub(r'[:\-\(\)\[\]/]', ' ', album)
-    clean_query = f'artist:"{artist}" AND release:({" ".join(scrubbed_album.split())})'
+    clean_query = f'artist:({" ".join(scrubbed_artist.split())}) AND release:({" ".join(scrubbed_album.split())})'
 
     try:
         time.sleep(MB_DELAY)
@@ -166,6 +174,13 @@ def get_release_details():
 
         release = res.json()
 
+        # Already present in this same response (inc=release-groups) --
+        # zero extra HTTP calls. Feeds year_resolution_engine's tier 2
+        # (release-group first-release-date) and is_compilation detection.
+        rg_data = release.get("release-group", {}) or {}
+        rg_first_release_date = rg_data.get("first-release-date", "")
+        rg_secondary_types = rg_data.get("secondary-types", [])
+
         remote_tracks = []
 
         for media in release.get("media", []):
@@ -211,8 +226,15 @@ def get_release_details():
             "artist_id": release.get("artist-credit", [{}])[0]
                 .get("artist", {}).get("id", ""),
             "release_group_id": release.get("release-group", {}).get("id", ""),
-            "country_code": release.get("country", "??").upper(),
-            "release_year": release.get("date", "Unknown")[:4],
+            # `.get(key, default)`'s default only applies when the key is
+            # MISSING -- MB releases commonly have "country": null (a real,
+            # valid JSON null, not an absent key), which would otherwise
+            # crash .upper()/[:4] on None and silently strand the UI on
+            # "Retrieving MusicBrainz data..." forever (see except below).
+            "country_code": (release.get("country") or "??").upper(),
+            "release_year": (release.get("date") or "Unknown")[:4],
+            "release_group_first_date": rg_first_release_date,
+            "release_group_secondary_types": rg_secondary_types,
             "remote_tracks": remote_tracks,
             "local_tracks": local_tracks
         })
@@ -233,6 +255,8 @@ def commit_ids_to_files(env_path):
     artist_seed = data.get("artist_seed", "Unknown Artist")
     album_seed = data.get("album_seed", local_path.name)
     release_year = data.get("release_year", "Unknown")
+    release_group_first_date = data.get("release_group_first_date", "")
+    release_group_secondary_types = data.get("release_group_secondary_types", [])
 
     stats = {"success": 0, "failed": 0}
 
@@ -303,7 +327,10 @@ def commit_ids_to_files(env_path):
             stats["failed"] += 1
 
     if stats["success"] > 0:
-        _update_manifest(local_path, mapping, release_year, artist_seed, album_seed)
+        _update_manifest(
+            local_path, mapping, release_year, artist_seed, album_seed,
+            release_group_first_date, release_group_secondary_types
+        )
 
     return jsonify({"status": "success", "summary": stats})
 
@@ -311,7 +338,10 @@ def commit_ids_to_files(env_path):
 # =========================================================
 # MANIFEST WRITER
 # =========================================================
-def _update_manifest(root, mapping, year, artist_seed, album_seed):
+def _update_manifest(
+    root, mapping, year, artist_seed, album_seed,
+    release_group_first_date="", release_group_secondary_types=None
+):
     manifest_path = root / "manifest.json"
 
     m = {}
@@ -345,6 +375,8 @@ def _update_manifest(root, mapping, year, artist_seed, album_seed):
         "mb_release_group_id": sample["release_group_id"],
         "mb_release_country": sample["country_code"],
         "release_year": year,
+        "mb_release_group_first_date": release_group_first_date,
+        "mb_release_group_secondary_types": release_group_secondary_types or [],
         "is_physically_synced": True,
         "synced_at": datetime.now().isoformat()
     })

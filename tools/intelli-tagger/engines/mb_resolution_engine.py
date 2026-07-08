@@ -12,6 +12,18 @@ import time
 from typing import Dict, Any, Optional, List
 
 
+def _normalize_mb_year(date_str: Optional[str]) -> Optional[str]:
+    """
+    MusicBrainz dates are partial: '1975', '1975-06', '1975-06-01', or
+    missing entirely. Returns a clean 4-digit year string, or None if the
+    input isn't a real, well-formed year.
+    """
+    if not date_str or not isinstance(date_str, str):
+        return None
+    year_part = date_str.split("-")[0].strip()
+    return year_part if year_part.isdigit() and len(year_part) == 4 else None
+
+
 class MBResolutionEngine:
     """
     PURE MusicBrainz external resolution layer.
@@ -219,6 +231,32 @@ class MBResolutionEngine:
             "length": recording_json.get("length"),
             "credits": credits
         }
+
+    # ----------------------------------------------------------
+    # ORIGINAL YEAR RESOLUTION (TIER 1)
+    # ----------------------------------------------------------
+
+    def get_recording_first_release_date(self, recording_id: str) -> Optional[str]:
+        """
+        Tier 1 of the original-year waterfall: the recording's own
+        first-release-date, which MusicBrainz defines as the earliest
+        release date across ALL releases containing this recording --
+        not just the one in hand. This is what makes compilations resolve
+        correctly for free, with no separate branching needed.
+
+        Returns a normalized 4-digit year string, or None on any failure
+        (missing ID, 404 for a bogus/deleted ID, or the field simply being
+        empty on the recording). Never raises.
+        """
+
+        if not recording_id or recording_id in ("None", "Unknown", ""):
+            return None
+
+        try:
+            data = self.get_recording(recording_id)
+            return _normalize_mb_year(data.get("first-release-date"))
+        except Exception:
+            return None
 
     # ----------------------------------------------------------
     # RELEASE-GROUP SIMPLIFICATION

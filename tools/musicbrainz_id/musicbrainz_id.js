@@ -20,6 +20,8 @@ window.metaforge.musicbrainz_id = {
         currentReleaseGroupId: "",
         currentCountryCode: "",
         currentReleaseYear: "Unknown",
+        releaseGroupFirstDate: "",
+        releaseGroupSecondaryTypes: [],
         localFiles: [], // [ { filename: str, title: str } ]
         remoteTracks: [], // [ { position: str, title: str, track_id: uuid } ]
         isLocked: false
@@ -144,6 +146,8 @@ window.metaforge.musicbrainz_id = {
                 this.state.currentReleaseGroupId = data.release_group_id;
                 this.state.currentCountryCode = data.country_code;
                 this.state.currentReleaseYear = data.release_year;
+                this.state.releaseGroupFirstDate = data.release_group_first_date;
+                this.state.releaseGroupSecondaryTypes = data.release_group_secondary_types;
                 this.state.remoteTracks = data.remote_tracks;
                 this.state.localFiles = data.local_tracks;
                 
@@ -152,8 +156,17 @@ window.metaforge.musicbrainz_id = {
                 document.getElementById('mb-commit-btn').disabled = false;
                 document.getElementById('mb-commit-btn').style.opacity = "1";
                 this.announceStatus("Release data ready.", "success");
+            } else {
+                // Server returned a real response but status wasn't "success"
+                // (e.g. an exception on the backend) -- must surface this,
+                // not leave "Retrieving MusicBrainz data..." stuck forever.
+                summary.innerHTML = `⚠️ Failed to retrieve release data: ${data.message || "Unknown error"}`;
+                this.announceStatus("⚠️ Metadata fetch failed.", "error");
             }
-        } catch (err) { this.announceStatus("⚠️ Metadata fetch failed.", "error"); }
+        } catch (err) {
+            summary.innerHTML = "⚠️ Failed to retrieve release data.";
+            this.announceStatus("⚠️ Metadata fetch failed.", "error");
+        }
     },
 
     renderComparison: function() {
@@ -239,7 +252,9 @@ window.metaforge.musicbrainz_id = {
                     local_path: this.state.localPath,
                     artist_seed: artistSeed,
                     release_year: this.state.currentReleaseYear,
-                    mapping: mapping 
+                    release_group_first_date: this.state.releaseGroupFirstDate,
+                    release_group_secondary_types: this.state.releaseGroupSecondaryTypes,
+                    mapping: mapping
                 })
             });
 

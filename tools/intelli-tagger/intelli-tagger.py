@@ -118,6 +118,7 @@ def _orchestrate_tagger_batch(data, env_path):
     import id_engine
     import commit_engine
     import fingerprint_engine
+    import year_resolution_engine
     from mb_resolution_engine import MBResolutionEngine
 
     root_path = Path(data.get('path'))
@@ -142,18 +143,36 @@ def _orchestrate_tagger_batch(data, env_path):
             mb_track_lookup[("position", position)] = entry
 
     # ----------------------------------------------------------
-    # RELEASE LABEL — fetched once here; label is release-level,
-    # not track-level, so a single call covers the whole batch.
+    # MB RESOLUTION ENGINE — one instance shared for the whole batch:
+    # release-level label lookup below, plus per-track original-year
+    # resolution further down.
     # ----------------------------------------------------------
+    mb = MBResolutionEngine()
+
     release_label = "Unknown"
     release_mbid = mb_ids.get("album", "")
 
     if release_mbid and release_mbid not in ("None", "Unknown", ""):
         try:
-            mb = MBResolutionEngine()
             release_label = mb.get_release_label(release_mbid)
         except Exception:
             release_label = "Unknown"
+
+    # ----------------------------------------------------------
+    # RELEASE-GROUP DATA — captured once at Stage 2 (MusicBrainz ID tool),
+    # zero extra HTTP calls here. Feeds original-year tier 2 and
+    # is_compilation, both album-level, not per-track.
+    # ----------------------------------------------------------
+    group_first_release_date = data.get('mb_release_group_first_date', '')
+    group_secondary_types = data.get('mb_release_group_secondary_types', []) or []
+    is_compilation = 1 if 'Compilation' in group_secondary_types else 0
+    data['is_compilation'] = is_compilation
+
+    # Shared, mutable cache for the year-resolution waterfall's Discogs/
+    # Wikipedia tiers -- both are album-level, expensive (HTTP + AI
+    # extraction) lookups that must only ever run ONCE per album
+    # regardless of how many tracks need them. See year_resolution_engine.py.
+    year_cache = {}
 
     yield '<!-- PROGRESS:5:Ingesting Content -->'
     yield f'<h2 class="it-log-entry it-val-gold"><img src="/ui/images/stamp.png" style="height:14px; width:auto; color:var(--mf-gold);" alt=""> Beginning Intelli-Tagging: <span style="color:var(--text-output);">{album}</span></h2>'
@@ -168,11 +187,25 @@ def _orchestrate_tagger_batch(data, env_path):
 
     yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/genre.png" style="height:13px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
 
+    # A real progress marker for this window -- previously nothing yielded
+    # here carried a PROGRESS comment at all, so the bar sat frozen on
+    # "25: Scrubbing" through this whole stretch and then jumped straight to
+    # "40: Tagging Track 1/N", with no narration bridging the two.
+    yield '<!-- PROGRESS:35:Preparing Acoustic Analysis -->'
+
     # =========================================================
     # ACOUSTIC WAIT INDICATOR
     # Removal is handled by intelli-tagger.js when the first
     # it-log-row chunk arrives in the stream reader.
     # Scoped keyframe — no external CSS dependencies.
+    #
+    # Wording corrected: nothing is actually "analyzing all tracks" at this
+    # point -- there's no batch-level analysis step here at all, only the
+    # per-track loop about to start. The per-track progress-bar labels
+    # (Analyzing Acoustics / Fingerprinting / etc.) now narrate that in
+    # real time for every track, including track 1, so this indicator's
+    # job is just to explain why track 1's own log row takes a moment to
+    # appear -- not to claim work is underway that isn't yet.
     # =========================================================
     yield '''<style>
 @keyframes mf-wait-pulse {
@@ -187,7 +220,7 @@ def _orchestrate_tagger_batch(data, env_path):
 }
 </style>
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
-    <img src="/ui/images/fingerprint.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Acoustic fingerprinting in progress - analysing all tracks, please wait...
+    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Beginning acoustic analysis of the recording.<br> The first track may take a little longer to appear while identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
     files = sorted(list(root_path.glob("*.mp3")))
@@ -197,15 +230,24 @@ def _orchestrate_tagger_batch(data, env_path):
     
     for idx, f_path in enumerate(files, 1):
         progress = int(40 + ((idx / total_files) * 45))
-        yield f'<!-- PROGRESS:{progress}:Tagging Track {idx}/{total_files} -->'
+        track_prefix = f'Tagging Track {idx}/{total_files}'
+
+        # Per-track processing routinely takes ~20s once MB/Discogs/Wikipedia/
+        # AI calls are involved -- without an interim label for each phase,
+        # neither the progress bar nor the console log changes for that whole
+        # stretch, and the tool can genuinely look hung even while it's working.
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Analyzing Acoustics -->'
 
         acoustic_data = acoustic_engine.analyze_file(f_path)
 
         if not isinstance(acoustic_data, dict):
             acoustic_data = dict(acoustic_data)
 
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Fingerprinting -->'
+
         fingerprint_data = fingerprint_engine.generate_acoustid(f_path)
         acoustid_value = _extract_acoustid(fingerprint_data)
+        acoustid_sibling_ids = fingerprint_data.get("acoustid_recording_ids", [])
 
         if acoustid_value:
             acoustic_data["acoustid"] = str(acoustid_value)
@@ -216,6 +258,8 @@ def _orchestrate_tagger_batch(data, env_path):
 
         if not fast_track:
             fast_track = mb_track_lookup.get(("position", idx))
+
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Resolving Identity -->'
 
         if fast_track:
 
@@ -250,6 +294,8 @@ def _orchestrate_tagger_batch(data, env_path):
 
         title = identity_data.get("title", f_path.stem)
 
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Calculating BPM, Intensity, Starting Key, and Genre/Mood -->'
+
         try:
             ai_results = ai_engine.map_track_taxonomy(
                 artist,
@@ -272,8 +318,27 @@ def _orchestrate_tagger_batch(data, env_path):
         combined.update(identity_data)
         combined.update(ai_results)
 
-        combined["original_year"] = release_year
-        combined["display_date"] = release_year
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Resolving Original Year -->'
+
+        year_result = year_resolution_engine.resolve_original_year(
+            recording_id=combined.get("mb_recording_id"),
+            group_id=mb_ids.get("release_group", mb_ids.get("group", "None")),
+            group_first_release_date_hint=group_first_release_date,
+            artist=artist,
+            title=title,
+            album=album,
+            release_year=release_year,
+            track_number=idx,
+            total_tracks=total_files,
+            is_compilation=is_compilation,
+            mb=mb,
+            year_cache=year_cache,
+            acoustid_recording_ids=acoustid_sibling_ids,
+        )
+        combined.update(year_result)
+        combined["artist"] = artist
+        combined["release_year"] = release_year
+
         combined["label"] = release_label
 
         combined["file_path"] = str(f_path)
@@ -309,13 +374,19 @@ def _render_deep_view_line(idx, total, filename, data):
 
     idx_str = f"[{str(idx).rjust(len(str(total)))}/{total}]"
 
-    line1 = f'<span class="it-val-gold">{idx_str}</span> <span class="it-val-white">{filename[:30].ljust(30)}</span> | '
-    line1 += f'<span class="it-val-gold">Date:</span> <span class="it-val-white">{str(data.get("display_date", "Unknown")).ljust(4)}</span> | '
-    line1 += f'<span class="it-val-gold">Genre:</span> <span class="it-val-white">{data.get("parent", "Unknown")[:13].ljust(13)}</span> | '
-    line1 += f'<span class="it-val-gold">Sub Genre:</span> <span class="it-val-white">{data.get("sub", "Unknown")[:18].ljust(18)}</span>'
+    # Header line: index + full filename, untruncated -- a long track
+    # title (e.g. "Found a Wonderful Savior") shouldn't get cut off just
+    # because it used to share a line with Date/Genre/Sub Genre.
+    line1 = f'<span class="it-val-gold">{idx_str}</span> <span class="it-val-white">{filename}</span>'
 
-    subline = f'<div style="margin-right:10px; margin-left:-40px!important; text-align:left; margin-top:5px; border-bottom:1px solid var(--mf-gold); padding-bottom:5px; width:100%;">| '
-    subline += f'<span class="it-val-gold">BPM:</span> <span class="it-val-white">{str(data.get("bpm", "0")).ljust(3)}</span> | '
+    subline = f'<div style="margin-right:10px; margin-left:-40px!important; text-align:left; margin-top:5px; border-bottom:1px solid var(--mf-gold); padding-bottom:5px; width:100%;">'
+
+    subline += f'| <span class="it-val-gold">Original Date:</span> <span class="it-val-white">{str(data.get("original_year", "Unknown")).ljust(6)}</span> | '
+    subline += f'<span class="it-val-gold">Release Date:</span> <span class="it-val-white">{str(data.get("release_year", "Unknown")).ljust(6)}</span> | '
+    subline += f'<span class="it-val-gold">Genre:</span> <span class="it-val-white">{data.get("parent", "Unknown")[:13].ljust(13)}</span> | '
+    subline += f'<span class="it-val-gold">Sub Genre:</span> <span class="it-val-white">{data.get("sub", "Unknown")[:18].ljust(18)}</span><br>'
+
+    subline += f'| <span class="it-val-gold">BPM:</span> <span class="it-val-white">{str(data.get("bpm", "0")).ljust(3)}</span> | '
     subline += f'<span class="it-val-gold">Key:</span> <span class="it-val-white">{data.get("key", "??").ljust(4)}</span> | '
     subline += f'<span class="it-val-gold">Int.:</span> <span class="it-val-white">{str(data.get("intensity", "1")).ljust(1)}</span> | '
     subline += f'<span class="it-val-gold">Mood:</span> <span class="it-val-white">{data.get("mood", "Unknown")[:12].ljust(12)}</span> | '

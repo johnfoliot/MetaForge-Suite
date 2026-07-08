@@ -33,9 +33,18 @@ def generate_acoustid(file_path):
     """
     Returns:
     {
-        "acoustid": str
+        "acoustid": str,
+        "acoustid_recording_ids": list[str]  # sibling MB recording MBIDs
+            # linked to this fingerprint -- the same acoustic performance
+            # sometimes gets catalogued as separate recording entities
+            # across different releases, so a sibling may have better
+            # original-year data than whichever recording our pipeline
+            # happened to match during MB ID matching. Parsed from the
+            # "recordings" field already present in the response below
+            # (meta=recordings) -- zero extra API calls. May be empty.
     }
     """
+    EMPTY = {"acoustid": "None", "acoustid_recording_ids": []}
     try:
         # -------------------------------------------------
         # STEP 1: fpcalc
@@ -47,7 +56,7 @@ def generate_acoustid(file_path):
         )
 
         if result.returncode != 0:
-            return {"acoustid": "None"}
+            return dict(EMPTY)
 
         fp_data = json.loads(result.stdout)
 
@@ -55,11 +64,11 @@ def generate_acoustid(file_path):
         duration = fp_data.get("duration")
 
         if not fingerprint:
-            return {"acoustid": "None"}
+            return dict(EMPTY)
 
         if duration is None:
             print("[FINGERPRINT ERROR] Missing duration")
-            return {"acoustid": "None"}
+            return dict(EMPTY)
 
         # CRITICAL FIX:
         # AcoustID wants integer seconds, not float
@@ -89,7 +98,7 @@ def generate_acoustid(file_path):
         data = response.json()
 
         if data.get("status") != "ok":
-            return {"acoustid": "None"}
+            return dict(EMPTY)
 
         results = data.get("results", [])
 
@@ -97,16 +106,19 @@ def generate_acoustid(file_path):
             # Fingerprint submitted and looked up successfully, but AcoustID
             # has no record of it yet — queue it for the acoustid tool to submit.
             _queue_for_submission(file_path)
-            return {"acoustid": "None"}
+            return dict(EMPTY)
 
         acoustid = results[0].get("id", "None")
+        sibling_recordings = results[0].get("recordings", []) or []
+        sibling_ids = [r.get("id") for r in sibling_recordings if r.get("id")]
 
         return {
-            "acoustid": acoustid
+            "acoustid": acoustid,
+            "acoustid_recording_ids": sibling_ids
         }
 
     except Exception as e:
-        return {"acoustid": "None"}
+        return dict(EMPTY)
 
 
 # --- END OF FILE fingerprint_engine.py ---

@@ -20,7 +20,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from common import config_handler, image_processor
 
 # --- [ ARCHITECTURAL CONSTANTS ] ---
-TOKEN = getattr(config_handler, 'DISCOGS_TOKEN', None)
+# NOTE: DISCOGS_TOKEN is a function (runtime env resolver), not a constant --
+# must be called, not grabbed via getattr as an attribute.
+TOKEN = config_handler.DISCOGS_TOKEN()
 USER_AGENT = "MetaForgeSuite/1.2 +http://metaforge.audio"
 BASE_URL = "https://api.discogs.com/database/search"
 

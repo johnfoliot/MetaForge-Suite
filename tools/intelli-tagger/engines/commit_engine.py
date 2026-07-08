@@ -10,7 +10,7 @@ import hashlib
 from datetime import datetime
 
 from mutagen.id3 import (
-    ID3, TIT2, TCON, TMOO, TBPM, TKEY,
+    ID3, TIT2, TCON, TBPM, TKEY,
     TXXX, TYER, TORY, TPUB, UFID, COMM,
     ID3NoHeaderError
 )
@@ -62,7 +62,6 @@ def execute_commit(
     primary = track_results[0][1] if track_results else {}
     label_val = primary.get('label', 'Unknown')
     personnel_list = primary.get('personnel', [])
-    personnel_str = "; ".join(personnel_list) if personnel_list else "Unknown"
     country_val = primary.get('country', 'Unknown')
 
     success_count = 0
@@ -124,9 +123,9 @@ def execute_commit(
                     1,
                     now,
                     mb_work_id,
-                    100,
-                    "MetaForge Forensic",
-                    0,
+                    data.get('orig_year_conf', 0),
+                    data.get('orig_year_source', 'Unresolved (Release Year Fallback)'),
+                    data.get('leak_flag', 1),
                     verified_length_seconds,
                     data.get('sonic_texture', 'Unknown'),
                     data.get('emotional_flavor', 'Unknown'),
@@ -151,10 +150,10 @@ def execute_commit(
                 album_title,
                 release_year,
                 label_val,
-                personnel_str,
                 country_val,
                 manifest_seeds,
-                now
+                now,
+                manifest_seeds.get('is_compilation', 0)
             )
 
             conn.commit()
@@ -207,7 +206,7 @@ def _write_physical_tags(file_path, data, album_reissue_year):
         "MusicBrainz Release Group Id", "MusicBrainz Release Track Id",
         "Acoustid Id",
         "MB Artist ID", "MB Album ID", "MB Release Group ID", "MB Recording ID", "AcoustID",
-        "Sub-Genre", "Intensity", "Sonic Texture", "Emotional Flavor",
+        "Sub-Genre", "Intensity", "Sonic Texture", "Emotional Flavor", "Mood",
     ]
     for desc in MANAGED_TXXX:
         tags.delall(f"TXXX:{desc}")
@@ -258,10 +257,15 @@ def _write_physical_tags(file_path, data, album_reissue_year):
     tags.add(TYER(encoding=1, text=[str(album_reissue_year)]))
     tags.add(TORY(encoding=1, text=[str(data.get("original_year", album_reissue_year))]))
     tags.add(TCON(encoding=1, text=[data.get("parent", "Unknown")]))
-    tags.add(TMOO(encoding=1, text=[data.get("mood", "Unknown")]))
     tags.add(TBPM(encoding=1, text=[str(data.get("bpm", 0))]))
     tags.add(TKEY(encoding=1, text=[data.get("key", "??")]))
 
+    # Mood has no ID3v2.3 equivalent -- TMOO is a v2.4-only frame, and
+    # update_to_v23() silently drops it entirely on save (verified: zero
+    # frames survive), rather than erroring or downgrading it. TXXX is
+    # the same fix already applied to every other non-standard field
+    # here (Sub-Genre, Intensity, Sonic Texture, Emotional Flavor).
+    tags.add(TXXX(encoding=1, desc="Mood", text=[data.get("mood", "Unknown")]))
     tags.add(TXXX(encoding=1, desc="Sub-Genre", text=[data.get("sub", "Unknown")]))
     tags.add(TXXX(encoding=1, desc="Intensity", text=[str(data.get("intensity", 1))]))
     tags.add(TXXX(encoding=1, desc="Sonic Texture", text=[data.get("sonic_texture", "Unknown")]))
@@ -312,10 +316,10 @@ def _sync_relational_masters(
     album_title,
     release_year,
     label_val,
-    personnel_str,
     country_val,
     manifest_seeds,
-    now
+    now,
+    is_compilation=0
 ):
     cursor.execute("SELECT 1 FROM library_master WHERE mf_id = ?", (mf_id,))
     if cursor.fetchone():
@@ -325,7 +329,6 @@ def _sync_relational_masters(
                 mb_album_id=?,
                 original_year=?,
                 label=?,
-                personnel=?,
                 date_audit_status=1
             WHERE mf_id=?
         """, (
@@ -333,17 +336,16 @@ def _sync_relational_masters(
             manifest_seeds.get("mb_ids", {}).get("album", "None"),
             release_year,
             label_val,
-            personnel_str,
             mf_id
         ))
     else:
         cursor.execute("""
             INSERT INTO library_master (
                 mf_id, mf_artist_id, artist_name, album_title,
-                mb_album_id, original_year, label, personnel,
+                mb_album_id, original_year, label,
                 is_compilation, last_updated, date_audit_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             mf_id,
             mf_artist_id,
@@ -352,8 +354,7 @@ def _sync_relational_masters(
             manifest_seeds.get("mb_ids", {}).get("album", "None"),
             release_year,
             label_val,
-            personnel_str,
-            0,
+            is_compilation,
             now,
             1
         ))

@@ -15,7 +15,9 @@ window.metaforge.intelli_tagger = {
         lastTrigger: null,
         observer: null,
         releaseYear: "Unknown",
-        mbTrackMap: []
+        mbTrackMap: [],
+        releaseGroupFirstDate: "",
+        releaseGroupSecondaryTypes: []
     },
 
     /**
@@ -86,9 +88,14 @@ window.metaforge.intelli_tagger = {
                 this.state.releaseYear = m.release_year || "Unknown";
                 // Persist per-track MB IDs so run() can send them for the FAST_PATH lookup
                 this.state.mbTrackMap = m.mb_track_map || [];
+                // Persist release-group data for original-year resolution's tier 2
+                this.state.releaseGroupFirstDate = m.mb_release_group_first_date || "";
+                this.state.releaseGroupSecondaryTypes = m.mb_release_group_secondary_types || [];
             } else {
                 // No manifest for this path -- don't carry over a previous album's track map
                 this.state.mbTrackMap = [];
+                this.state.releaseGroupFirstDate = "";
+                this.state.releaseGroupSecondaryTypes = [];
             }
         } catch (err) {
             console.error("METAFORGE: Context ingestion failure:", err);
@@ -189,6 +196,8 @@ window.metaforge.intelli_tagger = {
             },
             mb_track_map: this.state.mbTrackMap,
             release_year: this.state.releaseYear,
+            mb_release_group_first_date: this.state.releaseGroupFirstDate,
+            mb_release_group_secondary_types: this.state.releaseGroupSecondaryTypes,
             db_write: this.state.dbWriteEnabled
         };
 
@@ -217,9 +226,19 @@ window.metaforge.intelli_tagger = {
                 // latest chunk would silently miss it.
                 buffer += chunk;
 
-                // Progress Hook Extraction (Meta-parsing for the Progress Bar)
-                const progMatch = buffer.match(/PROGRESS:(\d+):([^-]+)/);
-                if (progMatch) {
+                // Progress Hook Extraction (Meta-parsing for the Progress Bar).
+                // buffer only ever grows (see marker-detection note above), so
+                // a non-global match() would keep re-finding the very FIRST
+                // progress event (e.g. "5:Ingesting Content") forever -- the
+                // bar would look stuck even while later per-track progress
+                // kept arriving further along in the same buffer. Take the
+                // LAST match instead.
+                // (.+?)\s*--> stops at the literal closing marker rather than
+                // the first hyphen -- labels can now safely contain their own
+                // hyphens (e.g. "Tagging Track 12/25 - Resolving Original Year").
+                const progMatches = [...buffer.matchAll(/PROGRESS:(\d+):(.+?)\s*-->/g)];
+                if (progMatches.length > 0) {
+                    const progMatch = progMatches[progMatches.length - 1];
                     if (progressFill) progressFill.style.width = `${progMatch[1]}%`;
                     if (progressLabel) progressLabel.innerText = progMatch[2];
                 }

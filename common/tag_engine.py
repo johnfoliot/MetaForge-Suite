@@ -6,7 +6,7 @@
 # ======================================================================
 import sys
 from pathlib import Path
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TRCK, TCON, TXXX, APIC, ID3NoHeaderError
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TORY, TRCK, TCON, TXXX, APIC, ID3NoHeaderError
 
 # --- [ PATH BOOTSTRAP ] ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -24,7 +24,15 @@ def update_tags(file_path, metadata):
         if not path.exists(): return False, "File not found"
 
         try:
-            tags = ID3(str(path))
+            # translate=False: default load auto-upgrades v2.3-only frames
+            # (TYER, TORY) to their v2.4 equivalents (TDRC, TDOR) in memory.
+            # Adding a fresh TYER/TORY afterward doesn't overwrite that
+            # translated frame -- different HashKey -- so both get written,
+            # producing a duplicate "Original Date" entry. Same root-cause
+            # class as the earlier TYER/TDRC and TMOO frame-compatibility
+            # bugs; loading untranslated keeps on-disk v2.3 frames as
+            # themselves so a same-named .add() correctly overwrites them.
+            tags = ID3(str(path), translate=False)
         except ID3NoHeaderError:
             tags = ID3()
 
@@ -34,6 +42,7 @@ def update_tags(file_path, metadata):
             'artist': (TPE1, 'TPE1'),
             'album': (TALB, 'TALB'),
             'year': (TYER, 'TYER'),
+            'original_year': (TORY, 'TORY'),
             'genre': (TCON, 'TCON'),
             'track': (TRCK, 'TRCK')
         }
@@ -48,6 +57,11 @@ def update_tags(file_path, metadata):
             elif key.startswith('mf_'):
                 tags.add(TXXX(encoding=1, desc=key.upper(), text=[str(value)]))
 
+        # Defense-in-depth alongside translate=False above: collapses any
+        # genuinely v2.4-native frame already on disk (e.g. from a
+        # different tool) down to its v2.3 equivalent before saving --
+        # same established pattern as commit_engine.py's physical writer.
+        tags.update_to_v23()
         tags.save(str(path), v2_version=3)
         return True, "Update successful"
 
