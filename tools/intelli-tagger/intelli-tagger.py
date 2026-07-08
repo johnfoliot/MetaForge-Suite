@@ -174,6 +174,15 @@ def _orchestrate_tagger_batch(data, env_path):
     # regardless of how many tracks need them. See year_resolution_engine.py.
     year_cache = {}
 
+    # Personnel Engine v2's manifest pre-seed: recording_id -> raw MB
+    # artist-rels list, captured as a free side effect of the year
+    # waterfall's own per-track Tier-1 MB call (widened to inc=artist-rels,
+    # zero extra HTTP cost -- see mb_resolution_engine.py). Only written to
+    # manifest.json (below, after the per-track loop) when db_write is
+    # true -- no point capturing data Personnel will never be reachable to
+    # consume.
+    mb_personnel_preseed = {}
+
     yield '<!-- PROGRESS:5:Ingesting Content -->'
     yield f'<h2 class="it-log-entry it-val-gold"><img src="/ui/images/stamp.png" style="height:14px; width:auto; color:var(--mf-gold);" alt=""> Beginning Intelli-Tagging: <span style="color:var(--text-output);">{album}</span></h2>'
 
@@ -334,6 +343,7 @@ def _orchestrate_tagger_batch(data, env_path):
             mb=mb,
             year_cache=year_cache,
             acoustid_recording_ids=acoustid_sibling_ids,
+            personnel_preseed=mb_personnel_preseed if db_write else None,
         )
         combined.update(year_result)
         combined["artist"] = artist
@@ -364,10 +374,62 @@ def _orchestrate_tagger_batch(data, env_path):
         audit_callback=audit_fn
     )
 
+    # Personnel Engine v2's manifest pre-seed -- write ONLY when db_write is
+    # true, since "Optional: Add Personnel" is itself gated on db_write
+    # below and this data would otherwise never be consumed. See
+    # _write_personnel_preseed()'s own docstring for the free-ride
+    # rationale (both signals ride HTTP calls already made above).
+    if db_write:
+        _write_personnel_preseed(root_path, mb_personnel_preseed, year_cache.get("discogs_extraartists"))
+
     yield '<!-- PROGRESS:100:Batch Complete -->'
     yield '<div style="margin-top:15px; border-top:1px solid var(--bg-accent); padding-top:10px;"><img src="/ui/images/complete.svg" alt="" aria-hidden="true" style="width:48px; height:48px; float:left; margin-right:8px; margin-top:5px;"><span style="font-size:1rem; font-weight:bold; margin-bottom:1rem;">Congratulations! You have successfully <span style="color:var(--mf-gold);">Intelli-Tagged</span> your files.</span><br>You are also encouraged to add the optional Personnel data (used by the Intelligent Playlist Maker) and an Artist Bio which will be stored in your database and used as part of the Library Viewer.</div>'
-    yield '<div style="display:none;" id="it-handoff-trigger">HANDOFF_READY</div>'
+
+    # "Optional: Add Personnel" only makes sense when data was actually
+    # written to the database this run -- previously this fired
+    # unconditionally, making the button a dead end whenever db_write was
+    # off.
+    if db_write:
+        yield '<div style="display:none;" id="it-handoff-trigger">HANDOFF_READY</div>'
     yield '<!-- BATCH_COMPLETE -->'
+
+
+def _write_personnel_preseed(root_path, mb_personnel_preseed, discogs_extraartists):
+    """
+    Read-modify-write manifest.json (same pattern as musicbrainz_id.py's
+    _update_manifest()) to capture two free-riding signals for Personnel
+    Engine v2's fast path:
+    - mb_artist_rels_by_recording: {recording_id: [raw MB relations]},
+      captured from the year waterfall's own per-track Tier-1 MB call
+      (widened to inc=artist-rels -- zero extra HTTP cost).
+    - discogs_extraartists: {"album": [...], "by_track": {position: [...]}},
+      captured from the same Discogs release fetch the year waterfall's
+      Tier 3 already makes once per album.
+    Both are purely additive to whatever manifest.json already has (MB
+    track map, release-group data, etc.) -- never overwrites unrelated
+    keys. If Personnel is opened on an album that skipped this step (or
+    predates this feature), these keys are simply absent and Personnel
+    falls back to fetching fresh itself.
+    """
+
+    manifest_path = Path(root_path) / "manifest.json"
+
+    m = {}
+    if manifest_path.exists():
+        try:
+            m = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            m = {}
+
+    if mb_personnel_preseed:
+        m["mb_artist_rels_by_recording"] = mb_personnel_preseed
+    if discogs_extraartists:
+        m["discogs_extraartists"] = discogs_extraartists
+
+    try:
+        manifest_path.write_text(json.dumps(m, indent=4), encoding="utf-8")
+    except Exception as ex:
+        print(f"⚠️ Personnel pre-seed manifest write failed: {ex}")
 
 
 def _render_deep_view_line(idx, total, filename, data):

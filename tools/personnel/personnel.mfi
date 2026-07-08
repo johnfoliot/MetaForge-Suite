@@ -1,8 +1,8 @@
 <!-- --- START OF FILE personnel.mfi --- -->
 <h1 class="main" tabindex="-1">Personnel Scout</h1>
 <p class="tool_notes">
-    Consult the <span style="font-weight:bold; color:var(--mf-gold);">Wikipedia Archive</span> to identify album credits, musicians, and technical personnel. 
-    Review the raw extraction and map identities to the MetaForge relationship graph.
+    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to Wikipedia when thin, with AllMusic as a manual last resort.
+    Review and edit the staged mapping before committing to the MetaForge relationship graph.
 </p>
 
 <div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
@@ -37,6 +37,10 @@
                     <label for="p-year-input" class="mf-card-label" style="color: var(--mf-gold);">Year:</label>
                     <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
                     <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search Wikipedia</button>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: flex-end;">
+                    <button class="mf-button-gold-fixed" style="background: transparent!important; border: 1px solid var(--mf-gold); color: var(--mf-gold)!important; font-size: 0.75rem;"
+                            onclick="window.metaforge.personnel.checkAllMusic()" title="Last resort: opens an AllMusic search in a companion tab -- you copy the credits table yourself, MetaForge never fetches AllMusic directly.">Check AllMusic</button>
                 </div>
             </div>
 
@@ -94,10 +98,10 @@
     </div>
 
     <!-- STATUS BAR -->
-    <!-- div id="p-status-bar" role="status" aria-live="polite" 
+    <div id="p-status-bar" role="status" aria-live="polite"
          style="background: var(--bg-main); border-top: 1px solid var(--mf-gold); padding: 4px 15px; font-size: 0.75rem; height: 28px; display: flex; align-items: center;">
         <span id="p-status-text" style="color: var(--status-success);">Scout Engine Ready.</span>
-    </div -->
+    </div>
 </div>
 
 <script>

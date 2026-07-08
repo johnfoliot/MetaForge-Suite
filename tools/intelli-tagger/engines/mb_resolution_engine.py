@@ -114,6 +114,24 @@ class MBResolutionEngine:
         return self._get(f"release/{release_id}", params)
 
     # ----------------------------------------------------------
+    # WORK LOOKUP
+    # ----------------------------------------------------------
+
+    def get_work(self, work_id: str, inc: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Fetch MusicBrainz work entity -- used by Personnel Engine v2's MB
+        Work-hop (composer/lyricist/arranger credits, one level out from a
+        recording's own artist-rels; see project_personnel_engine_v2 design).
+        """
+
+        params = {}
+
+        if inc:
+            params["inc"] = "+".join(inc)
+
+        return self._get(f"work/{work_id}", params)
+
+    # ----------------------------------------------------------
     # RELEASE LABEL LOOKUP
     # ----------------------------------------------------------
 
@@ -248,15 +266,35 @@ class MBResolutionEngine:
         (missing ID, 404 for a bogus/deleted ID, or the field simply being
         empty on the recording). Never raises.
         """
+        return self.get_recording_first_release_date_and_relations(recording_id)["year"]
+
+    def get_recording_first_release_date_and_relations(self, recording_id: str) -> Dict[str, Any]:
+        """
+        Same Tier-1 lookup as get_recording_first_release_date(), widened
+        to inc=artist-rels+work-rels -- costs zero extra HTTP round-trips
+        (MB's inc values combine into one request), just a larger response
+        body. This is Personnel Engine v2's manifest pre-seed free-ride:
+        the artist-relationship data (performer/instrument/vocal/producer/
+        engineer credits) AND the recording's work-link (needed for the
+        composer/lyricist Work-hop -- see mb_personnel_engine.py's
+        extract_work_ids()) both ride along on the same call the year
+        waterfall already makes once per track, so Intelli-Tagger can
+        capture them into manifest.json for Personnel to consume without a
+        separate fetch. Returns {"year": <normalized 4-digit str or None>,
+        "relations": <raw MB relations list, possibly empty>}. Never raises.
+        """
 
         if not recording_id or recording_id in ("None", "Unknown", ""):
-            return None
+            return {"year": None, "relations": []}
 
         try:
-            data = self.get_recording(recording_id)
-            return _normalize_mb_year(data.get("first-release-date"))
+            data = self.get_recording(recording_id, inc=["artist-rels", "work-rels"])
+            return {
+                "year": _normalize_mb_year(data.get("first-release-date")),
+                "relations": data.get("relations", []) or []
+            }
         except Exception:
-            return None
+            return {"year": None, "relations": []}
 
     # ----------------------------------------------------------
     # RELEASE-GROUP SIMPLIFICATION

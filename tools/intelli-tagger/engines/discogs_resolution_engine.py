@@ -75,12 +75,14 @@ def search_release_id(artist: str, album: str) -> Optional[str]:
     return None
 
 
-def get_release_notes_and_tracklist(release_id: str) -> Optional[Dict[str, Any]]:
+def _fetch_release_json(release_id: str) -> Optional[Dict[str, Any]]:
     """
-    Fetches a Discogs release's notes text and track count. Returns
-    {"notes": str, "track_count": int} or None on any failure. Never
-    raises -- a missing/empty notes field returns None (nothing useful
-    to parse), not an empty-string result.
+    Raw fetch of a Discogs release, unopinionated about what's inside --
+    the single point every release-level consumer below reads from, so a
+    release with rich `extraartists` but no `notes` text (or vice versa)
+    doesn't get its data thrown away by a caller that only cared about one
+    of the two. Returns the parsed JSON dict, or None on any failure.
+    Never raises.
     """
 
     if not release_id:
@@ -92,16 +94,57 @@ def get_release_notes_and_tracklist(release_id: str) -> Optional[Dict[str, Any]]
         return None
 
     try:
-        data = response.json()
-        notes = data.get("notes", "") or ""
-        tracklist = data.get("tracklist", []) or []
-
-        if not notes.strip() or not tracklist:
-            return None
-
-        return {"notes": notes, "track_count": len(tracklist)}
+        return response.json()
     except Exception:
         return None
+
+
+def get_release_notes_and_tracklist(release_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetches a Discogs release's notes text and track count. Returns
+    {"notes": str, "track_count": int} or None on any failure. Never
+    raises -- a missing/empty notes field returns None (nothing useful
+    to parse), not an empty-string result.
+    """
+
+    data = _fetch_release_json(release_id)
+    if not data:
+        return None
+
+    notes = data.get("notes", "") or ""
+    tracklist = data.get("tracklist", []) or []
+
+    if not notes.strip() or not tracklist:
+        return None
+
+    return {"notes": notes, "track_count": len(tracklist)}
+
+
+def extract_extraartists(release_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Pulls personnel credits out of an already-fetched release JSON --
+    Personnel Engine v2's free-riding manifest pre-seed. Deliberately
+    independent of notes/tracklist presence (unlike
+    get_release_notes_and_tracklist above) -- a release with no notes text
+    can still have rich extraartists data, and vice versa.
+
+    Returns {"album": [...], "by_track": {position: [...]}} or None if
+    neither album-level nor any track-level extraartists exist.
+    """
+
+    album_level = release_data.get("extraartists", []) or []
+    tracklist = release_data.get("tracklist", []) or []
+
+    by_track = {}
+    for t in tracklist:
+        track_extraartists = t.get("extraartists")
+        if track_extraartists:
+            by_track[t.get("position", "")] = track_extraartists
+
+    if not album_level and not by_track:
+        return None
+
+    return {"album": album_level, "by_track": by_track}
 
 
 def search_master_id(artist: str, album: str) -> Optional[str]:
@@ -179,16 +222,21 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     memoizes the result (success or failure) into year_cache so it is
     never repeated for other tracks in the same batch.
 
-    Populates TWO independent signals:
+    Populates THREE independent signals:
     - discogs_master_year: Discogs' own canonical master-release year,
       an album-wide fallback that works for any ordinary album (even one
       whose specific release notes have no date-breakdown text at all).
     - discogs_track_map: per-track years parsed from a specific release's
       notes, for chronological-compilation-style releases needing finer
       granularity than the master year alone provides.
-    Each runs in its own try/except so one failing doesn't suppress the
-    other -- a master-search failure shouldn't cost the still-valuable
-    notes path, and vice versa.
+    - discogs_extraartists: Personnel Engine v2's free-riding manifest
+      pre-seed (album- and track-level credits) -- reads the SAME release
+      JSON already fetched for discogs_track_map above (one fetch, kept in
+      a local variable, not re-requested), so this costs zero extra HTTP
+      calls and is captured independently of whether notes text exists.
+    Each block runs in its own try/except so one failing doesn't suppress
+    the others -- a master-search failure shouldn't cost the still-valuable
+    notes/personnel paths, and vice versa.
     """
 
     if year_cache.get("discogs_checked"):
@@ -197,6 +245,7 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     year_cache["discogs_checked"] = True
     year_cache["discogs_track_map"] = {}
     year_cache["discogs_master_year"] = None
+    year_cache["discogs_extraartists"] = None
 
     try:
         master_id = search_master_id(artist, album)
@@ -208,10 +257,12 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     try:
         release_id = search_release_id(artist, album)
         if release_id:
-            release_data = get_release_notes_and_tracklist(release_id)
+            release_data = _fetch_release_json(release_id)
             if release_data:
-                year_cache["discogs_track_map"] = build_track_date_map(
-                    release_data["notes"], release_data["track_count"]
-                )
+                notes = release_data.get("notes", "") or ""
+                tracklist = release_data.get("tracklist", []) or []
+                if notes.strip() and tracklist:
+                    year_cache["discogs_track_map"] = build_track_date_map(notes, len(tracklist))
+                year_cache["discogs_extraartists"] = extract_extraartists(release_data)
     except Exception:
         pass

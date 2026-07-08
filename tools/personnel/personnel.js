@@ -1,17 +1,16 @@
 /* --- START OF FILE personnel.js --- */
 /**
- * MetaForge Studio: Personnel Scout Logic Bridge
- * Role: Orchestrates Wikipedia extraction and Graph Layer mapping.
+ * MetaForge Studio: Personnel Scout Logic Bridge (Personnel Engine v2)
+ * Role: Orchestrates the MB+Discogs automatic waterfall, Wikipedia
+ * search/fallback, AllMusic paste-modal, and the shared mapping/commit UI.
  * Physical Location: \tools\personnel\personnel.js
- * Build 1.2.3: Stabilized File Picker and Guaranteed Feedback Loop.
- * Adheres to Directive III (High-Density Workbench) and Directive IV (Logic Isolation).
  */
 
 window.metaforge = window.metaforge || {};
 window.metaforge.personnel = {
     state: {
         localPath: "",
-        mapping: [], 
+        mapping: [],
         isLocked: false
     },
 
@@ -48,8 +47,8 @@ window.metaforge.personnel = {
                 if (pathInput) pathInput.value = data.path;
                 await this.getFolderContext(data.path);
             }
-        } catch (err) { 
-            console.error("Path selection failed:", err); 
+        } catch (err) {
+            console.error("Path selection failed:", err);
             this.updateStatus("File selection failed.", "error");
         }
     },
@@ -68,9 +67,45 @@ window.metaforge.personnel = {
                 document.getElementById('p-album-input').value = data.context.album_seed || "";
                 document.getElementById('p-year-input').value = data.context.release_year || "";
                 this.updateStatus("Directory context loaded from manifest.", "success");
+                // Automatic Tier 1+2 (MB+Discogs merged, falling back to
+                // Wikipedia if thin) -- no click required, mirrors the
+                // "Optional: Add Personnel" hand-off already being
+                // automatic up to this point.
+                this.resolveWaterfall();
             }
-        } catch (err) { 
-            console.warn("Manifest discovery failed."); 
+        } catch (err) {
+            console.warn("Manifest discovery failed.");
+        }
+    },
+
+    resolveWaterfall: async function() {
+        const artist = document.getElementById('p-artist-input').value.trim();
+        const album = document.getElementById('p-album-input').value.trim();
+        if (!artist || !album) return;
+
+        this.updateStatus("Resolving personnel via MusicBrainz + Discogs...", "success");
+
+        try {
+            const res = await fetch('/run_tool_logic/personnel/resolve_waterfall', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ local_path: this.state.localPath, artist, album })
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                this.state.mapping = data.candidates || [];
+                this.renderMapping();
+                if (this.state.mapping.length === 0) {
+                    this.updateStatus("No automatic matches found -- try Wikipedia search or Check AllMusic below.", "error");
+                } else if (data.thin) {
+                    this.updateStatus(`${this.state.mapping.length} credits found (thin -- Wikipedia auto-checked too). Consider AllMusic if still incomplete.`, "success");
+                } else {
+                    this.updateStatus(`${this.state.mapping.length} credits found via MusicBrainz + Discogs.`, "success");
+                }
+            }
+        } catch (e) {
+            console.error("Waterfall resolution failed:", e);
+            this.updateStatus("Automatic resolution failed -- try manual search below.", "error");
         }
     },
 
@@ -112,7 +147,7 @@ window.metaforge.personnel = {
             <tr style="border-bottom: 1px solid var(--bg-main);">
                 <td style="padding:6px; color: var(--text-output);">${c.title} <span style="font-size:0.65rem; opacity:0.5;">(Rel: ${c.score}%)</span></td>
                 <td style="padding:6px; text-align:right;">
-                    <button class="mf-button-gold-fixed" style="font-size:0.65rem; padding: 2px 8px;" 
+                    <button class="mf-button-gold-fixed" style="font-size:0.65rem; padding: 2px 8px;"
                             onclick="window.metaforge.personnel.selectCandidate('${c.title}')">Select</button>
                 </td>
             </tr>
@@ -132,7 +167,11 @@ window.metaforge.personnel = {
             const data = await res.json();
             if (data.status === "success") {
                 rawContainer.innerText = data.raw_text;
-                this.state.mapping = data.candidates;
+                // A manual Wikipedia search ADDS to whatever the automatic
+                // waterfall already staged, rather than replacing it --
+                // MB/Discogs edges already found stay put.
+                const additions = data.candidates.map(c => ({ name: c.name, role: c.role, provenance: "Wikipedia" }));
+                this.state.mapping = this.state.mapping.concat(additions);
                 this.renderMapping();
                 this.updateStatus("Extraction complete. Map identities on right.", "success");
             } else {
@@ -152,11 +191,16 @@ window.metaforge.personnel = {
         this.state.mapping.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.style.borderBottom = "1px solid #444";
+            const provenance = row.provenance || 'MetaForge (Manual)';
+            const meta = row.confidence !== undefined ? `${provenance} · conf ${row.confidence}` : provenance;
             tr.innerHTML = `
-                <td style="padding:4px;"><input type="text" class="mb-input-text p-map-name" value="${row.name.replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);"></td>
-                <td style="padding:4px;"><input type="text" class="mb-input-text p-map-role" value="${row.role.replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);"></td>
+                <td style="padding:4px;"><input type="text" class="mb-input-text p-map-name" value="${(row.name || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'name', this.value)"></td>
+                <td style="padding:4px;">
+                    <input type="text" class="mb-input-text p-map-role" value="${(row.role || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'role', this.value)">
+                    <span style="display:block; font-size:0.6rem; opacity:0.6; margin-top:2px;">${meta}</span>
+                </td>
                 <td style="padding:4px; text-align:center;">
-                    <button class="mf-button-gold-fixed" style="background:var(--status-error)!important; font-size:0.6rem; padding: 2px 6px; color:#fff!important;" 
+                    <button class="mf-button-gold-fixed" style="background:var(--status-error)!important; font-size:0.6rem; padding: 2px 6px; color:#fff!important;"
                             onclick="window.metaforge.personnel.removeRow(${idx})" aria-label="Remove Row">X</button>
                 </td>
             `;
@@ -168,8 +212,12 @@ window.metaforge.personnel = {
         commitBtn.style.opacity = this.state.mapping.length > 0 ? "1" : "0.5";
     },
 
+    updateMappingField: function(idx, field, value) {
+        if (this.state.mapping[idx]) this.state.mapping[idx][field] = value;
+    },
+
     addManualRow: function() {
-        this.state.mapping.push({ name: "", role: "" });
+        this.state.mapping.push({ name: "", role: "", provenance: "MetaForge (Manual)" });
         this.renderMapping();
         const names = document.querySelectorAll('.p-map-name');
         if (names.length > 0) names[names.length - 1].focus();
@@ -186,8 +234,8 @@ window.metaforge.personnel = {
         else this.state.sortDir *= -1;
 
         this.state.mapping.sort((a, b) => {
-            const valA = a[key].toLowerCase();
-            const valB = b[key].toLowerCase();
+            const valA = (a[key] || '').toLowerCase();
+            const valB = (b[key] || '').toLowerCase();
             if (valA < valB) return -1 * this.state.sortDir;
             if (valA > valB) return 1 * this.state.sortDir;
             return 0;
@@ -196,17 +244,90 @@ window.metaforge.personnel = {
         this.renderMapping();
     },
 
+    // ======================================================
+    // TIER 4: ALLMUSIC (semi-manual, true last resort)
+    // ======================================================
+
+    checkAllMusic: function() {
+        const artist = document.getElementById('p-artist-input').value.trim();
+        const album = document.getElementById('p-album-input').value.trim();
+        const query = encodeURIComponent(`${artist} ${album}`.trim());
+        // Just constructing a URL for the user's own browser to open --
+        // no different from typing it into AllMusic's search box by hand.
+        // Named target so repeated lookups across albums reuse one
+        // companion tab instead of piling up a new one each time.
+        window.open(`https://www.allmusic.com/search/albums/${query}`, 'metaforge_allmusic_lookup');
+        this.openAllMusicModal();
+    },
+
+    openAllMusicModal: function() {
+        const existing = document.getElementById('p-allmusic-modal');
+        if (existing) { existing.style.display = 'flex'; return; }
+
+        const modal = document.createElement('div');
+        modal.id = 'p-allmusic-modal';
+        modal.style = "position:fixed; top:20%; left:30%; width:40%; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000; display:flex; flex-direction:column; gap:10px;";
+        modal.innerHTML = `
+            <h3 style="color:var(--mf-gold); margin:0;">Paste AllMusic Credits</h3>
+            <p class="tool_notes" style="margin:0; font-size:0.75rem;">On the AllMusic tab: find the album, scroll to Credits, select the credits table, and copy (Ctrl+C). Then click the box below and paste (Ctrl+V).</p>
+            <div id="p-allmusic-paste-target" contenteditable="true" role="textbox" aria-label="Paste AllMusic credits table here"
+                 style="min-height:100px; border:1px solid #444; background:var(--input-background2); color:var(--input-foreground2); padding:8px; overflow-y:auto; max-height:150px;"
+                 onpaste="window.metaforge.personnel.handleAllMusicPaste(event)"></div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="mf-button-gold-fixed" style="background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;" onclick="document.getElementById('p-allmusic-modal').remove()">Close</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('p-allmusic-paste-target').focus();
+    },
+
+    handleAllMusicPaste: async function(event) {
+        event.preventDefault();
+        // Every modern browser puts BOTH plain text and the underlying
+        // HTML on the clipboard from a normal Ctrl+C -- reading text/html
+        // recovers the real markup (needed by the parser regex) without
+        // any special "View Selection Source" browser feature.
+        const html = (event.clipboardData && event.clipboardData.getData('text/html')) || '';
+        if (!html) {
+            this.updateStatus("Clipboard had no HTML content -- try copying the table again.", "error");
+            return;
+        }
+
+        this.updateStatus("Parsing pasted AllMusic content...", "success");
+        try {
+            const res = await fetch('/run_tool_logic/personnel/parse_allmusic_html', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ html })
+            });
+            const data = await res.json();
+            if (data.status === "success" && data.candidates.length > 0) {
+                const additions = data.candidates.map(c => ({ name: c.name, role: c.role, provenance: "AllMusic" }));
+                this.state.mapping = this.state.mapping.concat(additions);
+                this.renderMapping();
+                this.updateStatus(`Added ${data.candidates.length} credits from AllMusic.`, "success");
+                const modal = document.getElementById('p-allmusic-modal');
+                if (modal) modal.remove();
+            } else {
+                this.updateStatus(data.message || "No credits found in pasted content.", "error");
+            }
+        } catch (e) {
+            this.updateStatus("AllMusic parse failed.", "error");
+        }
+    },
+
+    // ======================================================
+    // COMMIT (shared by every tier)
+    // ======================================================
 
     commitToDatabase: async function() {
         if (this.state.isLocked) return;
 
-        const rows = document.querySelectorAll('#p-mapping-body tr');
-        const personnelData = [];
-        rows.forEach(tr => {
-            const name = tr.querySelector('.p-map-name').value.trim();
-            const role = tr.querySelector('.p-map-role').value.trim();
-            if (name && role) personnelData.push({ name, role });
-        });
+        // Reads from state (kept in sync via updateMappingField on every
+        // edit), not re-scraped from the DOM -- MB/Discogs rows carry
+        // relation_type/confidence/evidence_scope metadata that only
+        // exists in state, not in the visible inputs.
+        const personnelData = this.state.mapping.filter(p => p.name && p.role);
 
         if (personnelData.length === 0) {
             alert("Commit Error: No mappings staged for commit.");

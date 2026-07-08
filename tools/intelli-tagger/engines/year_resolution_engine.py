@@ -182,6 +182,7 @@ def resolve_original_year(
     year_cache: Dict[str, Any],
     ai_enabled: bool = True,
     acoustid_recording_ids: Optional[List[str]] = None,
+    personnel_preseed: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Resolves a track's true original release year via the 6-tier waterfall
@@ -192,6 +193,13 @@ def resolve_original_year(
     the same album batch -- Discogs and Wikipedia lookups are expensive
     (HTTP + AI extraction) and album-level, not track-level, so they must
     only ever run ONCE per album regardless of how many tracks need them.
+
+    personnel_preseed, if provided, is a plain dict this function WRITES
+    to (keyed by recording_id -> raw MB relations list) as a side effect
+    of Tier 1's own lookup -- Personnel Engine v2's free-riding manifest
+    pre-seed capture, see MBResolutionEngine.
+    get_recording_first_release_date_and_relations(). Purely additive;
+    does not affect the year this function returns.
     """
 
     tentative: Optional[Dict[str, Any]] = None
@@ -215,7 +223,11 @@ def resolve_original_year(
     # would reintroduce Discogs/AI cost for the common, already-correct
     # case (e.g. Eagles/Nevermind).
     # ---------------------------------------------------------
-    year = mb.get_recording_first_release_date(recording_id)
+    mb_lookup = mb.get_recording_first_release_date_and_relations(recording_id)
+    year = mb_lookup["year"]
+
+    if personnel_preseed is not None and recording_id:
+        personnel_preseed[recording_id] = mb_lookup["relations"]
 
     if year:
         year = _earliest_recording_year(mb, recording_id, acoustid_recording_ids)
