@@ -5,6 +5,7 @@
 # Build 2.3.1: Database schema alignment remediation
 # ======================================================================
 
+import json
 import sqlite3
 import hashlib
 from datetime import datetime
@@ -16,9 +17,46 @@ from mutagen.id3 import (
 )
 
 from common import config_handler
+from year_resolution_engine import SRC_DISCOGS, SRC_DISCOGS_MASTER, SRC_WIKIPEDIA, SRC_AI_WEB
 
 DB_PATH = config_handler.DB_PATH
 SIGNATURE = "Metadata by MetaForge Studio - the music management tool for Serious Collectors."
+
+# Same evidence-collection pattern as tools/personnel/personnel.py's
+# MB_CANDIDATE_LOG (added 2026-07-08 at John's request, extended here to
+# the original-year waterfall) -- the MB contribution tool itself is
+# still deferred, but there's no reason to lose this evidence in the
+# meantime, and it lets it be visually spot-checked before that tool
+# exists. Only these four source labels represent a NON-MusicBrainz
+# source actually winning outright (either MB had nothing, or a
+# genuinely different/earlier year overrode MB's own tentative) -- the
+# *_CORROBORATED variants mean a second source agreed with MB's existing
+# data (nothing to correct), and the MB_* tentative/differing labels are
+# MB's own data, just unverified (also nothing to correct).
+_YEAR_CANDIDATE_SOURCES = {SRC_DISCOGS, SRC_DISCOGS_MASTER, SRC_WIKIPEDIA, SRC_AI_WEB}
+YEAR_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "original_year_correction_candidates.jsonl"
+
+
+def _log_year_correction_candidate(mf_id, file_path, artist, album, title,
+                                    mb_recording_id, current_release_year,
+                                    proposed_original_year, orig_year_conf, orig_year_source):
+    """Appends one JSONL entry to YEAR_CANDIDATE_LOG. Never raises -- a
+    logging failure must never break a real commit."""
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "mf_id": mf_id, "file_path": file_path,
+        "artist": artist, "album": album, "title": title,
+        "mb_recording_id": mb_recording_id,
+        "current_release_year": current_release_year,
+        "proposed_original_year": proposed_original_year,
+        "orig_year_conf": orig_year_conf, "orig_year_source": orig_year_source,
+    }
+    try:
+        YEAR_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(YEAR_CANDIDATE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as ex:
+        print(f"⚠️ Year correction candidate log write failed: {ex}")
 
 
 # =========================================================
@@ -131,6 +169,15 @@ def execute_commit(
                     data.get('emotional_flavor', 'Unknown'),
                     mb_recording_id,
                 ))
+
+                orig_year_source = data.get('orig_year_source', 'Unresolved (Release Year Fallback)')
+                if orig_year_source in _YEAR_CANDIDATE_SOURCES:
+                    _log_year_correction_candidate(
+                        mf_id, str(f_path.resolve()).replace('\\', '/'),
+                        artist_name, album_title, title,
+                        mb_recording_id, release_year,
+                        data.get('original_year'), data.get('orig_year_conf', 0), orig_year_source
+                    )
 
                 success_count += 1
 
