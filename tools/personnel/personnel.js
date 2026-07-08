@@ -134,7 +134,13 @@ window.metaforge.personnel = {
                 this.renderCandidates(data.results);
                 this.updateStatus(`Identified ${data.results.length} relevance matches.`, "success");
             } else {
+                // Previously left the status bar stuck on "Scouting
+                // Wikipedia candidates..." forever when the search
+                // completed with zero results -- looked identical to a
+                // hang even though the request had actually finished
+                // (John, 2026-07-08).
                 resultsBody.innerHTML = '<tr><td colspan="2" style="padding:10px; text-align:center;">No matches found.</td></tr>';
+                this.updateStatus("No Wikipedia matches found.", "error");
             }
         } catch (e) {
             this.updateStatus("Network Error: Wikipedia API unreachable.", "error");
@@ -283,22 +289,36 @@ window.metaforge.personnel = {
 
     handleAllMusicPaste: async function(event) {
         event.preventDefault();
-        // Every modern browser puts BOTH plain text and the underlying
-        // HTML on the clipboard from a normal Ctrl+C -- reading text/html
-        // recovers the real markup (needed by the parser regex) without
-        // any special "View Selection Source" browser feature.
+        // A normal Ctrl+C on rendered page text puts both text/html and
+        // text/plain on the clipboard, and text/html normally carries the
+        // real markup. But copying from a "View Selection Source" page
+        // (John, 2026-07-08) is a different case: that page displays
+        // markup AS TEXT, so its own text/html is the browser's syntax-
+        // highlighting wrapper around that display, not the original
+        // page's markup -- the literal source text you actually want is
+        // in text/plain instead for that path. Sending both and trying
+        // both server-side (see _parse_allmusic_html) covers both cases
+        // without needing to know in advance which one the user did.
         const html = (event.clipboardData && event.clipboardData.getData('text/html')) || '';
-        if (!html) {
-            this.updateStatus("Clipboard had no HTML content -- try copying the table again.", "error");
+        const plain = (event.clipboardData && event.clipboardData.getData('text/plain')) || '';
+        if (!html && !plain) {
+            this.updateStatus("Clipboard was empty -- try copying the table again.", "error");
             return;
         }
+
+        // Visible confirmation that something was actually captured --
+        // the paste target intentionally never shows the pasted content
+        // itself (preventDefault blocks that), which John noted looked
+        // like nothing had happened at all.
+        const target = document.getElementById('p-allmusic-paste-target');
+        if (target) target.innerText = `Captured ${(html || plain).length} characters -- parsing...`;
 
         this.updateStatus("Parsing pasted AllMusic content...", "success");
         try {
             const res = await fetch('/run_tool_logic/personnel/parse_allmusic_html', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ html })
+                body: JSON.stringify({ html, plain })
             });
             const data = await res.json();
             if (data.status === "success" && data.candidates.length > 0) {

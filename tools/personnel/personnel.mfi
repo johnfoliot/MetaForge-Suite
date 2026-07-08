@@ -36,7 +36,7 @@
                 <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
                     <label for="p-year-input" class="mf-card-label" style="color: var(--mf-gold);">Year:</label>
                     <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
-                    <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search Wikipedia</button>
+                    <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search For Personnel Data</button>
                 </div>
                 <div style="display: flex; align-items: center; justify-content: flex-end;">
                     <button class="mf-button-gold-fixed" style="background: transparent!important; border: 1px solid var(--mf-gold); color: var(--mf-gold)!important; font-size: 0.75rem;"

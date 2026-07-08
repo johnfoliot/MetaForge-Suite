@@ -302,7 +302,11 @@ def _search():
     search_query = f'"{album}" {artist} album'
     if year: search_query += f" {year}"
     params = {"action": "query", "list": "search", "srsearch": search_query, "format": "json", "srlimit": 10}
-    res = requests.get(API_URL, params=params, headers={'User-Agent': USER_AGENT})
+    # Bounded, matching the pattern already used in the automatic
+    # Wikipedia tier -- this call previously had no timeout at all, so a
+    # slow/unreachable Wikipedia response would hang indefinitely with
+    # zero feedback (John, 2026-07-08: "hangs... even after 60+ seconds").
+    res = requests.get(API_URL, params=params, headers={'User-Agent': USER_AGENT}, timeout=10)
     res.raise_for_status()
     raw_results = res.json().get('query', {}).get('search', [])
     guarded_results = [{"title": r['title'], "pageid": r['pageid'], "score": 50 if album.lower() in r['title'].lower() else 0} for r in raw_results]
@@ -313,7 +317,7 @@ def _fetch_content():
     data = request.json
     title = data.get('title')
     params = {"action": "query", "prop": "revisions", "titles": title, "rvprop": "content", "rvslots": "main", "format": "json"}
-    res = requests.get(API_URL, params=params, headers={'User-Agent': USER_AGENT})
+    res = requests.get(API_URL, params=params, headers={'User-Agent': USER_AGENT}, timeout=10)
     res.raise_for_status()
     data = res.json()
     page_id = list(data['query']['pages'].keys())[0]
@@ -336,28 +340,53 @@ def _fetch_content():
 # TIER 4: ALLMUSIC (SEMI-MANUAL, TRUE LAST RESORT)
 # ==========================================================================
 
+def _extract_allmusic_credits(content):
+    """
+    Runs the AllMusic credits-table regex against a single string. Same
+    regex previously living in tools/personnel/temp/parse_credits.py,
+    ported from a stdin-reading CLI script into a route. Verified
+    2026-07-08 against a real captured AllMusic credits table (21/21
+    entries parsed correctly) -- the regex itself was never the problem,
+    see _parse_allmusic_html's docstring for what actually was.
+    """
+    if not content:
+        return []
+
+    pattern = r'<span class="artist">\s*<a[^>]*>(.*?)</a>\s*</span>\s*<span class="artistCredits">(.*?)</span>'
+    matches = re.findall(pattern, content, re.DOTALL)
+
+    candidates = []
+    for name, role in matches:
+        clean_name = re.sub(r'<[^>]+>', '', name).strip()
+        clean_role = re.sub(r'<[^>]+>', '', role).strip()
+        if clean_name and clean_role:
+            candidates.append({"name": clean_name, "role": clean_role})
+    return candidates
+
+
 def _parse_allmusic_html():
     """
     Parses AllMusic's #credits table HTML, pasted by the user into
     Personnel's own modal (the fetch itself stays 100% human-driven --
     see project_mb_contribution_tool memory's ToS research; this endpoint
     only ever receives HTML the user already copied in their own browser,
-    it never fetches anything from AllMusic itself). Same regex
-    previously living in tools/personnel/temp/parse_credits.py, ported
-    from a stdin-reading CLI script into a route.
+    it never fetches anything from AllMusic itself).
+
+    Tries the html clipboard field first, falls back to plain -- a
+    normal Ctrl+C on rendered text has the real markup in text/html, but
+    copying from a "View Selection Source" page (John, 2026-07-08) is
+    different: that page displays markup AS TEXT, so ITS OWN text/html
+    is the browser's syntax-highlighting wrapper around that display,
+    not the original page's markup. The literal source text lives in
+    text/plain for that path instead. Confirmed live: the regex itself
+    correctly parses a real captured AllMusic sample (21/21 entries) --
+    the bug was reading the wrong clipboard field for the view-source
+    case, not the parser.
     """
     data = request.json
-    html_content = data.get('html', '')
-
-    pattern = r'<span class="artist">\s*<a[^>]*>(.*?)</a>\s*</span>\s*<span class="artistCredits">(.*?)</span>'
-    matches = re.findall(pattern, html_content, re.DOTALL)
-
-    raw_candidates = []
-    for name, role in matches:
-        clean_name = re.sub(r'<[^>]+>', '', name).strip()
-        clean_role = re.sub(r'<[^>]+>', '', role).strip()
-        if clean_name and clean_role:
-            raw_candidates.append({"name": clean_name, "role": clean_role})
+    raw_candidates = _extract_allmusic_credits(data.get('html', ''))
+    if not raw_candidates:
+        raw_candidates = _extract_allmusic_credits(data.get('plain', ''))
 
     if not raw_candidates:
         return jsonify({"status": "error", "message": "No recognizable credits table found in the pasted content."})
