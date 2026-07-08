@@ -73,7 +73,9 @@ def _handle_get_context():
 
 
 def _recover_legacy_mb_seeds(target_path):
-    mp3_files = sorted(target_path.glob("*.mp3"))
+    # Recursive for the same reason as the main batch loop below -- a box
+    # set's first track may live inside a "CD 1" subfolder.
+    mp3_files = sorted(target_path.glob("**/*.mp3"))
     if not mp3_files:
         return None
 
@@ -232,7 +234,15 @@ def _orchestrate_tagger_batch(data, env_path):
     <img src="/ui/images/acoustic_analysis.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Beginning acoustic analysis of the recording.<br> The first track may take a little longer to appear while identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
-    files = sorted(list(root_path.glob("*.mp3")))
+    # Recursive -- a box set's tracks live inside "CD 1"/"CD 2" subfolders
+    # (Unpack/Convert and MusicBrainz ID both already handle this
+    # correctly), and a non-recursive glob here would silently find zero
+    # tracks for one, the other half of the box-set "choke" John flagged
+    # 2026-07-08. Sort order stays correct: filenames are already
+    # disc-prefixed (101, 102, 201...) and "CD 1" sorts before "CD 2" by
+    # plain string comparison, so Path's default lexicographic sort
+    # naturally preserves disc/track order.
+    files = sorted(list(root_path.glob("**/*.mp3")))
     total_files = len(files)
 
     track_results = []

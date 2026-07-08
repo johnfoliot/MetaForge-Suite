@@ -217,7 +217,16 @@ def get_release_details():
 
         for f in targets:
             local_tracks.append({
-                "filename": str(f.name),
+                # Path relative to local_path, NOT bare f.name -- for a
+                # box set, targets were found via recursive=True and can
+                # live inside a "CD 1"/"CD 2" subfolder. A bare filename
+                # here meant commit_ids_to_files() below reconstructed
+                # `local_path / filename` pointing at a location that
+                # doesn't exist (the real file is one level deeper),
+                # silently failing old_path.exists() for every track in
+                # a multi-disc box set -- the actual root cause of the
+                # box-set "choke" John flagged 2026-07-08.
+                "filename": str(f.relative_to(local_path).as_posix()),
                 "title": f.stem
             })
 
@@ -310,7 +319,13 @@ def commit_ids_to_files(env_path):
             audio.update_to_v23()
             audio.save(str(old_path), v2_version=3)
 
-            t_num = str(item["track_num"]).zfill(2)
+            # No zero-padding -- matches Unpack/Convert's own convention
+            # (bitstream_engine.py's filing_id is a plain str(int), never
+            # padded). This used to disagree with Stage 1's own naming,
+            # so a file born "1 - ..." in Unpack/Convert would get
+            # silently renamed to "01 - ..." here in Stage 2 -- the
+            # actual source of the inconsistency John flagged 2026-07-08.
+            t_num = str(item["track_num"])
             safe_artist = sanitize_filename(artist_seed)
             safe_title = sanitize_filename(item["target_title"])
 
@@ -358,7 +373,7 @@ def _update_manifest(
     for item in mapping:
         m["mb_track_map"].append({
             "position": item["track_num"],
-            "filename": f"{str(item['track_num']).zfill(2)} - "
+            "filename": f"{item['track_num']} - "
                         f"{sanitize_filename(artist_seed)} - "
                         f"{sanitize_filename(item['target_title'])}.mp3",
             "title": item["target_title"],

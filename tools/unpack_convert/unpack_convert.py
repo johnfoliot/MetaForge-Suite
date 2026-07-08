@@ -108,7 +108,12 @@ def _orchestrate_workflow(data, env_path):
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     # 3. STEP 2: BITSTREAM & METADATA
-    disc_pattern = re.compile(r'(?:^|[\s\-_])(disc|cd|v\.|vol|volume|part)\s*(\d+)', re.I)
+    # [\s\-_]* between the keyword and the number (not \s*) -- the naming
+    # convention is immaterial (John, 2026-07-08): "CD 1", "CD1", "CD-1",
+    # "CD_1", "Disc_2", "Vol-3" all need to resolve to the same disc
+    # number. Verified: the space/no-separator forms already matched,
+    # but hyphen/underscore variants ("CD-1", "Disc_1") did not.
+    disc_pattern = re.compile(r'(?:^|[\s\-_])(disc|cd|v\.|vol|volume|part)[\s\-_]*(\d+)', re.I)
     sub_dirs = sorted([d for d in root.iterdir() if d.is_dir() and d.name.lower() != 'art'], key=lambda x: _natural_sort_key(x.name))
     disc_dirs = [d for d in sub_dirs if disc_pattern.search(d.name)]
     
