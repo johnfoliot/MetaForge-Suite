@@ -222,7 +222,7 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     memoizes the result (success or failure) into year_cache so it is
     never repeated for other tracks in the same batch.
 
-    Populates THREE independent signals:
+    Populates FOUR independent signals:
     - discogs_master_year: Discogs' own canonical master-release year,
       an album-wide fallback that works for any ordinary album (even one
       whose specific release notes have no date-breakdown text at all).
@@ -234,6 +234,11 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
       JSON already fetched for discogs_track_map above (one fetch, kept in
       a local variable, not re-requested), so this costs zero extra HTTP
       calls and is captured independently of whether notes text exists.
+    - discogs_evidence: citation-level detail (release/master id, catalog
+      number, label, country, a notes excerpt) for the correction-
+      candidate log in commit_engine.py -- same already-fetched data,
+      just not discarded this time. Excerpt capped at 500 chars so the
+      log file doesn't balloon on releases with long liner notes.
     Each block runs in its own try/except so one failing doesn't suppress
     the others -- a master-search failure shouldn't cost the still-valuable
     notes/personnel paths, and vice versa.
@@ -246,11 +251,13 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     year_cache["discogs_track_map"] = {}
     year_cache["discogs_master_year"] = None
     year_cache["discogs_extraartists"] = None
+    year_cache["discogs_evidence"] = {}
 
     try:
         master_id = search_master_id(artist, album)
         if master_id:
             year_cache["discogs_master_year"] = get_master_year(master_id)
+            year_cache["discogs_evidence"]["master_id"] = master_id
     except Exception:
         pass
 
@@ -259,7 +266,18 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
         if release_id:
             release_data = _fetch_release_json(release_id)
             if release_data:
+                year_cache["discogs_evidence"]["release_id"] = release_id
+                labels = release_data.get("labels", []) or []
+                if labels:
+                    year_cache["discogs_evidence"]["catalog_number"] = labels[0].get("catno")
+                    year_cache["discogs_evidence"]["label_name"] = labels[0].get("name")
+                year_cache["discogs_evidence"]["country"] = release_data.get("country")
+                year_cache["discogs_evidence"]["released"] = release_data.get("released")
+
                 notes = release_data.get("notes", "") or ""
+                if notes.strip():
+                    year_cache["discogs_evidence"]["notes_excerpt"] = notes.strip()[:500]
+
                 tracklist = release_data.get("tracklist", []) or []
                 if notes.strip() and tracklist:
                     year_cache["discogs_track_map"] = build_track_date_map(notes, len(tracklist))

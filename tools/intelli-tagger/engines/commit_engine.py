@@ -39,9 +39,13 @@ YEAR_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "original_year_co
 
 def _log_year_correction_candidate(mf_id, file_path, artist, album, title,
                                     mb_recording_id, current_release_year,
-                                    proposed_original_year, orig_year_conf, orig_year_source):
+                                    proposed_original_year, orig_year_conf, orig_year_source,
+                                    evidence=None):
     """Appends one JSONL entry to YEAR_CANDIDATE_LOG. Never raises -- a
-    logging failure must never break a real commit."""
+    logging failure must never break a real commit. `evidence` is the
+    citation-level detail the resolving tier captured (Discogs release/
+    catalog/notes, Wikipedia page/citation text, or AI grounding sources
+    -- see year_resolution_engine.py's orig_year_evidence)."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "mf_id": mf_id, "file_path": file_path,
@@ -50,6 +54,7 @@ def _log_year_correction_candidate(mf_id, file_path, artist, album, title,
         "current_release_year": current_release_year,
         "proposed_original_year": proposed_original_year,
         "orig_year_conf": orig_year_conf, "orig_year_source": orig_year_source,
+        "evidence": evidence,
     }
     try:
         YEAR_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -176,7 +181,8 @@ def execute_commit(
                         mf_id, str(f_path.resolve()).replace('\\', '/'),
                         artist_name, album_title, title,
                         mb_recording_id, release_year,
-                        data.get('original_year'), data.get('orig_year_conf', 0), orig_year_source
+                        data.get('original_year'), data.get('orig_year_conf', 0), orig_year_source,
+                        evidence=data.get('orig_year_evidence')
                     )
 
                 success_count += 1

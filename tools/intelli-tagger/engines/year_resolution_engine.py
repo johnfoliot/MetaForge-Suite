@@ -78,13 +78,16 @@ MIN_PLAUSIBLE_YEAR = 1860  # comfortably before the phonograph (1877); guards
                            # being blindly trusted as "earlier, therefore true."
 
 
-def _result(year, conf: int, source: str, leak: int) -> Dict[str, Any]:
-    return {
+def _result(year, conf: int, source: str, leak: int, evidence: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    result = {
         "original_year": str(year),
         "orig_year_conf": conf,
         "orig_year_source": source,
         "leak_flag": leak,
     }
+    if evidence:
+        result["orig_year_evidence"] = evidence
+    return result
 
 
 def _is_plausible_year(year) -> bool:
@@ -98,6 +101,7 @@ def _consider_against_tentative(
     candidate_source: str,
     corroborated_conf: int,
     corroborated_source: str,
+    candidate_evidence: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Dict[str, Any], bool]:
     """
     Shared decision rule for whether a later tier's finding corroborates,
@@ -118,20 +122,20 @@ def _consider_against_tentative(
     `tentative` variable and continue the waterfall.
     """
     if tentative is None:
-        return _result(candidate_year, candidate_conf, candidate_source, 0), False
+        return _result(candidate_year, candidate_conf, candidate_source, 0, candidate_evidence), False
 
     tent_year = tentative["original_year"]
     tent_conf = tentative["orig_year_conf"]
 
     if str(candidate_year) == str(tent_year):
-        return _result(candidate_year, corroborated_conf, corroborated_source, 0), True
+        return _result(candidate_year, corroborated_conf, corroborated_source, 0, candidate_evidence), True
 
     if _is_plausible_year(candidate_year) and _is_plausible_year(tent_year):
         if int(candidate_year) < int(tent_year):
-            return _result(candidate_year, candidate_conf, candidate_source, 0), True
+            return _result(candidate_year, candidate_conf, candidate_source, 0, candidate_evidence), True
 
     if candidate_conf > tent_conf:
-        return _result(candidate_year, candidate_conf, candidate_source, 0), True
+        return _result(candidate_year, candidate_conf, candidate_source, 0, candidate_evidence), True
 
     return tentative, False
 
@@ -316,11 +320,13 @@ def resolve_original_year(
             discogs_year, discogs_source_label = None, None
 
         if discogs_year:
+            discogs_evidence = year_cache.get("discogs_evidence")
             if tentative is None:
-                return _result(discogs_year, CONF_DISCOGS, discogs_source_label, 0)
+                return _result(discogs_year, CONF_DISCOGS, discogs_source_label, 0, discogs_evidence)
             result, is_final = _consider_against_tentative(
                 tentative, discogs_year, CONF_DISCOGS, discogs_source_label,
                 CONF_DISCOGS_CORROBORATED, SRC_DISCOGS_CORROBORATED,
+                candidate_evidence=discogs_evidence,
             )
             if is_final:
                 return result
@@ -347,11 +353,13 @@ def resolve_original_year(
             wiki_year = None
 
         if wiki_year:
+            wiki_evidence = year_cache.get("wikipedia_evidence")
             if tentative is None:
-                return _result(wiki_year, CONF_WIKIPEDIA, SRC_WIKIPEDIA, 0)
+                return _result(wiki_year, CONF_WIKIPEDIA, SRC_WIKIPEDIA, 0, wiki_evidence)
             result, is_final = _consider_against_tentative(
                 tentative, wiki_year, CONF_WIKIPEDIA, SRC_WIKIPEDIA,
                 CONF_WIKIPEDIA, SRC_WIKIPEDIA_CORROBORATED,
+                candidate_evidence=wiki_evidence,
             )
             if is_final:
                 return result
@@ -373,11 +381,13 @@ def resolve_original_year(
             )
             if ai_result.get("resolved") and ai_result.get("year"):
                 ai_year = ai_result["year"]
+                ai_evidence = ai_result.get("evidence")
                 if tentative is None:
-                    return _result(ai_year, CONF_AI_GROUNDED, SRC_AI_WEB, 0)
+                    return _result(ai_year, CONF_AI_GROUNDED, SRC_AI_WEB, 0, ai_evidence)
                 result, is_final = _consider_against_tentative(
                     tentative, ai_year, CONF_AI_GROUNDED, SRC_AI_WEB,
                     CONF_AI_GROUNDED, SRC_AI_WEB_CORROBORATED,
+                    candidate_evidence=ai_evidence,
                 )
                 if is_final:
                     return result

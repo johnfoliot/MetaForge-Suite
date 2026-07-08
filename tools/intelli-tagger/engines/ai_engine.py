@@ -6,6 +6,7 @@
 # ======================================================================
 
 import json
+import re
 from pathlib import Path
 from google import genai
 from google.genai import types
@@ -159,24 +160,37 @@ release or distribution territory of this specific recording.
 # NEVER fabricate a plausible-sounding year with no real citation basis.
 # If it can't ground a real answer, it must say so (resolved=False), not
 # guess.
+#
+# Fixed 2026-07-08: the previous version asked for bare JSON output and
+# trusted the model's own self-reported "resolved": true flag. Live
+# testing found the model can (and does) answer confidently with
+# resolved=true from its own trained-knowledge recall WITHOUT actually
+# invoking the search tool at all -- response.candidates[0]
+# .grounding_metadata is None in that case, meaning no real grounding
+# happened, contradicting this function's own documented contract. The
+# strict-JSON-only prompt appears to suppress real tool use more often
+# than a natural-language one (confirmed by live comparison). Now: (1)
+# the prompt asks for a natural-language answer instead of bare JSON,
+# which reliably triggers real search grounding, (2) resolved=True
+# requires grounding_metadata.grounding_chunks to be genuinely present --
+# an ungrounded answer is now always treated as unresolved, regardless of
+# how confident the model's text sounds.
 # =========================================================
 
 
 def resolve_original_year_ai(artist, title, album, known_release_year):
 
-    prompt = f"""Find the TRUE ORIGINAL release year (the first time this
-recording was ever released, NOT this pressing/reissue/remaster) for the
-recording "{title}" by {artist} (album: {album}).
+    prompt = f"""Search the web to find the TRUE ORIGINAL release year (the
+first time this recording was ever released, NOT this pressing/reissue/
+remaster) for the recording "{title}" by {artist} (album: {album}).
 
 This copy's release year is {known_release_year}, which may itself be a
 reissue/remaster year, not the original.
 
-Return ONLY valid JSON with exactly these fields:
-- year (a 4-digit integer, or null if you cannot find a real answer)
-- resolved (true or false)
-
-Set resolved to false and year to null if you cannot find a real, sourced
-answer. NEVER guess or fabricate a plausible-sounding year with no basis.
+State the year clearly in your answer (e.g. "released in 1962"). If you
+cannot find a real, sourced answer via search, respond with exactly the
+word UNKNOWN and nothing else. NEVER guess or fabricate a plausible-
+sounding year with no basis.
 """
 
     try:
@@ -188,17 +202,42 @@ answer. NEVER guess or fabricate a plausible-sounding year with no basis.
             )
         )
 
-        raw_text = (response.text or "").replace("```json", "").replace("```", "").strip()
-        data = json.loads(raw_text)
+        text = response.text or ""
 
-        year = data.get("year")
-        if data.get("resolved") and year and str(year).isdigit() and len(str(year)) == 4:
-            return {"resolved": True, "year": str(year)}
+        candidate = response.candidates[0] if response.candidates else None
+        grounding = getattr(candidate, "grounding_metadata", None) if candidate else None
+        chunks = getattr(grounding, "grounding_chunks", None) if grounding else None
+
+        # No real search grounding happened -- this is the model's own
+        # trained-knowledge recall, not a verified web-search answer.
+        # Never counts as resolved, no matter how confident the text is.
+        if not chunks:
+            return {"resolved": False, "year": None, "evidence": None}
+
+        if "UNKNOWN" in text.upper():
+            return {"resolved": False, "year": None, "evidence": None}
+
+        year_match = re.search(r"\b(1[5-9]\d{2}|20\d{2})\b", text)
+        if not year_match:
+            return {"resolved": False, "year": None, "evidence": None}
+
+        sources = [
+            web.title for chunk in chunks[:5]
+            if (web := getattr(chunk, "web", None)) and getattr(web, "title", None)
+        ]
+
+        evidence = {
+            "citation_text": text.strip()[:500],
+            "sources": sources,
+            "search_queries": list(getattr(grounding, "web_search_queries", None) or []),
+        }
+
+        return {"resolved": True, "year": year_match.group(1), "evidence": evidence}
 
     except Exception:
         pass
 
-    return {"resolved": False, "year": None}
+    return {"resolved": False, "year": None, "evidence": None}
 
 
 # =========================================================

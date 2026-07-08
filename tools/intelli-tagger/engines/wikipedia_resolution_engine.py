@@ -85,12 +85,15 @@ def _clean_wikitext(text: str) -> str:
     return text
 
 
-def _extract_recorded_field(wikitext: str) -> Optional[str]:
+def _extract_recorded_field(wikitext: str) -> tuple[Optional[str], Optional[str]]:
     """
     Extracts a 4-digit year from the album infobox's "recorded" field
     (e.g. "| Recorded = 26 December 1939"). Falls back to scanning near
     a "Recorded" label anywhere in the text if no infobox field is
-    found. Returns None if nothing confident is found.
+    found. Returns (year, citation_text) -- citation_text is the raw
+    matched snippet the year came from, for the correction-candidate log
+    in commit_engine.py. Returns (None, None) if nothing confident is
+    found.
     """
 
     match = re.search(r'\|\s*[Rr]ecorded\s*=\s*([^\n|]+)', wikitext)
@@ -98,16 +101,16 @@ def _extract_recorded_field(wikitext: str) -> Optional[str]:
         cleaned = _clean_wikitext(match.group(1))
         year_match = re.search(r'\b(1[5-9]\d{2}|20\d{2})\b', cleaned)
         if year_match:
-            return year_match.group(1)
+            return year_match.group(1), cleaned.strip()
 
     # Fallback: a "Recorded" label followed by a year within a short
     # window, anywhere in the page (looser, only used if the infobox
     # field itself wasn't present).
     fallback = re.search(r'[Rr]ecorded[^\n]{0,60}?\b(1[5-9]\d{2}|20\d{2})\b', wikitext)
     if fallback:
-        return fallback.group(1)
+        return fallback.group(1), fallback.group(0).strip()
 
-    return None
+    return None, None
 
 
 def resolve_album_recorded_year(artist: str, album: str, year_cache: dict) -> None:
@@ -115,6 +118,11 @@ def resolve_album_recorded_year(artist: str, album: str, year_cache: dict) -> No
     Single entry point for the year-resolution waterfall: runs the full
     search -> fetch -> extract sequence exactly once per album, and
     memoizes the result (success or failure) into year_cache.
+
+    Also populates wikipedia_evidence (page title/URL + the matched
+    citation snippet) for the correction-candidate log in
+    commit_engine.py -- same already-fetched wikitext, just not
+    discarded this time.
     """
 
     if year_cache.get("wikipedia_checked"):
@@ -122,6 +130,7 @@ def resolve_album_recorded_year(artist: str, album: str, year_cache: dict) -> No
 
     year_cache["wikipedia_checked"] = True
     year_cache["wikipedia_year"] = None
+    year_cache["wikipedia_evidence"] = {}
 
     try:
         title = _search_album_page(artist, album)
@@ -132,6 +141,13 @@ def resolve_album_recorded_year(artist: str, album: str, year_cache: dict) -> No
         if not wikitext:
             return
 
-        year_cache["wikipedia_year"] = _extract_recorded_field(wikitext)
+        year, citation_text = _extract_recorded_field(wikitext)
+        year_cache["wikipedia_year"] = year
+        if year:
+            year_cache["wikipedia_evidence"] = {
+                "page_title": title,
+                "page_url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}",
+                "citation_text": citation_text,
+            }
     except Exception:
         pass
