@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "metaforge",
+      "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["ui/app.py"],
+      "port": 5000
+    }
+  ]
+}
