@@ -109,14 +109,24 @@ window.metaforge.database_tools.album = {
             if (data.tracks) {
                 data.tracks.sort((a,b) => (parseInt((a.file_path||'').split('/').pop())||999) - (parseInt((b.file_path||'').split('/').pop())||999)).forEach((t, idx) => {
                     const tr = document.createElement('tr');
+                    const conf = t.orig_year_conf || 0;
+                    const flagColor = conf >= 90 ? 'transparent' : (conf >= 50 ? 'var(--mf-gold)' : 'var(--status-error)');
+                    const confId = `track-year-conf-${idx}`;
+                    const confText = t.original_year
+                        ? `${this.escapeHTML(t.orig_year_source || 'Unknown')} · conf ${conf}`
+                        : 'No data';
                     tr.innerHTML = `
 					    <td style="border-bottom:1px solid #ccc; padding: 6px 8px; width: 50px; font-family: 'Cascadia Mono', monospace; color: var(--input-foreground2); vertical-align: middle;">${idx + 1}</td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 60%;">
+                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 40%;">
                             <input type="text" class="mb-input-text track-title" value="${t.title || ''}" data-path="${t.file_path || ''}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; border:0;">
                         </td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 35%;">
+                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 28%;">
                             <input type="text" class="mb-input-text track-artist" value="${t.artist || ''}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; Border:0">
                        </td>
+                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 110px;">
+                            <input type="text" class="mb-input-text track-year" value="${t.original_year || ''}" aria-label="Original year, track ${idx + 1}: ${this.escapeHTML(t.title || '')}" aria-describedby="${confId}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; border: 0; border-left: 3px solid ${flagColor};">
+                            <span id="${confId}" style="display:block; font-size: 0.6rem; margin-top: 2px; color: ${flagColor === 'transparent' ? 'var(--input-foreground2)' : flagColor};">${confText}</span>
+                        </td>
 						`;
                     trackBody.appendChild(tr);
                 });
@@ -168,7 +178,8 @@ window.metaforge.database_tools.album = {
         const tracks = Array.from(trackRows).map(tr => ({
             file_path: tr.querySelector('.track-title').getAttribute('data-path'),
             title: tr.querySelector('.track-title').value.trim(),
-            artist: tr.querySelector('.track-artist').value.trim()
+            artist: tr.querySelector('.track-artist').value.trim(),
+            original_year: tr.querySelector('.track-year').value.trim()
         }));
         const pRows = document.querySelectorAll('.personnel-edit-row');
         const personnel = Array.from(pRows).map(row => ({

@@ -102,7 +102,17 @@ def initialize_database():
     try: cursor.execute("SELECT photo_path FROM library_artist LIMIT 1")
     except sqlite3.OperationalError: cursor.execute("ALTER TABLE library_artist ADD COLUMN photo_path TEXT")
 
-    cursor.execute("CREATE TABLE IF NOT EXISTS library_master (mf_id TEXT PRIMARY KEY, mf_artist_id TEXT, artist_name TEXT, album_title TEXT NOT NULL, mb_album_id TEXT, original_year TEXT, label TEXT, personnel TEXT, is_compilation INTEGER, last_updated TEXT, date_audit_status INTEGER)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS library_master (mf_id TEXT PRIMARY KEY, mf_artist_id TEXT, artist_name TEXT, album_title TEXT NOT NULL, mb_album_id TEXT, original_year TEXT, label TEXT, is_compilation INTEGER, last_updated TEXT, date_audit_status INTEGER)")
+    # `personnel` was a legacy flat text field, write-only from initial commit --
+    # real personnel data has always lived in the `edges` table, and nothing in
+    # the app ever reads this column back. Drop it from any existing database
+    # that still has it (safe: SQLite 3.35+ supports DROP COLUMN on a plain,
+    # unconstrained column; no-ops harmlessly on a fresh install that never had it).
+    try:
+        cursor.execute("SELECT personnel FROM library_master LIMIT 1")
+        cursor.execute("ALTER TABLE library_master DROP COLUMN personnel")
+    except sqlite3.OperationalError:
+        pass
     cursor.execute("CREATE TABLE IF NOT EXISTS tracks (file_path TEXT PRIMARY KEY, mf_id TEXT, mf_artist_id TEXT, mb_artist_id TEXT, mb_track_id TEXT, acoustid TEXT, title TEXT, genre TEXT, sub_genre TEXT, original_year TEXT, bpm INTEGER, key_val TEXT, mood TEXT, intensity INTEGER, is_remediated INTEGER, last_updated TEXT, mb_work_id TEXT, orig_year_conf INTEGER, orig_year_source TEXT, leak_flag INTEGER)")
     for col_name, col_type in [
         ("mb_recording_id", "TEXT"),
@@ -153,7 +163,13 @@ def get_dynamic_toolbar():
 @app.route('/')
 def home():
     if not ENV_PATH.exists(): return render_template('setup.html')
-    return render_template('index.html', track_count="0", version_id=time.time(), 
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        track_count = conn.execute("SELECT COUNT(*) FROM tracks").fetchone()[0]
+        conn.close()
+    except sqlite3.Error:
+        track_count = "0"
+    return render_template('index.html', track_count=track_count, version_id=time.time(),
                            tools=get_dynamic_toolbar(), alerts=dashboard_alerts)
 
 @app.route('/favicon.ico')

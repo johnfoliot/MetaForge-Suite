@@ -7,7 +7,7 @@
         <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.search()">Search</button>
     </div>
 
-    <div id="album-workspace" style="display: none; flex: 1; gap: 15px; min-height: 0; padding-top: 20px; height: calc(100% - 60px);">
+    <div id="album-workspace" style="display: none; flex: 1; gap: 15px; min-height: 0; padding-top: 10px; height: calc(100% - 60px);">
         <div style="flex: 1.3; display: flex; flex-direction: column; gap: 10px; min-height: 0; height: 100%;">
             <div style="display: grid; grid-template-columns: 1fr 80px 100px; gap: 8px; flex-shrink: 0;">
                 <div style="grid-column: 1;">
@@ -27,7 +27,7 @@
                     <button class="mf-button-gold-fixed" style="font-size: 0.65rem; padding: 2px 4px; width: 100%;" onclick="window.metaforge.database_tools.album.browseCover()">Browse Cover</button>
                 </div>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; margin-top:-8px;">
                 <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Genre:</label><select id="alb-genre" class="mb-input-text" style="background: var(--input-background2); color: black;"></select></div>
                 <div><label class="mf-card-label" style="color: var(--mf-gold);">Current Sub Genre:</label><select id="alb-subgenre" class="mb-input-text" style="background: white; color: black;"></select></div>
                 <div><label class="mf-card-label" style="color: var(--mf-gold);">Label:</label><input type="text" id="alb-label" class="mb-input-text" style="background: white; color: black;"></div>
@@ -36,7 +36,7 @@
             <div style="flex: 1; border: 1px solid #444; background: white; overflow-y: auto; margin-top: 5px; min-height: 0;">
                 <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem; table-layout: fixed; margin-bottom:8px!important;">
                     <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 1; border-bottom:1px solid var(--mf-gold);">
-                        <tr><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 50px; border-bottom: 1px solid var(--mf-gold);">Track</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 60%; border-bottom: 1px solid var(--mf-gold);">Title</th><th style="padding: 4px; text-align: left; color: var(--mf-gold); width: 35%; border-bottom: 1px solid var(--mf-gold);">Artist</th></tr>
+                        <tr><th scope="col" style="padding: 4px; text-align: left; color: var(--mf-gold); width: 50px; border-bottom: 1px solid var(--mf-gold);">Track</th><th scope="col" style="padding: 4px; text-align: left; color: var(--mf-gold); width: 40%; border-bottom: 1px solid var(--mf-gold);">Title</th><th scope="col" style="padding: 4px; text-align: left; color: var(--mf-gold); width: 28%; border-bottom: 1px solid var(--mf-gold);">Artist</th><th scope="col" style="padding: 4px; text-align: left; color: var(--mf-gold); width: 110px; border-bottom: 1px solid var(--mf-gold);">Orig. Year</th></tr>
                     </thead>
                     <tbody id="album-track-list"></tbody>
                 </table>

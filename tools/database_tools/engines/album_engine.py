@@ -89,7 +89,10 @@ def _get_album_details_by_id(mf_id):
             album['tracks'].append({
                 "file_path": track_dict.get('file_path', ''),
                 "title": display_title,
-                "artist": album.get('artist_name', '')
+                "artist": album.get('artist_name', ''),
+                "original_year": track_dict.get('original_year', ''),
+                "orig_year_conf": track_dict.get('orig_year_conf', 0),
+                "orig_year_source": track_dict.get('orig_year_source', '')
             })
 
     if album['tracks']:
@@ -139,10 +142,11 @@ def _save_album():
     clean_mf_id = str(mf_id).strip()
 
     old_tracks = db_engine.execute_query(
-        "SELECT file_path, title FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
+        "SELECT file_path, title, original_year FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
         (clean_mf_id,)
     )
     old_titles_map = {t['file_path']: t['title'] for t in old_tracks} if old_tracks else {}
+    old_years_map = {t['file_path']: t['original_year'] for t in old_tracks} if old_tracks else {}
 
     # Replace the album's folder.jpg with the newly browsed cover, if one
     # was staged. serve_album_cover() (ui/app.py) always reads folder.jpg
@@ -181,6 +185,21 @@ def _save_album():
                     tag_engine.update_tags(str(p_file), {"title": new_title})
                 except Exception as ex:
                     print(f"⚠️ Centralized tag_engine update_tags failed for {p_file.name}: {ex}")
+
+        new_year = (t.get('original_year') or '').strip()
+        if new_year and f_path_str in old_years_map and str(old_years_map[f_path_str]) != new_year:
+            db_engine.execute_query(
+                "UPDATE tracks SET original_year=?, orig_year_conf=100, "
+                "orig_year_source='Manual (User Verified)', leak_flag=0, "
+                "last_updated=CURRENT_TIMESTAMP WHERE file_path=? AND LOWER(TRIM(mf_id))=LOWER(TRIM(?))",
+                (new_year, f_path_str, clean_mf_id),
+                commit=True
+            )
+            if p_file.exists():
+                try:
+                    tag_engine.update_tags(str(p_file), {"original_year": new_year})
+                except Exception as ex:
+                    print(f"⚠️ original_year tag update failed for {p_file.name}: {ex}")
 
     current_edges = db_engine.execute_query(
         "SELECT target_id FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",

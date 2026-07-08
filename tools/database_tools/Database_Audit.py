@@ -117,8 +117,9 @@ def get_album_snapshot(input_path):
                     print(f"    {Color.WHITE}{col:<20}{Color.RESET} : {format_val(val)}")
 
         # --- DISPLAY: edges (Personnel) ---
-        # library_master.personnel is a legacy flat field Intelli-Tagger writes
-        # (almost always "Unknown"); real personnel data lives in edges instead.
+        # Personnel data lives entirely in edges -- library_master's old
+        # legacy flat "personnel" text column (write-only, never read by
+        # any real UI) was removed 2026-07-06.
         print(f"\n  {Color.YELLOW}{Color.BOLD}TABLE: Personnel [edges]{Color.RESET}")
         print(f"  {Color.YELLOW}{'-'*71}{Color.RESET}")
         cursor.execute(
