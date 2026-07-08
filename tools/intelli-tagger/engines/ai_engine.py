@@ -244,6 +244,91 @@ sounding year with no basis.
 # AUTHORITY CONTRACT (SEPARATE FROM map_track_taxonomy AND
 # resolve_original_year_ai)
 # =========================================================
+# This function is the ONLY authority for tier-3 (AI web-search) personnel
+# resolution -- the automatic last-resort tier of Personnel Engine v2's
+# waterfall (tools/personnel/personnel.py), reached only when the merged
+# MB+Discogs result is thin AND Wikipedia's automatic fallback didn't fill
+# it in either. Same grounded-search contract as resolve_original_year_ai:
+# NEVER fabricate names/roles with no real citation basis, and resolved
+# credits require genuine search grounding, not the model's own recall.
+#
+# Deliberately source-agnostic -- the prompt does NOT name or steer
+# toward AllMusic or any other specific site (see project_mb_contribution_tool
+# memory's ToS research: AllMusic's Terms of Service prohibit automated
+# reproduction of their content "by any means", and a prompt specifically
+# steering the model toward AllMusic would just be that same prohibited
+# extraction through an intermediary, not a loophole around it). If the
+# model's search incidentally cites AllMusic among other sources, that's
+# no different from it incidentally citing Wikipedia or Discogs -- nothing
+# here asks for that specifically.
+# =========================================================
+
+
+def resolve_personnel_ai(artist, album):
+    """
+    Returns a list of {"name": str, "role": str} candidates, or an empty
+    list if nothing could be grounded. Never raises.
+    """
+
+    prompt = f"""Search the web to find the personnel and credits (musicians,
+producer, engineer, arranger, songwriter, etc.) for the album "{album}" by
+{artist}.
+
+List each person and their role clearly in your answer, one per line, in
+this exact format:
+Name - Role
+
+If you cannot find real, sourced credit information via search, respond
+with exactly the word UNKNOWN and nothing else. NEVER guess or fabricate
+a name or role with no basis.
+"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())]
+            )
+        )
+
+        text = response.text or ""
+
+        candidate = response.candidates[0] if response.candidates else None
+        grounding = getattr(candidate, "grounding_metadata", None) if candidate else None
+        chunks = getattr(grounding, "grounding_chunks", None) if grounding else None
+
+        # Same rule as resolve_original_year_ai: no real search grounding,
+        # no credits -- never trust ungrounded model recall.
+        if not chunks:
+            return []
+
+        if "UNKNOWN" in text.upper() and len(text.strip()) < 20:
+            return []
+
+        results = []
+        for line in text.split("\n"):
+            # Non-greedy .{2,60}? for the name, NOT a [^-] exclusion --
+            # a hyphenated entity name (e.g. "The Schuster-Longstreet
+            # Company") is legitimate and must not be rejected just
+            # because it contains a hyphen; only " - " (space-hyphen-
+            # space) is treated as the real name/role delimiter.
+            match = re.match(r"^\s*[-*]?\s*(.{2,60}?)\s+-\s+(.{2,80})\s*$", line)
+            if match:
+                name, role = match.group(1).strip(), match.group(2).strip()
+                if name and role:
+                    results.append({"name": name, "role": role})
+
+        return results
+
+    except Exception:
+        return []
+
+
+# =========================================================
+# AUTHORITY CONTRACT (SEPARATE FROM map_track_taxonomy AND
+# resolve_original_year_ai)
+# =========================================================
 # This function is the ONLY authority for Discogs-notes-to-track-date
 # extraction (the Discogs tier of year_resolution_engine.py's waterfall).
 # It is a CLOSED-FORM PARSE of text already retrieved, NOT a search or

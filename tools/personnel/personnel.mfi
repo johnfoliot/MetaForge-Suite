@@ -1,7 +1,7 @@
 <!-- --- START OF FILE personnel.mfi --- -->
 <h1 class="main" tabindex="-1">Personnel Scout</h1>
 <p class="tool_notes">
-    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to Wikipedia when thin, with AllMusic as a manual last resort.
+    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to Wikipedia and then AI Web Search when thin, with AllMusic as a manual last resort.
     Review and edit the staged mapping before committing to the MetaForge relationship graph.
 </p>
 

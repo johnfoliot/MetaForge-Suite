@@ -1,9 +1,9 @@
 # --- START OF FILE personnel.py ---
 # ======================================================================
 # MetaForge Studio: Personnel Scout - Processing Engine (Personnel Engine v2)
-# Role: 3-tier waterfall (MusicBrainz + Discogs merged -> Wikipedia
-# fallback -> AllMusic semi-manual last resort) resolving album/track
-# personnel credits into the `edges` graph.
+# Role: 4-tier waterfall (MusicBrainz + Discogs merged -> Wikipedia
+# fallback -> AI Web Search fallback -> AllMusic semi-manual last resort)
+# resolving album/track personnel credits into the `edges` graph.
 # Physical Location: \tools\personnel\personnel.py
 # ======================================================================
 import requests
@@ -96,7 +96,8 @@ def _resolve_waterfall():
     "Optional: Add Personnel" hand-off from Intelli-Tagger). Merges MB +
     Discogs candidates (don't stop at first -- coverage is complementary,
     per the original design), then auto-falls-back to Wikipedia only if
-    the merged result is still thin. Returns a preview list for the user
+    the merged result is still thin, and AI Web Search only if it's
+    STILL thin after that. Returns a preview list for the user
     to review/edit before committing -- nothing is written to the
     database here.
     """
@@ -141,6 +142,12 @@ def _resolve_waterfall():
     wiki_candidates = []
     if thin and artist and album:
         wiki_candidates = _auto_wikipedia_personnel(artist, album)
+        distinct_names |= {c['name'].strip().lower() for c in wiki_candidates if c.get('name')}
+        thin = len(distinct_names) < THIN_THRESHOLD
+
+    ai_candidates = []
+    if thin and artist and album:
+        ai_candidates = _auto_ai_personnel(artist, album)
 
     candidates = [
         {
@@ -152,6 +159,9 @@ def _resolve_waterfall():
     ] + [
         {"name": c['name'], "role": c['role'], "provenance": "Wikipedia"}
         for c in wiki_candidates
+    ] + [
+        {"name": c['name'], "role": c['role'], "provenance": "AI Web Search"}
+        for c in ai_candidates
     ]
 
     return jsonify({"status": "success", "candidates": candidates, "thin": thin})
@@ -225,6 +235,26 @@ def _auto_wikipedia_personnel(artist, album):
         full_text = page_data['query']['pages'][page_id]['revisions'][0]['slots']['main']['*']
         _, candidates = _extract_credits_from_wikitext(full_text)
         return candidates
+    except Exception:
+        return []
+
+
+# ==========================================================================
+# TIER 4: AI WEB SEARCH (AUTOMATIC, ONLY IF STILL THIN AFTER WIKIPEDIA)
+# ==========================================================================
+
+def _auto_ai_personnel(artist, album):
+    """
+    Automatic last-resort AI tier, mirroring the original-year waterfall's
+    AI Web Search tier -- only reached when MB+Discogs+Wikipedia together
+    are still thin. Deliberately source-agnostic (see
+    ai_engine.resolve_personnel_ai's own docstring for why AllMusic is
+    never named in the prompt). Never raises; returns an empty list on
+    any failure.
+    """
+    try:
+        import ai_engine
+        return ai_engine.resolve_personnel_ai(artist, album)
     except Exception:
         return []
 
