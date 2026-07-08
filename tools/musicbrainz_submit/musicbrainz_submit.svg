@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Hexagon Container -->
+  <path d="M24 4L42.3923 14.5V35.5L24 46L5.60769 35.5V14.5L24 4Z" 
+        stroke="#D4AF37" 
+        stroke-width="3" 
+        stroke-linejoin="round"/>
+  <!-- Submission Arrow -->
+  <path d="M24 35V14M24 14L17 21M24 14L31 21" 
+        stroke="#D4AF37" 
+        stroke-width="3" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>
