@@ -136,7 +136,7 @@ window.metaforge.database_tools.album = {
         const pContainer = document.getElementById('personnel-rows-container');
         if (pContainer) {
             pContainer.innerHTML = '';
-            if (data.personnel) data.personnel.forEach(p => this.appendPersonnelRow(p.role, p.name));
+            if (data.personnel) data.personnel.forEach(p => this.appendPersonnelRow(p.role, p.name, p.id));
         }
     },
 
@@ -158,13 +158,19 @@ window.metaforge.database_tools.album = {
         }
     },
 
-    addBlankPersonnel: function() { this.appendPersonnelRow('', ''); },
+    addBlankPersonnel: function() { this.appendPersonnelRow('', '', null); },
 
-    appendPersonnelRow: function(role, name) {
+    appendPersonnelRow: function(role, name, id) {
         const pContainer = document.getElementById('personnel-rows-container');
         if (!pContainer) return;
         const div = document.createElement('div');
         div.className = "personnel-edit-row";
+        // Carries the row's existing edges.id (if any) so save() can tell
+        // the backend "update this exact row" instead of "here's a fresh
+        // list, wipe and rebuild everything" -- untouched rows (including
+        // ones sourced from MB/Discogs/Wikipedia) are then left alone
+        // rather than losing their provenance/confidence on every save.
+        if (id !== undefined && id !== null) div.dataset.edgeId = id;
         div.style = "display: flex; gap: 6px; align-items: center; margin-bottom: 4px;";
         div.innerHTML = `
 			<input type="text" class="mb-input-text p-name" placeholder="Name" value="${name || ''}" style="flex: 1.5; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Mono', monospace; padding: 4px;">
@@ -184,7 +190,8 @@ window.metaforge.database_tools.album = {
         const pRows = document.querySelectorAll('.personnel-edit-row');
         const personnel = Array.from(pRows).map(row => ({
             role: row.querySelector('.p-role').value.trim(),
-            name: row.querySelector('.p-name').value.trim()
+            name: row.querySelector('.p-name').value.trim(),
+            id: row.dataset.edgeId ? parseInt(row.dataset.edgeId, 10) : null
         })).filter(p => p.name && p.role);
 
         const payload = {

@@ -11,23 +11,8 @@ from flask import jsonify, request
 from pathlib import Path
 from PIL import Image
 from common import db_engine, tag_engine
-
-# --- [ RELATIONSHIP MAP ] ---
-# Mirrors commit_engine.py ROLE_MAP exactly — must remain in sync
-ROLE_MAP = {
-    "Engineer": "engineered",
-    "Producer": "produced",
-    "Composer": "composed",
-    "Writer": "composed",
-    "Lyricist": "composed",
-    "Mixer": "mixed",
-    "Mastering": "mastered",
-    "Vocal": "performed",
-    "Instrument": "performed",
-    "Musician": "performed",
-    "Performer": "performed",
-    "Conductor": "conducted"
-}
+from tools.personnel.edge_normalizer import load_config, classify_role
+from tools.personnel import edge_store
 
 def handle(action):
     if action == "search_album": return _search_album()
@@ -124,7 +109,7 @@ def _get_album_details_by_id(mf_id):
     album['country'] = country_code
 
     edges = db_engine.execute_query(
-        "SELECT e.role, a.artist_name as name FROM edges e "
+        "SELECT e.id, e.role, a.artist_name as name FROM edges e "
         "JOIN library_artist a ON e.target_id = a.mf_artist_id "
         "WHERE LOWER(TRIM(e.source_id)) = LOWER(TRIM(?)) AND e.source_type = 'album'",
         (clean_mf_id,)
@@ -201,43 +186,69 @@ def _save_album():
                 except Exception as ex:
                     print(f"⚠️ original_year tag update failed for {p_file.name}: {ex}")
 
-    current_edges = db_engine.execute_query(
-        "SELECT target_id FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",
+    # Personnel sync -- targeted per-row update/insert/delete, NOT a blanket
+    # delete-all-then-reinsert-all. The old approach wiped every edge for
+    # the album on every save (even an unrelated cover-art fix), relabeling
+    # every row's provenance to "MetaForge" and losing confidence/
+    # evidence_scope/evidence_detail regardless of source -- it also
+    # bypassed edge_normalizer's classify_role() in favor of a separate,
+    # narrower ROLE_MAP. Only rows the user actually added, edited, or
+    # removed in the UI are touched now; everything else (e.g. MB/Discogs-
+    # sourced edges the user never looked at) is left completely alone.
+    existing_edges = db_engine.execute_query(
+        "SELECT id, target_id, role FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",
         (clean_mf_id,)
     )
-    old_artist_ids = set(e['target_id'] for e in current_edges) if current_edges else set()
+    existing_by_id = {e['id']: e for e in existing_edges} if existing_edges else {}
 
-    db_engine.execute_query(
-        "DELETE FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",
-        (clean_mf_id,),
-        commit=True
-    )
+    role_config = load_config()
+    kept_edge_ids = set()
 
-    active_artist_ids = set()
     for p in personnel:
         if not p.get('name') or not p.get('role'): continue
         role = p['role'].strip()
+        edge_id = p.get('id')
         tid = hashlib.sha256(p['name'].lower().encode('utf-8')).hexdigest()
-        active_artist_ids.add(tid)
-
-        # Derive relation_type from ROLE_MAP — mirrors commit_engine.py exactly
-        relation = ROLE_MAP.get(role, "contributed")
-        if "Vocal" in role: relation = "performed"
-        if "Instrument" in role: relation = "performed"
 
         db_engine.execute_query(
             "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
             (tid, p['name']),
             commit=True
         )
-        db_engine.execute_query(
-            "INSERT INTO edges (source_type, source_id, target_type, target_id, relation_type, role, provenance, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)",
-            ("album", mf_id, "artist", tid, relation, role, "MetaForge"),
-            commit=True
-        )
 
-    removed_ids = old_artist_ids - active_artist_ids
-    for r_id in removed_ids:
+        existing = existing_by_id.get(edge_id) if edge_id else None
+
+        if existing:
+            kept_edge_ids.add(edge_id)
+            # Unchanged row -- leave it, and its original provenance/
+            # confidence/evidence_scope, completely untouched.
+            if existing['target_id'] == tid and existing['role'] == role:
+                continue
+            relation_type, confidence = classify_role(role, role_config)
+            edge_store.update_edge_by_id(
+                edge_id, target_id=tid, relation_type=relation_type,
+                role=role, confidence=confidence, provenance="MetaForge (Manual)"
+            )
+        else:
+            # New row added in the UI -- upsert (not a blind insert), so a
+            # manually-typed credit that happens to match one MB/Discogs
+            # already resolved merges into it instead of duplicating.
+            relation_type, confidence = classify_role(role, role_config)
+            edge_store.upsert_edge(
+                source_type="album", source_id=mf_id, target_type="artist", target_id=tid,
+                relation_type=relation_type, role=role,
+                confidence=confidence, provenance="MetaForge (Manual)"
+            )
+
+    # Rows that existed before but weren't in this submission were removed
+    # by the user (the "x" button) -- delete exactly those, nothing else.
+    removed_edge_ids = set(existing_by_id) - kept_edge_ids
+    removed_artist_ids = set()
+    for eid in removed_edge_ids:
+        removed_artist_ids.add(existing_by_id[eid]['target_id'])
+        edge_store.delete_edge(eid)
+
+    for r_id in removed_artist_ids:
         remainder = db_engine.execute_query("SELECT 1 FROM edges WHERE target_id=? LIMIT 1", (r_id,))
         if not remainder:
             db_engine.execute_query("DELETE FROM library_artist WHERE mf_artist_id=?", (r_id,), commit=True)

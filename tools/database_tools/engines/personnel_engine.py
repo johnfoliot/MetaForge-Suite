@@ -7,6 +7,8 @@
 import hashlib
 from flask import jsonify, request
 from common import db_engine
+from tools.personnel.edge_normalizer import normalize_personnel
+from tools.personnel import edge_store
 
 def handle(action):
     """Dispatcher for Personnel Graph actions."""
@@ -25,16 +27,40 @@ def _get_personnel():
     return jsonify({"status": "success", "edges": [dict(e) for e in edges] if edges else[]})
 
 def _add_personnel():
+    # Routes through the same normalize_personnel()/classify_role() pipeline
+    # personnel.py's Wikipedia commit already uses, instead of writing
+    # role.lower() directly as relation_type -- this endpoint (the manual/
+    # bulk-JSON path used for AllMusic imports) was the source of a large
+    # share of legacy edge rows with raw free-text relation_type and no
+    # evidence_scope/detail. See tools/personnel/temp/reclassify_legacy_edges.py
+    # for the one-off backfill of rows already written the old way.
+    #
+    # Inserts go through edge_store.upsert_edge() (not a raw INSERT) so a
+    # re-import of the same credit updates the existing row instead of
+    # piling up a duplicate -- see edge_store.py's module docstring.
     data = request.json
     mf_id = data['mf_id']
     name = data['name']
     role = data['role']
     provenance = data.get('provenance', 'MetaForge')
     tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
-    
+
     db_engine.execute_query("INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name) VALUES (?, ?)", (tid, name), commit=True)
-    db_engine.execute_query("INSERT INTO edges (source_type, source_id, target_type, target_id, relation_type, role, provenance) VALUES (?,?,?,?,?,?,?)", ("album", mf_id, "artist", tid, role.lower(), role, provenance), commit=True)
-    return jsonify({"status": "success"})
+
+    atomic_edges = normalize_personnel(role)
+    count = 0
+
+    for edge in atomic_edges:
+        edge_store.upsert_edge(
+            source_type="album", source_id=mf_id, target_type="artist", target_id=tid,
+            relation_type=edge['relation_type'], role=edge['role'],
+            confidence=edge['confidence'], provenance=provenance,
+            evidence_scope=edge['evidence_scope'], evidence_detail=edge['evidence_detail'],
+            weight=edge['weight']
+        )
+        count += 1
+
+    return jsonify({"status": "success", "count": count})
 
 def _delete_personnel():
     eid = request.args.get('id')

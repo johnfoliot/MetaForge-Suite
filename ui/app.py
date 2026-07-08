@@ -126,12 +126,25 @@ def initialize_database():
             cursor.execute(f"ALTER TABLE tracks ADD COLUMN {col_name} {col_type}")
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS edges (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, source_type TEXT NOT NULL, source_id TEXT NOT NULL, 
-            target_type TEXT NOT NULL, target_id TEXT NOT NULL, relation_type TEXT NOT NULL, 
-            role TEXT, weight REAL DEFAULT 1.0, confidence REAL, source_system TEXT, 
+            id INTEGER PRIMARY KEY AUTOINCREMENT, source_type TEXT NOT NULL, source_id TEXT NOT NULL,
+            target_type TEXT NOT NULL, target_id TEXT NOT NULL, relation_type TEXT NOT NULL,
+            role TEXT, weight REAL DEFAULT 1.0, confidence REAL, source_system TEXT,
             provenance TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # evidence_scope/evidence_detail (album/track scoping for personnel credits)
+    # previously only existed on John's live DB because a one-off script was run
+    # against it by hand -- a fresh install's CREATE TABLE above never had them,
+    # so every edge_normalizer-based personnel commit would crash with "no such
+    # column". Same ALTER-TABLE-if-missing pattern as the tracks columns above.
+    for col_name, col_type in [
+        ("evidence_scope", "TEXT"),
+        ("evidence_detail", "TEXT"),
+    ]:
+        try:
+            cursor.execute(f"SELECT {col_name} FROM edges LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute(f"ALTER TABLE edges ADD COLUMN {col_name} {col_type}")
     conn.commit()
     conn.close()
 

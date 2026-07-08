@@ -18,7 +18,14 @@
     "producer": "PRODUCED",
     "engineer": "ENGINEERED_BY",
     "mixing": "ENGINEERED_BY",
-    "mastering": "ENGINEERED_BY"
+    "mixer": "ENGINEERED_BY",
+    "mastering": "ENGINEERED_BY",
+    "composer": "COMPOSED",
+    "writer": "WRITTEN_BY",
+    "lyricist": "WRITTEN_BY",
+    "songwriter": "WRITTEN_BY",
+    "arranger": "ARRANGED_BY",
+    "arrangement": "ARRANGED_BY"
   },
   "patterns": {
     "ist$": "PERFORMED_ON",
