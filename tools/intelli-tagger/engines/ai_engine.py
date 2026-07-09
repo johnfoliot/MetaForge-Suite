@@ -354,6 +354,19 @@ NEVER guess or fabricate a name or role with no basis.
         if "UNKNOWN" in credits_text.upper() and len(credits_text.strip()) < 20:
             return []
 
+        # Same extraction as resolve_original_year_ai's `sources` --
+        # web.title per grounding chunk, capped at 5. All credits in
+        # this response share ONE search call for the whole album, so
+        # the same source list is attached to every credit rather than
+        # trying to attribute individual sources to individual people
+        # (John, 2026-07-09, "can we 'hint' at the sources... no need
+        # for URLs unless trivial" -- titles, not links, satisfies that
+        # without extra work to resolve/validate real URLs).
+        sources = [
+            web.title for chunk in chunks[:5]
+            if (web := getattr(chunk, "web", None)) and getattr(web, "title", None)
+        ]
+
         results = []
         for line in credits_text.split("\n"):
             # Non-greedy .{2,60}? for the name, NOT a [^-] exclusion --
@@ -365,7 +378,7 @@ NEVER guess or fabricate a name or role with no basis.
             if match:
                 name, role = match.group(1).strip(), match.group(2).strip()
                 if name and role:
-                    results.append({"name": name, "role": role})
+                    results.append({"name": name, "role": role, "sources": sources})
 
         return results
 

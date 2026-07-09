@@ -1,13 +1,13 @@
 <h3 class="white">MusicBrainz Submit</h3>
 <p>Reviews original-release-date corrections the resolution waterfall found during Intelli-Tagger runs that differ from what MusicBrainz currently shows, and that MusicBrainz's own data doesn't already have.</p>
 <ul>
-    <li><strong>Open in MusicBrainz:</strong> Launches MusicBrainz's own Add Release wizard in a companion window, pre-filled with the evidence MetaForge found (label/catalog/date from Discogs, or a citation from AI web search). Only fields with real evidence are filled in -- format, barcode, and anything MetaForge couldn't verify are left blank for you to research directly in the wizard.</li>
-    <li><strong>Mark Submitted:</strong> Records that you've actually gone through and submitted the edit on MusicBrainz's site. MetaForge never submits anything itself -- this is just bookkeeping so the same candidate doesn't keep showing up.</li>
+    <li><strong>Open in MusicBrainz:</strong> Launches MusicBrainz's own Add Release wizard in a companion window, pre-filled with the evidence MetaForge Studio found (label/catalog/date from Discogs, or a citation from AI web search). Only fields with real evidence are filled in -- format, barcode, and anything MetaForge Studio couldn't verify are left blank for you to research directly in the wizard.</li>
+    <li><strong>Mark Submitted:</strong> Records that you've actually gone through and submitted the edit on MusicBrainz's site. MetaForge Studio never submits anything itself -- this is just bookkeeping so the same candidate doesn't keep showing up.</li>
     <li><strong>Dismiss:</strong> Hides a candidate you've reviewed and decided not to submit (e.g. the evidence isn't solid enough, or someone else already fixed it on MusicBrainz).</li>
 </ul>
 <p class="tool_notes">Note: the companion MusicBrainz window shares a persistent login with this app -- you only need to log in once, ever, not on every submission.</p>
 
 <h3 class="white">"Confirm form submission... originating from null" -- is this safe?</h3>
-<p>Yes. This is your browser engine's own built-in security prompt, not anything specific to MetaForge or a sign something's wrong.</p>
+<p>Yes. This is your browser engine's own built-in security prompt, not anything specific to MetaForge Studio or a sign something's wrong.</p>
 <p>The companion window is built from HTML content handed to it directly rather than loaded from a real web address, so it has what browsers call a "null origin." When that page automatically submits your pre-filled data to MusicBrainz's real site (a different, genuine address), the browser recognizes this as a cross-site submission from a source with no verifiable address, and asks you to confirm before continuing -- exactly the same protection that stops a malicious page from silently submitting something on your behalf without you noticing.</p>
-<p class="tool_notes">You'll see this once per submission. Click Continue to proceed to MusicBrainz's real page, where you can review everything MetaForge filled in before submitting anything.</p>
+<p class="tool_notes">You'll see this once per submission. Click Continue to proceed to MusicBrainz's real page, where you can review everything MetaForge Studio filled in before submitting anything.</p>

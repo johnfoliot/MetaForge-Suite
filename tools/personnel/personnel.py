@@ -188,6 +188,7 @@ def _resolve_waterfall():
             "confidence": e['confidence'], "provenance": e['provenance'],
             "evidence_scope": e.get('evidence_scope'), "evidence_detail": e.get('evidence_detail'),
             "mb_recording_id": e.get('mb_recording_id'), "mb_target_mbid": e.get('mbid'),
+            "sources": e.get('sources'),
         }
         for e in all_edges + ai_edges
     ]
@@ -260,6 +261,7 @@ def _classify_free_text_candidates(candidates, provenance):
                 "name": name, "role": atom['role'], "relation_type": atom['relation_type'],
                 "confidence": atom['confidence'], "provenance": provenance,
                 "evidence_scope": atom['evidence_scope'], "evidence_detail": atom['evidence_detail'],
+                "sources": c.get('sources'),
             })
     return edges
 
@@ -482,7 +484,7 @@ def _parse_allmusic_html():
 
 def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation_type, role,
                                   provenance, confidence, evidence_scope, evidence_detail,
-                                  mb_recording_id=None, mb_target_mbid=None):
+                                  mb_recording_id=None, mb_target_mbid=None, sources=None):
     """Appends one JSONL entry to MB_CANDIDATE_LOG. Never raises -- a
     logging failure must never break a real commit.
 
@@ -493,7 +495,14 @@ def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation
     that never had them available (a free-text name with no MB artist
     match, an album-scoped credit with no single recording target) --
     that's expected, not an error; the MB contribution tool's own job is
-    to do a live artist-name-search fallback for the missing mbid case."""
+    to do a live artist-name-search fallback for the missing mbid case.
+
+    sources is the AI Web Search grounding chunks' site titles (John,
+    2026-07-09, "can we 'hint' at the sources that the AI search
+    referenced?") -- carried through so the MB submission edit note can
+    name them without a URL, which he explicitly said isn't needed here.
+    Always None for MB/Discogs/manual provenance, which have no AI
+    grounding to report."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "mf_id": mf_id, "artist": artist, "album": album,
@@ -502,6 +511,7 @@ def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation
         "provenance": provenance, "confidence": confidence,
         "evidence_scope": evidence_scope, "evidence_detail": evidence_detail,
         "mb_recording_id": mb_recording_id, "mb_target_mbid": mb_target_mbid,
+        "sources": sources,
     }
     try:
         MB_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -543,12 +553,12 @@ def _commit():
     mb_known = {(r['target_id'], r['relation_type']) for r in mb_rows} if mb_rows else set()
 
     def _maybe_log_candidate(name, tid, relation_type, role, provenance, confidence, evidence_scope, evidence_detail,
-                              mb_recording_id=None, mb_target_mbid=None):
+                              mb_recording_id=None, mb_target_mbid=None, sources=None):
         if provenance != "MusicBrainz" and (tid, relation_type) not in mb_known:
             _log_mb_correction_candidate(
                 mf_id, artist, album, name, tid, relation_type, role,
                 provenance, confidence, evidence_scope, evidence_detail,
-                mb_recording_id, mb_target_mbid,
+                mb_recording_id, mb_target_mbid, sources,
             )
 
     for p in personnel:
@@ -574,6 +584,7 @@ def _commit():
             _maybe_log_candidate(
                 name, tid, p['relation_type'], role, provenance, confidence, evidence_scope, evidence_detail,
                 mb_recording_id=p.get('mb_recording_id'), mb_target_mbid=p.get('mb_target_mbid'),
+                sources=p.get('sources'),
             )
             count += 1
         else:

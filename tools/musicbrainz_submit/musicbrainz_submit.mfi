@@ -4,7 +4,7 @@
     Reviews high-confidence corrections the resolution waterfall found that
     <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz's own data doesn't have yet</span>.
     Opening a candidate launches MusicBrainz's own editor in a companion window, pre-filled with the evidence
-    MetaForge found -- MetaForge never submits anything itself, you always review and submit it yourself.
+    MetaForge Studio found -- MetaForge Studio never submits anything itself, you always review and submit it yourself.
 </p>
 
 <div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
@@ -36,7 +36,7 @@
             <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
                 <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
                     <tr>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Artist / Album / Track</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Track</th>
                         <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Current Year</th>
                         <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Proposed Year</th>
                         <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
@@ -62,7 +62,6 @@
             <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
                 <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
                     <tr>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Artist / Album</th>
                         <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Credited Name</th>
                         <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:160px;">Role</th>
                         <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
@@ -70,7 +69,7 @@
                     </tr>
                 </thead>
                 <tbody id="mbs-p-queue-body" style="color:var(--text-output);">
-                    <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
+                    <tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -93,6 +92,15 @@
     background: transparent !important;
     border: 1px solid var(--mf-gold);
     color: var(--mf-gold) !important;
+}
+
+/* Album-group header rows (Yandex Mail-style thread collapse, John's
+   idea 2026-07-09) -- clickable, so it needs a visible affordance
+   beyond the chevron alone. */
+.mbs-group-header:hover, .mbs-group-header:focus {
+    background: var(--bg-accent) !important;
+    outline: 1px solid var(--mf-gold);
+    outline-offset: -1px;
 }
 </style>
 

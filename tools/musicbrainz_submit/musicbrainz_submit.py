@@ -103,6 +103,7 @@ def run_logic(action, tools_dir, env_path):
         if action == "build_personnel_seed": return _build_personnel_seed()
         if action == "mark_personnel_handled": return _mark_personnel_handled()
         if action == "mark_track_progress": return _mark_track_progress()
+        if action == "apply_track_selection": return _apply_track_selection()
         return jsonify({"status": "error", "message": f"Action '{action}' unrecognized."}), 404
     except Exception:
         print(f"🔥 MusicBrainz Submit Hub Error [{action}]:\n{traceback.format_exc()}")
@@ -213,11 +214,18 @@ def _evidence_to_edit_note(candidate):
     Discogs carries structured release/catalog data, AI Web Search carries
     a natural-language citation + its own search sources.
 
-    Now carries MetaForge attribution + a link to AI Heuristics.md (John,
-    2026-07-09) -- supersedes the earlier "no branding" decision from
-    earlier the same day, now that there's a real public methodology doc
-    for an MB editor to check the claim against, not just a bare
-    self-promotion line.
+    Now carries MetaForge Studio attribution + a link to AI Heuristics.md
+    (John, 2026-07-09) -- supersedes the earlier "no branding" decision
+    from earlier the same day, now that there's a real public
+    methodology doc for an MB editor to check the claim against, not
+    just a bare self-promotion line.
+
+    Built as two PARAGRAPHS (blank line between), not one dense run of
+    single-linebreak sentences (John, 2026-07-09: "some more tweaking
+    please: (line breaks)") -- the evidence detail is one paragraph,
+    the "Resolved via"/attribution footer is its own paragraph, since
+    they're a genuinely different kind of content (the actual evidence
+    vs. bookkeeping about the note itself).
     """
     source = candidate.get("orig_year_source", "")
     evidence = candidate.get("evidence") or {}
@@ -264,9 +272,8 @@ def _evidence_to_edit_note(candidate):
     else:
         lines.append(f"Evidence source tier: {source}")
 
-    lines.append(f"Resolved via: {source}")
-    lines.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
-    return "\n".join(lines)
+    footer = f"Resolved via: {source}\nProposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}"
+    return "\n\n".join(["\n".join(lines), footer])
 
 
 def _evidence_source_url(candidate):
@@ -376,7 +383,7 @@ def _build_seed_html(candidate):
 <html>
 <head><meta charset="utf-8"><title>Opening MusicBrainz...</title></head>
 <body>
-<p>Opening MusicBrainz Release Editor, pre-filled from MetaForge's evidence...</p>
+<p>Opening MusicBrainz Release Editor, pre-filled from MetaForge Studio's evidence...</p>
 <form id="mb-seed-form" method="POST" action="{html.escape(MB_RELEASE_ADD_URL)}">
 {fields}</form>
 <script>document.getElementById('mb-seed-form').submit();</script>
@@ -447,6 +454,20 @@ def _get_album_tracks(mf_id, _cache={}):
     every personnel candidate) rather than manifest.json, since the
     queue only has artist/album/mf_id to go on, not a local folder path.
 
+    BUG FIX (John, 2026-07-09, caught live via a real "Recording not
+    found" MusicBrainz error): this originally selected tracks.mb_track_id
+    and used it as the recording ID. The `tracks` table actually has TWO
+    separate, correctly-distinct columns -- mb_track_id (MusicBrainz's
+    Track entity, release-tracklist-specific, captured in
+    musicbrainz_id.py's get_release_details()/commit_ids_to_files() and
+    written to its own column by commit_engine.py) and mb_recording_id
+    (the actual Recording entity -- the only one valid at MB's
+    /recording/{id} endpoint, which is everything this stepper needs).
+    Both columns were always populated correctly by the rest of the
+    pipeline; this function alone was reading the wrong one. Confirmed
+    live: mb_track_id 404's against MusicBrainz's real API, mb_recording_id
+    for the same row resolves correctly.
+
     Order comes from the leading number in each file's own filename
     (this pipeline's established naming convention, e.g. "12 - Artist -
     Title.mp3") -- the tracks table itself has no explicit position
@@ -457,14 +478,14 @@ def _get_album_tracks(mf_id, _cache={}):
     if mf_id in _cache:
         return _cache[mf_id]
     rows = db_engine.execute_query(
-        "SELECT file_path, title, mb_track_id FROM tracks WHERE mf_id=? AND mb_track_id IS NOT NULL AND mb_track_id != ''",
+        "SELECT file_path, title, mb_recording_id FROM tracks WHERE mf_id=? AND mb_recording_id IS NOT NULL AND mb_recording_id != ''",
         (mf_id,)
     ) or []
     tracks = []
     for r in rows:
         m = re.match(r'^\s*(\d+)', Path(r['file_path']).name)
         track_number = int(m.group(1)) if m else 9999
-        tracks.append({"recording_id": r['mb_track_id'], "title": r['title'], "track_number": track_number})
+        tracks.append({"recording_id": r['mb_recording_id'], "title": r['title'], "track_number": track_number})
     tracks.sort(key=lambda t: t['track_number'])
     _cache[mf_id] = tracks
     return tracks
@@ -493,12 +514,29 @@ def _load_personnel_candidates():
       entries in the live log predate junk-role fixes made earlier the
       same day (e.g. "Compilation Producer", "Remastered By"), so this
       is a real re-check against current rules, not a redundant one.
+    - A bare "Primary Artist"/"Performer"-type credit for the album's
+      OWN artist (John, 2026-07-09, caught reviewing the live queue
+      himself: "is this perhaps a bit too redundantly redundant?").
+      MusicBrainz's Recording already carries its own artist_credit --
+      a contentless relationship that just re-states "the artist
+      performed on their own recording," with no instrument/vocal/role
+      detail beyond that, tells MB nothing it doesn't already know and
+      reads as noise to an MB editor. Deliberately scoped to ONLY this
+      queue, not Personnel Scout's own commit path -- "this artist
+      performed on this album" is still real, useful connective-tissue
+      data for MetaForge's own Personnel Bridge use case (see
+      project_personnel_engine_v2 memory), it's specifically
+      MB-submission-redundant, not database-redundant. A role with any
+      real detail (an instrument, "Vocals", "Producer", etc.) is NOT
+      filtered here -- only the bare self-evident label itself.
     """
     if not PERSONNEL_CANDIDATE_LOG.exists():
         return []
 
     from tools.personnel.edge_normalizer import is_junk_role, is_junk_name, load_config
     config = load_config()
+
+    REDUNDANT_SELF_CREDIT_ROLES = {"primary artist", "artist", "main artist", "performer", "lead artist"}
 
     by_key = {}
     with open(PERSONNEL_CANDIDATE_LOG, "r", encoding="utf-8") as f:
@@ -516,6 +554,10 @@ def _load_personnel_candidates():
             if entry.get("relation_type") not in RELATION_TYPE_TO_LINK_TYPE:
                 continue
             if is_junk_role(entry.get("role", ""), config) or is_junk_name(entry.get("name", ""), config):
+                continue
+            if (entry.get("relation_type") == "PERFORMED_ON"
+                    and (entry.get("role") or "").strip().lower() in REDUNDANT_SELF_CREDIT_ROLES
+                    and (entry.get("name") or "").strip().lower() == (entry.get("artist") or "").strip().lower()):
                 continue
 
             key = _candidate_key(entry)
@@ -632,6 +674,43 @@ def _mark_track_progress():
     return jsonify({"status": "success"})
 
 
+def _apply_track_selection():
+    """
+    Batch-applies the track-selection modal's unchecked boxes as
+    "skipped" in one write, instead of requiring N individual Skip Track
+    clicks through the stepper for tracks the user already knows (from
+    their own research) a credit doesn't apply to (John, 2026-07-09 --
+    caught reviewing a real "Harmonica" credit that plausibly only
+    applies to 1-2 of a 16-track album, not all of them; "Open Track 1"
+    with no way to see or scope the whole album first was the actual
+    problem).
+
+    Only ever ADDS a skip entry for a track with no existing progress --
+    never overwrites one already marked submitted/skipped by the
+    per-track stepper. The modal's own checkboxes are disabled (and so
+    never included in unchecked_recording_ids) for anything already
+    resolved, but this is checked again here too rather than trusting
+    the client.
+    """
+    data = request.json or {}
+    key = data.get("key")
+    unchecked_ids = data.get("unchecked_recording_ids") or []
+    if not key:
+        return jsonify({"status": "error", "message": "key is required."}), 400
+
+    state = _load_personnel_review_state()
+    entry = state.get(key) or {}
+    track_progress = entry.get("track_progress", {})
+    for rid in unchecked_ids:
+        if rid not in track_progress:
+            track_progress[rid] = "skipped"
+    entry["track_progress"] = track_progress
+    entry["timestamp"] = datetime.now().isoformat()
+    state[key] = entry
+    _save_personnel_review_state(state)
+    return jsonify({"status": "success"})
+
+
 def _fetch_artist_by_name(name):
     """
     Live MB artist search, only reached when a candidate has no
@@ -661,13 +740,63 @@ def _fetch_artist_by_name(name):
         return None
 
 
-def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step=False):
+def _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step=False, narrowed=False):
     """
-    Now carries MetaForge attribution + a link to AI Heuristics.md (John,
-    2026-07-09), same reversal applied to the date-correction edit notes
-    above -- see METAFORGE_HEURISTICS_URL. Pure evidence + a transparent
-    note about how the artist was matched, since that's a genuine
-    judgment call the human still needs to make, not a settled fact.
+    The per-person evidence/caveat paragraphs, WITHOUT the shared
+    attribution footer -- factored out (John, 2026-07-09, "if we can do
+    a 'bulk' upload all the better") so a bulk multi-relationship seed
+    can reuse the exact same wording per person and just append ONE
+    shared footer at the end, instead of duplicating this logic or
+    drifting the two paths apart. See _evidence_to_personnel_edit_note
+    and _evidence_to_bulk_personnel_edit_note below for the two callers.
+    """
+    paragraphs = []
+
+    evidence_line = (f"Evidence: {candidate.get('provenance')} credits this recording to "
+                      f"{candidate.get('name')} as \"{candidate.get('role')}\".")
+    sources = candidate.get("sources")
+    if sources:
+        evidence_line += f" (sources: {', '.join(sources)})"
+    paragraphs.append(evidence_line)
+
+    if is_album_scope_step and narrowed:
+        paragraphs.append(
+            "This credit was captured at the album level; other tracks on this release have "
+            "already been reviewed and excluded for this specific credit. This track was kept as "
+            "one the credit is believed to apply to, based on available evidence."
+        )
+    elif is_album_scope_step:
+        paragraphs.append(
+            "This credit was captured at the album level using best available evidence, but not "
+            "confirmed per-track; it is applied here on the assumption it holds across the whole "
+            "release. Per-track confirmation is not possible without production notes currently "
+            "not publicly accessible to MetaForge Studio."
+        )
+
+    if candidate.get("mb_target_mbid") and not artist_match:
+        pass  # Already-known MBID, no live search needed -- no caveat required.
+    elif artist_match:
+        paragraphs.append(
+            f"Artist name search matched \"{artist_match.get('name')}\" (MusicBrainz text-match "
+            f"score {artist_match.get('score')}/100 -- this reflects how closely the NAME matched, "
+            f"not whether this is confirmed to be the same real person; MusicBrainz can have "
+            f"multiple distinct artists sharing an identical name). Not independently confirmed to "
+            f"be the correct specific artist beyond this name-text match."
+        )
+    else:
+        paragraphs.append("No confident MusicBrainz artist match found automatically.")
+
+    return paragraphs
+
+
+def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step=False, narrowed=False):
+    """
+    Now carries MetaForge Studio attribution + a link to AI Heuristics.md
+    (John, 2026-07-09), same reversal applied to the date-correction edit
+    notes above -- see METAFORGE_HEURISTICS_URL. Pure evidence + a
+    transparent note about how the artist was matched, since that's a
+    genuine judgment call the human still needs to make, not a settled
+    fact.
 
     Three distinct cases, not two -- a candidate can already carry a real
     mb_target_mbid (MB-sourced data, or a resolved-in-code match) with no
@@ -679,35 +808,106 @@ def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_ste
 
     is_album_scope_step adds a fourth, orthogonal caveat: the underlying
     evidence describes this person's credit for the ALBUM, not this
-    specific track -- MetaForge's own assumption (the stepper's "applies
-    to every track" default, John's own 80/20 call) is surfaced honestly
-    here too, not silently baked in, since it's a real judgment call a
-    human reviewer -- MB's, not just John's -- should be able to see and
-    weigh, same as the artist-match caveat above.
+    specific track. narrowed distinguishes two genuinely different
+    claims once the Select Tracks modal exists (John, 2026-07-09): once
+    even one track has been excluded, "applies across the whole
+    release" is simply false for this album anymore, so the remaining
+    tracks get a different, accurate caveat instead of repeating a
+    blanket claim that no longer holds.
+
+    AUDIENCE FIX (John, 2026-07-09, the more important catch: "it
+    appears to be a comment targeted to the submitter, not the reviewer.
+    I don't like that mix of audience"). This entire note becomes
+    PERMANENT public MusicBrainz edit history once submitted -- its real
+    audience is a future MB editor reading provenance, not John at the
+    moment he clicks submit. Every caveat below is now written in third
+    person as a statement of fact/limitation for that future reader
+    ("per-track confirmation is not possible...", "this reflects..."),
+    never as a direct instruction to whoever happens to be looking at it
+    right now ("please confirm X before submitting" -- removed
+    everywhere in this function). Anything John needs to see in the
+    moment belongs in MetaForge Studio's own UI (the queue row's
+    "Album-wide credit -- Track X of Y" text, the status bar), not in
+    text destined for MusicBrainz's permanent record.
+
+    Also folds in: exact wording John supplied for the album-scope,
+    non-narrowed case (2026-07-09) -- "captured at the album level using
+    best available evidence, but not confirmed per-track... per-track
+    confirmation is not possible without production notes currently not
+    publicly accessible to MetaForge Studio" -- explicit about the
+    actual epistemic limit (there is usually nothing further to check
+    against) rather than asking for a confirmation nobody can perform.
+    Same MusicBrainz-self-correction logic he named applies without
+    needing to spell it out in the note itself: a good-faith edit that's
+    later found wrong gets fixed by another editor, same as any other
+    human-submitted MB edit.
+
+    Built as separate PARAGRAPHS (blank line between each distinct
+    concern -- evidence, scope caveat, artist-match caveat, attribution
+    footer), not one dense run of single-linebreak sentences (John,
+    2026-07-09: "some more tweaking please: (line breaks)").
+
+    Sources are hinted inline right after the Evidence sentence (John,
+    2026-07-09: "can we 'hint' at the sources that the AI search
+    referenced? No need to provide URLs... unless trivial") -- site
+    TITLES from the AI response's own grounding chunks (see
+    ai_engine.resolve_personnel_ai), not resolved/validated URLs, which
+    is exactly what he asked for. Only present for AI Web Search
+    candidates; MB/Discogs/manual provenance has no grounding to report.
+
+    The artist-match wording was also rewritten (caught the same day: a
+    real self-contradiction, "(score 100/100)... this was not a certain
+    match" reads as nonsense at a glance). MB's artist search score is a
+    TEXT-relevance score from a name-only Lucene query -- how closely
+    the search string matched the result's name/alias text, not whether
+    this specific MB artist entity is confirmed to be the same real
+    person as the credit. A 100/100 commonly just means an exact string
+    match, which happens trivially even when MusicBrainz has multiple
+    distinct artists sharing that exact name -- so a perfect score and
+    "not a certain match" were never actually in tension, they answer
+    two different questions, and the note now says so explicitly.
     """
-    lines = [f"Evidence: {candidate.get('provenance')} credits this recording to "
-             f"{candidate.get('name')} as \"{candidate.get('role')}\"."]
-    if is_album_scope_step:
-        lines.append(
-            "Note: this credit was captured at the ALBUM level (not confirmed per-track) -- "
-            "MetaForge is applying it to this track on the assumption it holds across the whole "
-            "release; please confirm that's accurate for this specific track before submitting."
+    paragraphs = []
+
+    evidence_line = (f"Evidence: {candidate.get('provenance')} credits this recording to "
+                      f"{candidate.get('name')} as \"{candidate.get('role')}\".")
+    sources = candidate.get("sources")
+    if sources:
+        evidence_line += f" (sources: {', '.join(sources)})"
+    paragraphs.append(evidence_line)
+
+    if is_album_scope_step and narrowed:
+        paragraphs.append(
+            "This credit was captured at the album level; other tracks on this release have "
+            "already been reviewed and excluded for this specific credit. This track was kept as "
+            "one the credit is believed to apply to, based on available evidence."
         )
+    elif is_album_scope_step:
+        paragraphs.append(
+            "This credit was captured at the album level using best available evidence, but not "
+            "confirmed per-track; it is applied here on the assumption it holds across the whole "
+            "release. Per-track confirmation is not possible without production notes currently "
+            "not publicly accessible to MetaForge Studio."
+        )
+
     if candidate.get("mb_target_mbid") and not artist_match:
         pass  # Already-known MBID, no live search needed -- no caveat required.
     elif artist_match:
-        lines.append(
-            f"Artist matched via MusicBrainz search (score {artist_match.get('score')}/100) "
-            f"to \"{artist_match.get('name')}\" -- please confirm this is the correct artist "
-            f"before submitting, this was not a certain match."
+        paragraphs.append(
+            f"Artist name search matched \"{artist_match.get('name')}\" (MusicBrainz text-match "
+            f"score {artist_match.get('score')}/100 -- this reflects how closely the NAME matched, "
+            f"not whether this is confirmed to be the same real person; MusicBrainz can have "
+            f"multiple distinct artists sharing an identical name). Not independently confirmed to "
+            f"be the correct specific artist beyond this name-text match."
         )
     else:
-        lines.append("No confident MusicBrainz artist match found automatically -- please search and select the correct artist manually.")
-    lines.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
-    return "\n".join(lines)
+        paragraphs.append("No confident MusicBrainz artist match found automatically.")
+
+    paragraphs.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
+    return "\n\n".join(paragraphs)
 
 
-def _build_personnel_seed_html(candidate, artist_match, recording_id, is_album_scope_step=False):
+def _build_personnel_seed_html(candidate, artist_match, recording_id, is_album_scope_step=False, narrowed=False):
     """
     Builds an auto-submitting form POSTing to MusicBrainz's real Recording
     Edit page (musicbrainz.org/recording/{id}/edit) -- confirmed live
@@ -734,7 +934,7 @@ def _build_personnel_seed_html(candidate, artist_match, recording_id, is_album_s
         _seed_field("rels.0.type", link_type)
         + _seed_field("rels.0.target", target_mbid)
         + _seed_field("rels.0.target_credit", candidate.get("name"))
-        + _seed_field("edit_note", _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step))
+        + _seed_field("edit_note", _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step, narrowed))
     )
 
     edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit"
@@ -742,7 +942,7 @@ def _build_personnel_seed_html(candidate, artist_match, recording_id, is_album_s
 <html>
 <head><meta charset="utf-8"><title>Opening MusicBrainz...</title></head>
 <body>
-<p>Opening MusicBrainz Recording editor, pre-filled from MetaForge's evidence...</p>
+<p>Opening MusicBrainz Recording editor, pre-filled from MetaForge Studio's evidence...</p>
 <form id="mb-seed-form" method="POST" action="{html.escape(edit_url)}">
 {fields}</form>
 <script>document.getElementById('mb-seed-form').submit();</script>
@@ -776,9 +976,22 @@ def _build_personnel_seed():
     if not candidate.get("mb_target_mbid"):
         artist_match = _fetch_artist_by_name(candidate["name"])
 
+    # "narrowed" = has ANY track for this album-scoped credit already
+    # been excluded (skipped), whether via the Select Tracks modal's
+    # batch action or an individual stepper Skip? If so, "applies to
+    # the whole release" is no longer an accurate claim to make in the
+    # edit note -- see _evidence_to_personnel_edit_note's narrowed
+    # branch (John, 2026-07-09).
+    narrowed = False
+    if recording_id_override:
+        review_state = _load_personnel_review_state()
+        track_progress = (review_state.get(key) or {}).get("track_progress", {})
+        narrowed = any(status == "skipped" for status in track_progress.values())
+
     seed_html = _build_personnel_seed_html(
         candidate, artist_match, recording_id,
         is_album_scope_step=bool(recording_id_override),
+        narrowed=narrowed,
     )
     return jsonify({
         "status": "success",

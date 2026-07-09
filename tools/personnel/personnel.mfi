@@ -9,7 +9,7 @@
 
 
     <div id="p-loading-overlay" class="p-overlay" role="status" aria-live="polite" style="display: none;">
-        <div style="font-size:.85rem; color:#fff; padding-left:100px; margin-left:50%; max-width:30%;">
+        <div style="font-size:.85rem; color:#fff; margin-left:50%; max-width:35%;">
             <div class="p-spinner"></div>
             <img src="\ui\images\intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;">
             <p id="p-loading-text">Resolving personnel via MusicBrainz + Discogs...</p>
