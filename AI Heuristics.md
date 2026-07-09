@@ -1,4 +1,4 @@
-# AI Heuristics — How MetaForge Studio Determines the Data It Submits
+# AI Heuristics — How MetaForge Studio Determines the Data It Submits to MusicBrainz
 
 This document explains the methodology behind edits submitted to MusicBrainz using **MetaForge Studio**, a personal music-library tagging tool. If you're a MusicBrainz editor reviewing one of these edits and want to know where the proposed data came from and how much to trust it, this is that explanation.
 
