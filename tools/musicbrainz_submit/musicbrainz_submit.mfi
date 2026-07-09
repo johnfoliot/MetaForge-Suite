@@ -1,7 +1,104 @@
-<h1 class="main">MusicBrainz Submit</h1>
-<p class="tool_notes">Tool Notes go here</p>
+<!-- --- START OF FILE musicbrainz_submit.mfi --- -->
+<h1 class="main" tabindex="-1">MusicBrainz Submit</h1>
+<p class="tool_notes">
+    Reviews high-confidence corrections the resolution waterfall found that
+    <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz's own data doesn't have yet</span>.
+    Opening a candidate launches MusicBrainz's own editor in a companion window, pre-filled with the evidence
+    MetaForge found -- MetaForge never submits anything itself, you always review and submit it yourself.
+</p>
 
-<div class="active_stage">
-<p class="data-text">function output goes here.</p>
+<div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
 
+    <div role="tablist" aria-label="Correction categories" style="display:flex; gap:4px; padding:10px 15px 0 15px; border-bottom:1px solid #333;">
+        <button role="tab" id="mbs-tab-year" aria-selected="true" aria-controls="mbs-panel-year" tabindex="0"
+                class="mf-button-gold-fixed mbs-tab" style="border-radius:4px 4px 0 0;"
+                onclick="window.metaforge.musicbrainz_submit.switchTab('year')"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); window.metaforge.musicbrainz_submit.switchTab('year');}">
+            Original Year Corrections
+        </button>
+        <button role="tab" id="mbs-tab-personnel" aria-selected="false" aria-controls="mbs-panel-personnel" tabindex="-1"
+                class="mf-button-gold-fixed mbs-tab" style="border-radius:4px 4px 0 0;"
+                onclick="window.metaforge.musicbrainz_submit.switchTab('personnel')"
+                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); window.metaforge.musicbrainz_submit.switchTab('personnel');}">
+            Personnel Corrections
+        </button>
+    </div>
+
+    <!-- YEAR CORRECTIONS PANEL -->
+    <div id="mbs-panel-year" role="tabpanel" aria-labelledby="mbs-tab-year" style="display:flex; flex-direction:column; flex:1; min-height:0;">
+        <div style="display:flex; gap:20px; padding:10px 15px; align-items:center;">
+            <span class="mf-card-label" style="color:var(--mf-gold);"><span id="mbs-count-pending">0</span> Pending</span>
+            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-count-submitted">0</span> Submitted</span>
+            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-count-dismissed">0</span> Dismissed</span>
+        </div>
+
+        <div id="mbs-queue-viewport" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; margin:0 15px 10px 15px;">
+            <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
+                <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
+                    <tr>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Artist / Album / Track</th>
+                        <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Current Year</th>
+                        <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Proposed Year</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mbs-queue-body" style="color:var(--text-output);">
+                    <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- PERSONNEL CORRECTIONS PANEL -->
+    <div id="mbs-panel-personnel" role="tabpanel" aria-labelledby="mbs-tab-personnel" style="display:none; flex-direction:column; flex:1; min-height:0;">
+        <div style="display:flex; gap:20px; padding:10px 15px; align-items:center;">
+            <span class="mf-card-label" style="color:var(--mf-gold);"><span id="mbs-p-count-pending">0</span> Pending</span>
+            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-p-count-submitted">0</span> Submitted</span>
+            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-p-count-dismissed">0</span> Dismissed</span>
+        </div>
+
+        <div style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; margin:0 15px 10px 15px;">
+            <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
+                <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
+                    <tr>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Artist / Album</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Credited Name</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:160px;">Role</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
+                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mbs-p-queue-body" style="color:var(--text-output);">
+                    <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="mbs-status-bar" role="status" aria-live="polite"
+         style="background: var(--bg-main); border-top: 1px solid var(--mf-gold); padding: 4px 15px; font-size: 0.75rem; height: 28px; display: flex; align-items: center;">
+        <span id="mbs-status-text" style="color: var(--status-success);">Ready.</span>
+    </div>
 </div>
+
+<style>
+/* Tab visual state driven by aria-selected (which switchTab() already
+   toggles), not a separate JS style-swap or markup baked to whichever
+   tab happened to be active at parse time -- the latter is what caused
+   the active tab to still LOOK inactive after switching (John,
+   2026-07-09). .mbs-tab's base look (mf-button-gold-fixed, solid gold)
+   IS the selected look, so only the deselected state needs an override. */
+.mbs-tab[aria-selected="false"] {
+    background: transparent !important;
+    border: 1px solid var(--mf-gold);
+    color: var(--mf-gold) !important;
+}
+</style>
+
+<script>
+    if (window.metaforge && window.metaforge.musicbrainz_submit) {
+        window.metaforge.musicbrainz_submit.init();
+    }
+</script>
+<!-- --- END OF FILE musicbrainz_submit.mfi --- -->

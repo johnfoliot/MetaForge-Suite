@@ -2,7 +2,7 @@
   "name": "MusicBrainz Submit",
   "id": "musicbrainz_submit",
   "version": "1.0.0",
-  "description": "MusicBrainz Submit",
+  "description": "Review and submit original-release-date corrections back to MusicBrainz.",
   "entry_point": "musicbrainz_submit.py",
   "ui_template": "musicbrainz_submit.mfi",
   "icon": "musicbrainz_submit.svg",
