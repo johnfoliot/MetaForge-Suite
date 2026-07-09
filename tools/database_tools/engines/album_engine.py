@@ -7,12 +7,52 @@
 import json
 import sys
 import hashlib
+from datetime import datetime
 from flask import jsonify, request
 from pathlib import Path
 from PIL import Image
-from common import db_engine, tag_engine
+from common import db_engine, tag_engine, config_handler
 from tools.personnel.edge_normalizer import load_config, classify_role
 from tools.personnel import edge_store
+
+# Same evidence-collection log commit_engine.py's automatic waterfall
+# already writes to (data/musicbrainz/original_year_correction_candidates.jsonl)
+# -- a manual "Original Year" edit here is a SEPARATE code path from that
+# waterfall (confirmed 2026-07-09: this UPDATE was writing
+# orig_year_conf=100/orig_year_source='Manual (User Verified)' straight to
+# the DB with no logging at all, meaning John's own verified corrections
+# -- arguably the highest-confidence source of all -- were invisible to
+# the MB Submit tool). Logging here too, not importing commit_engine.py's
+# private helper (that module only sits on sys.path while Intelli-Tagger's
+# own run_logic() is executing) -- same small-local-helper pattern already
+# used by tools/personnel/personnel.py for its own correction log.
+YEAR_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "original_year_correction_candidates.jsonl"
+
+
+def _log_manual_year_correction(mf_id, file_path, artist, album, title,
+                                 mb_recording_id, current_release_year, proposed_original_year):
+    """Appends one JSONL entry to YEAR_CANDIDATE_LOG, same schema
+    commit_engine.py's automatic waterfall writes -- musicbrainz_submit.py's
+    existing dedup-by-latest-timestamp logic picks this up for free, so a
+    manual correction automatically supersedes an older programmatic guess
+    for the same recording with zero changes needed on the consuming side.
+    Never raises -- a logging failure must never break a real album save."""
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "mf_id": mf_id, "file_path": file_path,
+        "artist": artist, "album": album, "title": title,
+        "mb_recording_id": mb_recording_id,
+        "current_release_year": current_release_year,
+        "proposed_original_year": proposed_original_year,
+        "orig_year_conf": 100, "orig_year_source": "Manual (User Verified)",
+        "evidence": None,
+    }
+    try:
+        YEAR_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with open(YEAR_CANDIDATE_LOG, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception as ex:
+        print(f"⚠️ Manual year correction candidate log write failed: {ex}")
 
 def handle(action):
     if action == "search_album": return _search_album()
@@ -127,11 +167,12 @@ def _save_album():
     clean_mf_id = str(mf_id).strip()
 
     old_tracks = db_engine.execute_query(
-        "SELECT file_path, title, original_year FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
+        "SELECT file_path, title, original_year, mb_recording_id FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
         (clean_mf_id,)
     )
     old_titles_map = {t['file_path']: t['title'] for t in old_tracks} if old_tracks else {}
     old_years_map = {t['file_path']: t['original_year'] for t in old_tracks} if old_tracks else {}
+    old_recording_ids_map = {t['file_path']: t['mb_recording_id'] for t in old_tracks} if old_tracks else {}
 
     # Replace the album's folder.jpg with the newly browsed cover, if one
     # was staged. serve_album_cover() (ui/app.py) always reads folder.jpg
@@ -185,6 +226,16 @@ def _save_album():
                     tag_engine.update_tags(str(p_file), {"original_year": new_year})
                 except Exception as ex:
                     print(f"⚠️ original_year tag update failed for {p_file.name}: {ex}")
+
+            # Only loggable if this track has a real MB recording MBID --
+            # without one there's no MusicBrainz page for a future
+            # submission to target anyway.
+            mb_recording_id = old_recording_ids_map.get(f_path_str)
+            if mb_recording_id:
+                _log_manual_year_correction(
+                    clean_mf_id, f_path_str, data['artist'], data['title'], new_title,
+                    mb_recording_id, old_years_map[f_path_str], new_year,
+                )
 
     # Personnel sync -- targeted per-row update/insert/delete, NOT a blanket
     # delete-all-then-reinsert-all. The old approach wiped every edge for
