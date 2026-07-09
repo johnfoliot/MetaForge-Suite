@@ -253,6 +253,17 @@ def select_file():
     path = api_bridge.select_file()
     return jsonify({"path": path})
 
+@app.route('/open_mb_seeded_window', methods=['POST'])
+def open_mb_seeded_window():
+    global api_bridge
+    data = request.json or {}
+    title = data.get('title', 'MusicBrainz')
+    html = data.get('html', '')
+    if not html:
+        return jsonify({"status": "error", "message": "No seed content provided."}), 400
+    api_bridge.open_mb_seeded_window(title, html)
+    return jsonify({"status": "success"})
+
 # --- [ ENGINE STARTUP ] ---
 routes.initialize_routes(app, lambda: window, TOOLS_DIR, ENV_PATH, None)
 
@@ -269,6 +280,19 @@ class MetaForgeAPI:
             res = window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=('Image Files (*.jpg;*.jpeg;*.png)', 'All files (*.*)'))
             return res[0] if res and isinstance(res, tuple) else res
         return None
+    def open_mb_seeded_window(self, title, html):
+        # A genuine second top-level window ("pseudo-tab"), not an
+        # <iframe> -- musicbrainz.org sends X-Frame-Options: DENY /
+        # frame-ancestors 'none' (confirmed live 2026-07-09), which blocks
+        # framing entirely but has no bearing on a separate top-level
+        # window. Matches the main window's own 1280x800 sizing (John's
+        # own stated minimum was 1240px to avoid horizontal scroll on MB's
+        # pages) so both windows feel like one consistent app. Shares the
+        # main window's persistent webview profile (private_mode=False +
+        # storage_path set once in webview.start() below) so a MusicBrainz
+        # login only has to happen once, ever -- confirmed live via a real
+        # login + app-restart test, not assumed.
+        webview.create_window(title, html=html, width=1280, height=800)
 
 def run_flask():
     app.run(port=5000, debug=False, use_reloader=False, threaded=True)
@@ -292,4 +316,10 @@ if __name__ == '__main__':
     threading.Thread(target=run_flask, daemon=True).start()
     
     window = webview.create_window('MetaForge Studio', 'http://127.0.0.1:5000', js_api=api_bridge, width=1280, height=800, maximized=True, background_color='#141414')
-    webview.start()
+    # private_mode defaults to True (incognito-style, wiped every launch) --
+    # confirmed live 2026-07-09 this was silently discarding a MusicBrainz
+    # login on every app restart. storage_path makes this a real persistent
+    # profile, same as any normal browser, harmless for the main window
+    # (a local Flask UI with no real login state of its own) and required
+    # for the MB Submit tool's pseudo-tab window to only need login once.
+    webview.start(private_mode=False, storage_path=str(APPDATA_ROOT / "webview_profile"))
