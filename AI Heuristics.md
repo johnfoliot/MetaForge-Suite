@@ -49,7 +49,7 @@ Credits like packaging design, photography, liner notes authorship, and similar 
 
 The philosophy behind the suite of tools that comprise MetaForge Studio is based on the real-world observation that music metadata is often absent, inaccurate, or sometimes just plain useless. The suite refactors metadata to eliminate that useless and inaccurate data, and uses AI alongside command-line tools and libraries such as mp3val (bitstream validation and repair), fpcalc (AcoustID audio fingerprinting), and librosa (tempo/BPM analysis), among others, to tighten both the concepts of Genre (and Sub-Genre) as well as calculate additional data such as BPM, "Mood" (and Mood qualifiers), Starting Key, and more. The suite then writes those values to the host MP3 file via mutagen, and additionally to a locally hosted SQLite database. The suite also has the ability to query and store associated Personnel data (to the database only), to be used in an as-yet-undeveloped Intelligent Playlist Maker. More details on that effort will be published once the tool has been built.
 
-Meanwhile, in the spirit of community contribution that is the cornerstone of the MusicBrainz resource, an additional tool was built to submit back data to the MusicBrainz database that is currently nonexistent there.
+**Meanwhile, in the spirit of community contribution that is the cornerstone of the MusicBrainz resource, an additional tool was built to submit back data to the MusicBrainz database that is currently nonexistent there.**
 
 ## Why this document exists
 
