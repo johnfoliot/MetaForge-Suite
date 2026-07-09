@@ -58,6 +58,19 @@
     "booking agent",
     "management company",
     "thanks",
-    "dedication"
+    "dedication",
+    "reissue producer",
+    "compilation producer",
+    "series supervision",
+    "transferred by",
+    "digital remastering",
+    "digital transfers",
+    "remastered by"
+  ],
+  "junk_names": [
+    "unknown artist",
+    "various artists",
+    "various",
+    "unknown"
   ]
 }

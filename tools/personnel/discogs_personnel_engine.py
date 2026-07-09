@@ -11,7 +11,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from tools.personnel.edge_normalizer import normalize_personnel
+from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, load_config
+
+_JUNK_CONFIG = load_config()
 
 # The live-fallback path below imports discogs_resolution_engine, which
 # lives under Intelli-Tagger's own engines/ folder, not Personnel's --
@@ -39,6 +41,8 @@ def _extraartist_to_edges(entry: Dict[str, Any], evidence_scope: Optional[str],
     name = entry.get("name")
     role_text = entry.get("role")
     if not name or not role_text:
+        return []
+    if is_junk_name(name, _JUNK_CONFIG):
         return []
 
     edges = []

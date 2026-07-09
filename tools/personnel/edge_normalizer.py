@@ -27,6 +27,19 @@ def is_junk_role(raw_role: str, config: dict) -> bool:
     return any(term in clean_role for term in junk_terms)
 
 
+def is_junk_name(raw_name: str, config: dict) -> bool:
+    """
+    True if this is a known non-entity placeholder name (Discogs/
+    MusicBrainz/Wikipedia's own filler for an unidentified or aggregate
+    credit -- "Unknown Artist", "Various", etc.), not a real person or
+    group. Exact match after strip/lower, unlike is_junk_role's substring
+    match -- a real name could legitimately contain a word like "unknown"
+    as part of a longer name, so this must not false-positive on that.
+    """
+    clean_name = (raw_name or "").strip().lower()
+    return clean_name in set(config.get("junk_names", []))
+
+
 def classify_role(raw_role: str, config: dict) -> tuple[str, float]:
     """
     Classifies a role based on config mappings and regex patterns.

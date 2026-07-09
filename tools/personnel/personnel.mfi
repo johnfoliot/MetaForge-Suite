@@ -1,11 +1,20 @@
 <!-- --- START OF FILE personnel.mfi --- -->
 <h1 class="main" tabindex="-1">Personnel Scout</h1>
-<p class="tool_notes">
-    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to Wikipedia and then AI Web Search when thin, with AllMusic as a manual last resort.
-    Review and edit the staged mapping before committing to the MetaForge relationship graph.
+<p class="tool_notes"><!--
+    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to AI Web Search when thin (its own grounded search already sweeps up Wikipedia/AllMusic/independent sources), with manual Wikipedia search and AllMusic paste both always available for your own follow-up.
+    Review and edit the staged mapping before committing to the MetaForge relationship graph. -->
 </p>
 
 <div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+
+
+    <div id="p-loading-overlay" class="p-overlay" role="status" aria-live="polite" style="display: none;">
+        <div style="font-size:.85rem; color:#fff; padding-left:100px; margin-left:50%; max-width:30%;">
+            <div class="p-spinner"></div>
+            <img src="\ui\images\intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;">
+            <p id="p-loading-text">Resolving personnel via MusicBrainz + Discogs...</p>
+        </div>
+    </div>
 
     <!-- MAIN WORKING STAGE: SIDE-BY-SIDE SILOS -->
     <div id="p-workspace-stage" style="flex: 1; display: flex; gap: 15px; padding: 10px; overflow: hidden; background: var(--bg-main);">
@@ -36,12 +45,24 @@
                 <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
                     <label for="p-year-input" class="mf-card-label" style="color: var(--mf-gold);">Year:</label>
                     <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
-                    <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search For Personnel Data</button>
-                </div>
-                <div style="display: flex; align-items: center; justify-content: flex-end;">
+                    <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.searchWikipedia()">Search Wikipedia</button>
+                
                     <button class="mf-button-gold-fixed" style="background: transparent!important; border: 1px solid var(--mf-gold); color: var(--mf-gold)!important; font-size: 0.75rem;"
                             onclick="window.metaforge.personnel.checkAllMusic()" title="Last resort: opens an AllMusic search in a companion tab -- you copy the credits table yourself, MetaForge never fetches AllMusic directly.">Check AllMusic</button>
                 </div>
+            </div>
+
+            <!-- STATUS: relocated here 2026-07-09 (John) -- was a thin
+                 bar at the very bottom of the whole page, far from these
+                 action controls. At high screen magnification (200%+),
+                 that distance means physically panning the viewport to
+                 find out whether anything happened at all, not just an
+                 inconvenience for a low-vision user -- proximity of
+                 feedback to its trigger is the actual requirement here,
+                 not a cosmetic preference. -->
+            <div id="p-status-bar" role="status" aria-live="polite"
+                 style="border: 1px solid var(--mf-gold); background: var(--bg-accent); padding: 8px 10px; font-size: 0.8rem; display: flex; align-items: center; min-height: 40px;">
+                <span id="p-status-text" style="color: var(--status-success);">Scout Engine Ready.</span>
             </div>
 
             <!-- CANDIDATE TABLE: FIXED HEIGHT (Directive: UI Stability) -->
@@ -59,11 +80,6 @@
                 </table>
             </div>
 
-            <!-- RAW EXTRACTION BOX (Left Column Bottom) -->
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px; min-height: 0;">
-                <h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 0.8rem; margin: 0;">Wikipedia Raw Extraction</h2>
-                <div id="p-wiki-raw-container" style="flex: 1; overflow-y: auto; background: #000; border: 1px solid #444; padding: 8px; font-family: var(--font-mono); font-size: 0.7rem; color: #00ff00; white-space: pre-wrap;"></div>
-            </div>
         </div>
 
         <!-- RIGHT SILO: MAPPING INTERFACE (60% Width) -->
@@ -96,13 +112,29 @@
             </div>
         </div>
     </div>
-
-    <!-- STATUS BAR -->
-    <div id="p-status-bar" role="status" aria-live="polite"
-         style="background: var(--bg-main); border-top: 1px solid var(--mf-gold); padding: 4px 15px; font-size: 0.75rem; height: 28px; display: flex; align-items: center;">
-        <span id="p-status-text" style="color: var(--status-success);">Scout Engine Ready.</span>
-    </div>
 </div>
+
+<style>
+/* Same pattern as tools/biography/biography.mfi's .bio-overlay/.bio-spinner
+   (John, 2026-07-09) -- reused deliberately, not reinvented. */
+.p-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: color-mix(in srgb, var(--bg-stage) 50%, transparent);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: var(--mf-gold);
+    font-family: 'Cascadia Code', monospace;
+}
+.p-spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--mf-gold); border-radius: 50%; animation: p-spin 1s linear infinite; margin-bottom: 10px; margin-left: 150px; }
+@keyframes p-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
 
 <script>
     if (window.metaforge && window.metaforge.personnel) {

@@ -22,6 +22,23 @@ window.metaforge.personnel = {
         }, 50);
     },
 
+    // Same pattern as tools/biography/biography.js's toggleLoading()
+    // (John, 2026-07-09) -- reused deliberately. `text` lets the overlay
+    // say what's actually happening instead of a fixed generic message,
+    // since the automatic waterfall can be doing genuinely different
+    // things (MB+Discogs lookup vs. an AI grounded search) at different
+    // points, and the small status-bar text alone read as a hang, not
+    // progress.
+    toggleLoading: function(show, text) {
+        const overlay = document.getElementById('p-loading-overlay');
+        if (!overlay) return;
+        if (show && text) {
+            const label = document.getElementById('p-loading-text');
+            if (label) label.innerText = text;
+        }
+        overlay.style.display = show ? 'flex' : 'none';
+    },
+
     ingestContext: function() {
         const artist = document.getElementById('p-artist-input');
         const album = document.getElementById('p-album-input');
@@ -83,6 +100,13 @@ window.metaforge.personnel = {
         const album = document.getElementById('p-album-input').value.trim();
         if (!artist || !album) return;
 
+        // The overlay is the primary "something is happening" signal now
+        // (John, 2026-07-09 -- the status bar text alone was easy to miss
+        // and this whole call can run long, since a real AI grounded
+        // search may happen inside it). The single backend call can't
+        // report its own sub-stage progress, so the message says what's
+        // POSSIBLE, not a false promise of exactly what's running.
+        this.toggleLoading(true, "Checking MusicBrainz + Discogs, falling back to an AI web search if thin -- this can take a little while...");
         this.updateStatus("Resolving personnel via MusicBrainz + Discogs...", "success");
 
         try {
@@ -98,14 +122,22 @@ window.metaforge.personnel = {
                 if (this.state.mapping.length === 0) {
                     this.updateStatus("No automatic matches found -- try Wikipedia search or Check AllMusic below.", "error");
                 } else if (data.thin) {
-                    this.updateStatus(`${this.state.mapping.length} credits found (thin -- Wikipedia auto-checked too). Consider AllMusic if still incomplete.`, "success");
+                    this.updateStatus(`${this.state.mapping.length} credits found (still thin even after AI Web Search). Consider Wikipedia search or AllMusic if incomplete.`, "success");
                 } else {
-                    this.updateStatus(`${this.state.mapping.length} credits found via MusicBrainz + Discogs.`, "success");
+                    // Built from each row's own provenance rather than a
+                    // hardcoded "via MusicBrainz + Discogs" (John, 2026-07-09
+                    // -- caught live: a result that was 100% AI Web Search
+                    // still got labeled as MB+Discogs, since that message
+                    // never actually checked which tier(s) contributed).
+                    const sourcesUsed = [...new Set(this.state.mapping.map(c => c.provenance))];
+                    this.updateStatus(`${this.state.mapping.length} credits found via ${sourcesUsed.join(' + ')}.`, "success");
                 }
             }
         } catch (e) {
             console.error("Waterfall resolution failed:", e);
             this.updateStatus("Automatic resolution failed -- try manual search below.", "error");
+        } finally {
+            this.toggleLoading(false);
         }
     },
 
@@ -160,10 +192,35 @@ window.metaforge.personnel = {
         `).join('');
     },
 
+    // Staging-level dedup: mirrors edge_store.find_matching_edge's key
+    // (name + exact role text) but purely in-memory, before anything ever
+    // reaches the database. Commit-time dedup already makes a double-add
+    // harmless in the DB (John, 2026-07-08), but leaving a visibly
+    // duplicated row in the review table is still confusing clutter he'd
+    // have to notice and delete by hand -- this stops it from landing
+    // there in the first place, at any concat site (Wikipedia extraction,
+    // AllMusic paste), not just the one that got clicked twice.
+    _mergeCandidates: function(existing, incoming) {
+        const key = (name, role) => `${(name || '').trim().toLowerCase()}::${(role || '').trim().toLowerCase()}`;
+        const seen = new Set(existing.map(p => key(p.name, p.role)));
+        const merged = existing.slice();
+        for (const c of (incoming || [])) {
+            const k = key(c.name, c.role);
+            if (seen.has(k)) continue;
+            seen.add(k);
+            merged.push(c);
+        }
+        return merged;
+    },
+
     selectCandidate: async function(title) {
+        // The raw-wikitext debug panel was removed from the UI (John,
+        // 2026-07-09 -- clutter for a feature that's now a rare manual
+        // fallback, not the primary tool). data.raw_text is still
+        // returned by the backend and simply unused here -- cheap to
+        // leave available server-side in case it's ever wanted again,
+        // no reason to touch that response shape for a pure UI removal.
         this.updateStatus(`Extracting from: ${title}...`, "success");
-        const rawContainer = document.getElementById('p-wiki-raw-container');
-        rawContainer.innerHTML = 'Aggregating wikitext sections...';
         try {
             const res = await fetch('/run_tool_logic/personnel/fetch_content', {
                 method: 'POST',
@@ -172,16 +229,15 @@ window.metaforge.personnel = {
             });
             const data = await res.json();
             if (data.status === "success") {
-                rawContainer.innerText = data.raw_text;
                 // A manual Wikipedia search ADDS to whatever the automatic
                 // waterfall already staged, rather than replacing it --
                 // MB/Discogs edges already found stay put. Candidates
                 // arrive already junk-filtered and classified.
-                this.state.mapping = this.state.mapping.concat(data.candidates);
+                this.state.mapping = this._mergeCandidates(this.state.mapping, data.candidates);
                 this.renderMapping();
                 this.updateStatus("Extraction complete. Map identities on right.", "success");
             } else {
-                rawContainer.innerHTML = `<span style="color:var(--status-error);">${data.message}</span>`;
+                this.updateStatus(data.message || "Extraction failed.", "error");
             }
         } catch (e) {
             this.updateStatus("Error: Failed to retrieve page content.", "error");
@@ -326,15 +382,25 @@ window.metaforge.personnel = {
                 // (relation_type/confidence/evidence_scope/evidence_detail
                 // included) -- carry all of it through, not just name/role,
                 // so these commit the same way MB/Discogs results do.
-                this.state.mapping = this.state.mapping.concat(data.candidates);
+                const before = this.state.mapping.length;
+                this.state.mapping = this._mergeCandidates(this.state.mapping, data.candidates);
+                const added = this.state.mapping.length - before;
                 this.renderMapping();
-                this.updateStatus(`Added ${data.candidates.length} credits from AllMusic.`, "success");
+                this.updateStatus(added > 0 ? `Added ${added} credits from AllMusic.` : "Those credits are already staged -- nothing new to add.", "success");
                 const modal = document.getElementById('p-allmusic-modal');
                 if (modal) modal.remove();
             } else {
-                this.updateStatus(data.message || "No credits found in pasted content.", "error");
+                // The outcome must land inside the still-open modal, not just
+                // the page's status bar underneath it -- John flagged (2026-07-08)
+                // that a sighted user has to notice text behind an open modal,
+                // and a screen reader focused in the modal's DOM never reaches
+                // it at all. Same reasoning applies to the catch block below.
+                const msg = data.message || "No credits found in pasted content.";
+                if (target) target.innerText = msg;
+                this.updateStatus(msg, "error");
             }
         } catch (e) {
+            if (target) target.innerText = "AllMusic parse failed -- try copying the table again.";
             this.updateStatus("AllMusic parse failed.", "error");
         }
     },

@@ -12,7 +12,7 @@
 # ======================================================================
 from typing import Any, Dict, List, Optional
 
-from tools.personnel.edge_normalizer import is_junk_role, load_config
+from tools.personnel.edge_normalizer import is_junk_role, is_junk_name, load_config
 
 CONFIDENCE_MB = 0.95  # MB's own structured relationship data -- highest
                        # trust tier, above Wikipedia's 0.9 direct-mapped
@@ -63,6 +63,8 @@ def relations_to_edges(relations: List[Dict[str, Any]], track_number: Optional[i
         name = artist.get("name")
         mbid = artist.get("id")
         if not name or not mbid:
+            continue
+        if is_junk_name(name, _JUNK_CONFIG):
             continue
 
         rel_type_raw = (rel.get("type") or "").strip().lower()
@@ -155,6 +157,17 @@ def resolve_track_personnel(mb, recording_id: str, track_number: int,
 
     for work_id in extract_work_ids(relations):
         edges.extend(resolve_work_credits(mb, work_id, work_cache, track_number=track_number))
+
+    # mb_recording_id lets a future MB contribution tool build a real
+    # seeded /recording/{id}/edit URL (confirmed live 2026-07-09) instead
+    # of needing to re-derive which recording a credit belongs to after
+    # the fact. Composer/lyricist edges from the Work-hop above are
+    # tagged too, even though they'd actually need to be submitted at the
+    # WORK level, not this recording -- see project_mb_contribution_tool
+    # memory (publisher/composer explicitly redirect to Works in MB's own
+    # UI) -- keeping the recording context is still useful for review.
+    for edge in edges:
+        edge["mb_recording_id"] = recording_id
 
     return edges
 

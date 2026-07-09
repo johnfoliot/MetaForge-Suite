@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import jsonify, request
 from common import db_engine, config_handler
-from tools.personnel.edge_normalizer import normalize_personnel
+from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, load_config
 from tools.personnel import edge_store
 from tools.personnel import mb_personnel_engine
 from tools.personnel import discogs_personnel_engine
@@ -42,13 +42,6 @@ API_URL = "https://en.wikipedia.org/w/api.php"
 # credit committed from a non-MusicBrainz source for a person/relation
 # MusicBrainz's own data doesn't yet have on this album.
 MB_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "personnel_correction_candidates.jsonl"
-
-# Below this many distinct credited names, the merged MB+Discogs result
-# counts as "thin" and triggers the automatic Wikipedia fallback tier.
-# Deliberately low and simple -- personnel data is "useful, not gospel"
-# (see project_personnel_engine_v2 design), not worth a more elaborate
-# heuristic.
-THIN_THRESHOLD = 2
 
 
 def run_logic(action, tools_dir, env_path):
@@ -95,11 +88,23 @@ def _resolve_waterfall():
     frontend right after folder-context loads, mirroring the existing
     "Optional: Add Personnel" hand-off from Intelli-Tagger). Merges MB +
     Discogs candidates (don't stop at first -- coverage is complementary,
-    per the original design), then auto-falls-back to Wikipedia only if
-    the merged result is still thin, and AI Web Search only if it's
-    STILL thin after that. Returns a preview list for the user
-    to review/edit before committing -- nothing is written to the
-    database here.
+    per the original design), then auto-falls-back directly to AI Web
+    Search if the merged result is still thin. Returns a preview list for
+    the user to review/edit before committing -- nothing is written to
+    the database here.
+
+    Wikipedia is deliberately NOT an automatic tier here (removed
+    2026-07-09, John's own call) -- confirmed live that the AI Web
+    Search tier's own grounded search organically cites Wikipedia/
+    AllMusic/Discogs alongside independent sources anyway (e.g. a real
+    test run against Clancy Eccles' "Feel The Rythm" cited allmusic.com
+    directly among its sources), so a separate automatic Wikipedia gate
+    mostly just adds a round-trip that rarely independently helps --
+    especially for the long-tail/obscure albums this tool serves best,
+    where Wikipedia coverage tends to be thinnest anyway. Wikipedia's
+    manual "Search Wikipedia" button (selectCandidate/_fetch_content,
+    below) is untouched -- still fully available whenever John wants to
+    specifically check it himself, same treatment AllMusic already has.
     """
     data = request.json
     local_path = data.get('local_path', '')
@@ -134,26 +139,57 @@ def _resolve_waterfall():
                 mb, recording_id, track_number, preseeded, work_cache
             ))
 
-    all_edges.extend(discogs_personnel_engine.resolve_album_personnel(artist, album, discogs_preseed))
+    discogs_edges = discogs_personnel_engine.resolve_album_personnel(artist, album, discogs_preseed)
+
+    # Discogs' own data never carries an MB recording MBID (Discogs
+    # doesn't know MB IDs at all) -- but a track-scoped credit's
+    # evidence_detail already holds the raw track NUMBER (e.g. "1"), and
+    # mb_track_map (loaded above) maps that same position to a real
+    # recording MBID for free, no extra fetch needed. Cross-referencing
+    # here is what lets a future MB contribution tool build a seeded
+    # /recording/{id}/edit URL for a Discogs-sourced credit, the same way
+    # MB-sourced edges already carry mb_recording_id natively (see
+    # mb_personnel_engine.resolve_track_personnel). Album-scoped credits
+    # (evidence_scope == "album") are left without one -- there's no
+    # single recording a whole-album fact maps to, see
+    # project_mb_contribution_tool memory.
+    if mb_track_map:
+        position_to_recording = {
+            str(entry.get('position', idx)): entry.get('mb_recording_id')
+            for idx, entry in enumerate(mb_track_map, 1)
+            if entry.get('mb_recording_id') and entry.get('mb_recording_id') not in ("None", "Unknown", "")
+        }
+        for edge in discogs_edges:
+            if edge.get('evidence_scope') == 'track' and edge.get('evidence_detail') in position_to_recording:
+                edge['mb_recording_id'] = position_to_recording[edge['evidence_detail']]
+
+    all_edges.extend(discogs_edges)
 
     thin = _is_thin(all_edges)
-
-    wiki_edges = []
-    if thin and artist and album:
-        wiki_edges = _classify_free_text_candidates(_auto_wikipedia_personnel(artist, album), "Wikipedia")
-        thin = _is_thin(all_edges + wiki_edges)
 
     ai_edges = []
     if thin and artist and album:
         ai_edges = _classify_free_text_candidates(_auto_ai_personnel(artist, album), "AI Web Search")
+        # Recompute against the FINAL combined set before this leaks into
+        # the response -- the value above only ever reflected MB+Discogs
+        # alone (that's correct as the GATE deciding whether to bother
+        # calling AI at all), but returning that same stale pre-AI value
+        # as the final "thin" status is what caused a real bug (John,
+        # 2026-07-09): 13+ genuinely valuable AI-sourced credits still
+        # got reported as "still thin even after AI Web Search" to the
+        # UI, which is simply false. Lost when the Wikipedia tier (which
+        # had its own equivalent recompute) was removed earlier the same
+        # day -- no replacement recompute was added after AI's turn.
+        thin = _is_thin(all_edges + ai_edges)
 
     candidates = [
         {
             "name": e['name'], "role": e['role'], "relation_type": e['relation_type'],
             "confidence": e['confidence'], "provenance": e['provenance'],
             "evidence_scope": e.get('evidence_scope'), "evidence_detail": e.get('evidence_detail'),
+            "mb_recording_id": e.get('mb_recording_id'), "mb_target_mbid": e.get('mbid'),
         }
-        for e in all_edges + wiki_edges + ai_edges
+        for e in all_edges + ai_edges
     ]
 
     return jsonify({"status": "success", "candidates": candidates, "thin": thin})
@@ -161,22 +197,43 @@ def _resolve_waterfall():
 
 def _is_thin(edges):
     """
-    "Thin" counts only musically-relevant credits (anything classified
-    to a real RelationType, not the ASSOCIATED_WITH catch-all) -- a
-    photographer and a producer used to count identically toward "we
-    have enough data", which meant an album with one real credit and two
-    package-art credits looked fully resolved. Junk roles (photography,
-    album design, etc.) never even reach this point now -- they're
-    filtered out entirely in edge_normalizer.is_junk_role() before
-    classification -- but a genuinely unclassified-but-real role could
-    still land in ASSOCIATED_WITH, so that bucket still doesn't count as
-    "answered" either.
+    Rebuilt 2026-07-09 around John's own value hierarchy for the IPM's
+    Personnel Bridge, replacing a flat "count any real relation type"
+    threshold that turned out to be wrong on both ends:
+
+    - PERFORMED_ON/COMPOSED/WRITTEN_BY are "super-sticky" connective
+      tissue between otherwise-unrelated recordings (a guest soloist, a
+      shared house band, a song later covered elsewhere) -- the actual
+      thing this tool exists to surface.
+    - PRODUCED/ARRANGED_BY/ENGINEERED_BY/A_AND_R are real, valuable
+      credits, but weaker connective tissue for that specific purpose.
+      A result can look rich by raw count (six distinct producer/
+      engineer names) while having ZERO performers or composers -- that
+      IS thin for this tool's actual purpose, even though a flat count
+      would call it resolved. Confirmed live: a real album returned 13
+      real, correctly-classified names, every one of them an engineer or
+      producer, zero performers -- the old flat check called that
+      "not thin" and skipped straight past the fallback tier.
+
+    Deliberately a "zero, not two" bar, not "at least two performers/
+    composers" -- a legitimate one-name solo result (John's own example:
+    an a cappella artist with no backing musicians at all) is a
+    complete, accurate answer and must not be flagged thin just for
+    being short. The old flat threshold of 2 got this backwards too --
+    it would have called a single honest solo-performer credit thin and
+    sent the waterfall chasing data that doesn't exist. Only the
+    specific "plenty of Tier-3 credits, but not a single performer or
+    composer" case should trigger a fallback recommendation.
+
+    Junk roles (photography, album design, reissue-process credits,
+    etc.) never reach this function at all -- filtered out entirely in
+    edge_normalizer.is_junk_role() before classification.
     """
-    valuable_names = {
+    performer_or_composer_names = {
         e['name'].strip().lower() for e in edges
-        if e.get('name') and e.get('relation_type') != 'ASSOCIATED_WITH'
+        if e.get('name') and e.get('relation_type') in ('PERFORMED_ON', 'COMPOSED', 'WRITTEN_BY')
     }
-    return len(valuable_names) < THIN_THRESHOLD
+    return len(performer_or_composer_names) == 0
 
 
 def _classify_free_text_candidates(candidates, provenance):
@@ -190,10 +247,13 @@ def _classify_free_text_candidates(candidates, provenance):
     candidate can expand into zero (fully junk), one, or several atomic
     edges (a multi-role credit like "Producer, Photography").
     """
+    config = load_config()
     edges = []
     for c in candidates:
         name, role = c.get('name'), c.get('role')
         if not name or not role:
+            continue
+        if is_junk_name(name, config):
             continue
         for atom in normalize_personnel(role):
             edges.append({
@@ -389,6 +449,20 @@ def _parse_allmusic_html():
         raw_candidates = _extract_allmusic_credits(data.get('plain', ''))
 
     if not raw_candidates:
+        # TEMP DIAGNOSTIC (John, 2026-07-08): a normal Firefox copy of the
+        # rendered credits table failed to parse despite the regex being
+        # verified correct against a real View-Source sample. Dumping the
+        # actual received payload so the next failed paste can be inspected
+        # directly instead of guessed at. Remove once the real-copy path
+        # is confirmed working.
+        try:
+            debug_dir = config_handler.DATA_DIR / "personnel" / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            (debug_dir / f"allmusic_paste_{stamp}_html.txt").write_text(data.get('html', ''), encoding="utf-8")
+            (debug_dir / f"allmusic_paste_{stamp}_plain.txt").write_text(data.get('plain', ''), encoding="utf-8")
+        except Exception:
+            pass
         return jsonify({"status": "error", "message": "No recognizable credits table found in the pasted content."})
 
     # Junk-filtered/pre-classified here too (not just at eventual commit)
@@ -407,9 +481,19 @@ def _parse_allmusic_html():
 # ==========================================================================
 
 def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation_type, role,
-                                  provenance, confidence, evidence_scope, evidence_detail):
+                                  provenance, confidence, evidence_scope, evidence_detail,
+                                  mb_recording_id=None, mb_target_mbid=None):
     """Appends one JSONL entry to MB_CANDIDATE_LOG. Never raises -- a
-    logging failure must never break a real commit."""
+    logging failure must never break a real commit.
+
+    mb_recording_id/mb_target_mbid let a future MB contribution tool
+    build a real seeded /recording/{id}/edit URL (confirmed live
+    2026-07-09 -- see project_mb_contribution_tool memory) without
+    needing to re-derive them after the fact. Both are None for sources
+    that never had them available (a free-text name with no MB artist
+    match, an album-scoped credit with no single recording target) --
+    that's expected, not an error; the MB contribution tool's own job is
+    to do a live artist-name-search fallback for the missing mbid case."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "mf_id": mf_id, "artist": artist, "album": album,
@@ -417,6 +501,7 @@ def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation
         "relation_type": relation_type, "role": role,
         "provenance": provenance, "confidence": confidence,
         "evidence_scope": evidence_scope, "evidence_detail": evidence_detail,
+        "mb_recording_id": mb_recording_id, "mb_target_mbid": mb_target_mbid,
     }
     try:
         MB_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -457,11 +542,13 @@ def _commit():
     )
     mb_known = {(r['target_id'], r['relation_type']) for r in mb_rows} if mb_rows else set()
 
-    def _maybe_log_candidate(name, tid, relation_type, role, provenance, confidence, evidence_scope, evidence_detail):
+    def _maybe_log_candidate(name, tid, relation_type, role, provenance, confidence, evidence_scope, evidence_detail,
+                              mb_recording_id=None, mb_target_mbid=None):
         if provenance != "MusicBrainz" and (tid, relation_type) not in mb_known:
             _log_mb_correction_candidate(
                 mf_id, artist, album, name, tid, relation_type, role,
-                provenance, confidence, evidence_scope, evidence_detail
+                provenance, confidence, evidence_scope, evidence_detail,
+                mb_recording_id, mb_target_mbid,
             )
 
     for p in personnel:
@@ -484,7 +571,10 @@ def _commit():
                 confidence=confidence, provenance=provenance,
                 evidence_scope=evidence_scope, evidence_detail=evidence_detail,
             )
-            _maybe_log_candidate(name, tid, p['relation_type'], role, provenance, confidence, evidence_scope, evidence_detail)
+            _maybe_log_candidate(
+                name, tid, p['relation_type'], role, provenance, confidence, evidence_scope, evidence_detail,
+                mb_recording_id=p.get('mb_recording_id'), mb_target_mbid=p.get('mb_target_mbid'),
+            )
             count += 1
         else:
             role_string = (p.get('role') or '').strip()
