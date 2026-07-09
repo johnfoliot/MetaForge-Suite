@@ -231,7 +231,7 @@ def _orchestrate_tagger_batch(data, env_path):
 }
 </style>
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
-    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Beginning acoustic analysis of the recording.<br> The first track may take a little longer to appear while identification and forensic tagging get underway...
+    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
     # Recursive -- a box set's tracks live inside "CD 1"/"CD 2" subfolders
@@ -249,7 +249,7 @@ def _orchestrate_tagger_batch(data, env_path):
     
     for idx, f_path in enumerate(files, 1):
         progress = int(40 + ((idx / total_files) * 45))
-        track_prefix = f'Tagging Track {idx}/{total_files}'
+        track_prefix = f'Processing Track {idx}/{total_files}'
 
         # Per-track processing routinely takes ~20s once MB/Discogs/Wikipedia/
         # AI calls are involved -- without an interim label for each phase,

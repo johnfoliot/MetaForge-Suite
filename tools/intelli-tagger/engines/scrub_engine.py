@@ -44,7 +44,7 @@ def scrub_tags(root_path):
     Executes surgical sanitation on all .mp3 files.
     Purges legacy data while protecting the MetaForge forensic whitelist.
     """
-    files = list(root_path.glob("*.mp3"))
+    files = list(root_path.glob("**/*.mp3"))
     if not files:
         return
 

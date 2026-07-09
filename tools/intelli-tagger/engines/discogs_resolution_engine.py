@@ -201,11 +201,14 @@ def get_master_year(master_id: str) -> Optional[str]:
     return None
 
 
-def build_track_date_map(notes_text: str, track_count: int) -> Dict[int, str]:
+def build_track_date_map(notes_text: str, track_count: int) -> Dict[int, Dict[str, str]]:
     """
-    Parses Discogs notes text into a {track_number: year} mapping via
-    the AI extraction tier (ai_engine.extract_track_dates_from_notes).
-    Returns an empty dict on any failure -- never raises.
+    Parses Discogs notes text into a {track_number: {"year": ..., "date_type":
+    "released"|"recorded"|"unclear"}} mapping via the AI extraction tier
+    (ai_engine.extract_track_dates_from_notes) -- NOT a bare year string,
+    since a recording/session date and a true release date are different
+    facts the notes may or may not distinguish (see that function's own
+    docstring). Returns an empty dict on any failure -- never raises.
     """
 
     try:
@@ -226,9 +229,11 @@ def resolve_album_track_dates(artist: str, album: str, year_cache: Dict[str, Any
     - discogs_master_year: Discogs' own canonical master-release year,
       an album-wide fallback that works for any ordinary album (even one
       whose specific release notes have no date-breakdown text at all).
-    - discogs_track_map: per-track years parsed from a specific release's
-      notes, for chronological-compilation-style releases needing finer
-      granularity than the master year alone provides.
+    - discogs_track_map: per-track {year, date_type} parsed from a specific
+      release's notes, for chronological-compilation-style releases
+      needing finer granularity than the master year alone provides.
+      date_type distinguishes a confirmed release date from a recording/
+      session date used as a fallback proxy -- see build_track_date_map.
     - discogs_extraartists: Personnel Engine v2's free-riding manifest
       pre-seed (album- and track-level credits) -- reads the SAME release
       JSON already fetched for discogs_track_map above (one fetch, kept in

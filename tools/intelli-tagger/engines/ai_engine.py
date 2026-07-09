@@ -268,19 +268,62 @@ def resolve_personnel_ai(artist, album):
     """
     Returns a list of {"name": str, "role": str} candidates, or an empty
     list if nothing could be grounded. Never raises.
+
+    Prompt structure fixed 2026-07-09 -- same bug class as
+    resolve_original_year_ai(), confirmed live against a real failing
+    case (Clancy Eccles' "Feel The Rythm", found via John's own manual
+    search in seconds while this function returned nothing). The old
+    prompt demanded a rigid "Name - Role" list as the ENTIRE response,
+    which produced a perfectly-formatted but completely UNGROUNDED
+    15-person list -- grounding_chunks was empty, no real search ever
+    happened, the model just answered from trained recall. Our own
+    "never trust ungrounded recall" check correctly rejected it, but the
+    underlying prompt was the actual problem. Asking for natural-language
+    reasoning FIRST, with a clearly delimited "CREDITS:" section only at
+    the end, reliably triggers real tool use. Parsing is scoped to ONLY
+    the text after "CREDITS:" rather than every line of the response --
+    the narrative section can legitimately contain a stray " - " (e.g. a
+    date range) that would otherwise risk being misparsed as a name/role
+    pair.
+
+    Second fix, same day, John's own catch: once grounding was reliably
+    happening, a real result STILL came back inconsistent from one call
+    to the next on the exact same album -- one run surfaced the full
+    backing band (bassist, drummer, guitarists, etc.), the next two runs
+    found only production/engineering credits with zero performers, even
+    though the actual band is real and well-documented. That's thin in
+    the sense that actually matters for MetaForge's Personnel Bridge use
+    case (a session musician's own performance credits), even when the
+    raw credit COUNT looks rich. Explicitly calling out backing/session
+    musicians as their own required search, not just one item in a flat
+    list, made this reliable: live-tested 3-for-3 (vs. 1-for-3 with the
+    old flat-list prompt) on the identical failing case, with richer
+    detail each time (percussion, backing vocals, horn sections).
     """
 
-    prompt = f"""Search the web to find the personnel and credits (musicians,
-producer, engineer, arranger, songwriter, etc.) for the album "{album}" by
-{artist}.
+    prompt = f"""Search the web to find out who performed on and contributed to
+the album "{album}" by {artist}.
 
-List each person and their role clearly in your answer, one per line, in
-this exact format:
-Name - Role
+Two categories matter equally here, and the second is often harder to find
+but just as important -- make a deliberate, separate search for it if your
+first search does not surface it:
+1. Production/technical credits: producers, engineers, songwriters.
+2. The actual BACKING BAND / SESSION MUSICIANS who played the instruments
+   and sang on the recordings -- bassist, guitarist(s), drummer, keyboard/
+   organ player, horn players, backing vocalists, etc. For recordings from
+   labels/eras with a well-documented house band (session musicians shared
+   across many recordings on the same label), search specifically for the
+   backing band/session musicians by name, not just the credited producer/
+   artist.
 
-If you cannot find real, sourced credit information via search, respond
-with exactly the word UNKNOWN and nothing else. NEVER guess or fabricate
-a name or role with no basis.
+Describe what you find in natural language, citing where the information
+came from.
+
+Then, end your response with a section that starts with exactly the line
+CREDITS: followed by one line per person in the format Name - Role.
+
+If your search genuinely finds nothing, end with CREDITS: UNKNOWN instead.
+NEVER guess or fabricate a name or role with no basis.
 """
 
     try:
@@ -303,11 +346,16 @@ a name or role with no basis.
         if not chunks:
             return []
 
-        if "UNKNOWN" in text.upper() and len(text.strip()) < 20:
+        credits_section = text.split("CREDITS:", 1)
+        if len(credits_section) < 2:
+            return []
+        credits_text = credits_section[1]
+
+        if "UNKNOWN" in credits_text.upper() and len(credits_text.strip()) < 20:
             return []
 
         results = []
-        for line in text.split("\n"):
+        for line in credits_text.split("\n"):
             # Non-greedy .{2,60}? for the name, NOT a [^-] exclusion --
             # a hyphenated entity name (e.g. "The Schuster-Longstreet
             # Company") is legitimate and must not be rejected just
@@ -341,25 +389,55 @@ a name or role with no basis.
 
 
 def extract_track_dates_from_notes(notes_text, track_count):
+    """
+    Returns {track_num: {"year": "YYYY", "date_type": "released"|
+    "recorded"|"unclear"}} -- NOT a bare year. `original_year`/TORY is
+    defined as the true original RELEASE year (see the IPM design doc's
+    "Bimodal Rigor: NEVER use TYER" rule), but Discogs liner notes just as
+    often describe recording/session dates ("Recorded at Universal
+    Recorders... February 24, 1950") as release dates, and the two are
+    genuinely different facts -- a session doesn't guarantee a release
+    happened the same year, even though in practice (physical singles
+    era) the gap is usually small. Confirmed live 2026-07-09 (John) the
+    prior prompt conflated them by literally asking for "recorded/first
+    released" as one interchangeable concept -- this fixes that at the
+    source rather than presenting a recording date as if it were a
+    confirmed release date. `date_type` lets every downstream consumer
+    (confidence scoring, the correction-candidate evidence log, MB
+    submission edit notes) be honest about which one it actually got,
+    instead of asserting more certainty than the source text supports.
+    """
 
     prompt = f"""The following is the raw "notes" text from a Discogs
 release page for an album with {track_count} tracks (numbered 1 to
-{track_count}). It may describe recording/session dates for individual
-tracks or ranges of tracks (e.g. "Tracks 1 to 3: New York City, 26
-December 1939").
+{track_count}). It may describe recording/session dates AND/OR release
+dates for individual tracks or ranges of tracks (e.g. "Tracks 1 to 3:
+recorded New York City, 26 December 1939" describes a RECORDING date;
+"Tracks 1 to 3 released as a single, January 1940" describes a RELEASE
+date -- these are different facts, do not treat them as the same thing).
 
 Notes text:
 {notes_text}
 
 Return ONLY valid JSON: an object whose keys are track number strings
-("1" through "{track_count}") and whose values are either a 4-digit year
-string (the year that specific track was recorded/first released,
-according to the notes) or null if the notes don't give enough
-information to confidently determine that track's date.
+("1" through "{track_count}") and whose values are each an object with:
+- "year": a 4-digit year string, or null if the notes don't give enough
+  information to confidently determine that track's date.
+- "date_type": one of "released" (the notes explicitly describe when
+  this was issued/released to the public), "recorded" (the notes only
+  describe a recording/session date, no release date is mentioned), or
+  "unclear" (the notes give a year but don't make clear which kind of
+  date it is).
 
-Every track number from 1 to {track_count} MUST appear as a key. Do NOT
-guess or fabricate a year for a track the notes don't cover -- use null.
-Do NOT include any track numbers outside 1 to {track_count}.
+If a track's notes mention BOTH a recording date and a release date,
+use the RELEASE date and set date_type to "released" -- release date is
+what matters here, recording date is only a fallback when that's all
+the notes provide.
+
+Every track number from 1 to {track_count} MUST appear as a key, with
+"year": null and "date_type": "unclear" if the notes don't cover it. Do
+NOT guess or fabricate a year for a track the notes don't cover. Do NOT
+include any track numbers outside 1 to {track_count}.
 """
 
     try:
@@ -382,8 +460,12 @@ Do NOT include any track numbers outside 1 to {track_count}.
                 continue
             if not (1 <= track_num <= track_count):
                 continue
-            if v and str(v).isdigit() and len(str(v)) == 4:
-                result[track_num] = str(v)
+            if not isinstance(v, dict):
+                continue
+            year = v.get("year")
+            date_type = v.get("date_type") if v.get("date_type") in ("released", "recorded", "unclear") else "unclear"
+            if year and str(year).isdigit() and len(str(year)) == 4:
+                result[track_num] = {"year": str(year), "date_type": date_type}
 
         return result
 

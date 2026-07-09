@@ -50,6 +50,15 @@ CONF_MB_RECORDING = 100
 CONF_MB_RECORDING_DIFFERING_TENTATIVE = 70
 CONF_DISCOGS_CORROBORATED = 95
 CONF_DISCOGS = 90
+# Notes explicitly describing a RECORDING/session date, with no release
+# date mentioned at all, are weaker evidence for TORY (original RELEASE
+# year) than an explicit release-date statement -- the two are genuinely
+# different facts (see ai_engine.extract_track_dates_from_notes). Kept
+# deliberately close to CONF_DISCOGS rather than far below it: in
+# practice the recording-to-release gap for physical singles-era
+# pressings is usually small (John, 2026-07-09), so this is an honest
+# confidence penalty, not a signal to distrust the value outright.
+CONF_DISCOGS_RECORDING_DATE_PROXY = 80
 CONF_MB_RELEASE_GROUP = 75
 CONF_MB_RELEASE_GROUP_DIFFERING_TENTATIVE = 62
 CONF_WIKIPEDIA = 65
@@ -290,7 +299,9 @@ def resolve_original_year(
         import discogs_resolution_engine
 
         discogs_resolution_engine.resolve_album_track_dates(artist, album, year_cache)
-        track_year = year_cache.get("discogs_track_map", {}).get(track_number)
+        track_year_entry = year_cache.get("discogs_track_map", {}).get(track_number)
+        track_year = track_year_entry.get("year") if track_year_entry else None
+        track_date_type = track_year_entry.get("date_type") if track_year_entry else None
         master_year = year_cache.get("discogs_master_year")
 
         # A compilation's Discogs "master year" is when the compilation
@@ -306,14 +317,15 @@ def resolve_original_year(
         if is_compilation:
             master_year = None
 
+        discogs_used_track_year = False
         if track_year and master_year and str(track_year) != str(master_year):
             if (_is_plausible_year(track_year) and _is_plausible_year(master_year)
                     and int(master_year) < int(track_year)):
                 discogs_year, discogs_source_label = master_year, SRC_DISCOGS_MASTER
             else:
-                discogs_year, discogs_source_label = track_year, SRC_DISCOGS
+                discogs_year, discogs_source_label, discogs_used_track_year = track_year, SRC_DISCOGS, True
         elif track_year:
-            discogs_year, discogs_source_label = track_year, SRC_DISCOGS
+            discogs_year, discogs_source_label, discogs_used_track_year = track_year, SRC_DISCOGS, True
         elif master_year:
             discogs_year, discogs_source_label = master_year, SRC_DISCOGS_MASTER
         else:
@@ -321,10 +333,28 @@ def resolve_original_year(
 
         if discogs_year:
             discogs_evidence = year_cache.get("discogs_evidence")
+            # Master-year comes from Discogs' own structured "year" field
+            # (no free-text ambiguity), always full confidence. Track-year
+            # comes from AI-parsed notes text, which may only describe a
+            # recording/session date rather than a confirmed release date
+            # -- see CONF_DISCOGS_RECORDING_DATE_PROXY's own comment. The
+            # per-track date_type is copied into a fresh evidence dict
+            # (never mutating the shared album-level year_cache entry,
+            # which gets reused across every track in this album) so
+            # downstream consumers (the correction-candidate log, MB
+            # submission edit notes) can be honest about which kind of
+            # date this actually is.
+            discogs_conf = CONF_DISCOGS
+            if discogs_used_track_year:
+                if discogs_evidence:
+                    discogs_evidence = dict(discogs_evidence)
+                    discogs_evidence["date_type"] = track_date_type
+                if track_date_type != "released":
+                    discogs_conf = CONF_DISCOGS_RECORDING_DATE_PROXY
             if tentative is None:
-                return _result(discogs_year, CONF_DISCOGS, discogs_source_label, 0, discogs_evidence)
+                return _result(discogs_year, discogs_conf, discogs_source_label, 0, discogs_evidence)
             result, is_final = _consider_against_tentative(
-                tentative, discogs_year, CONF_DISCOGS, discogs_source_label,
+                tentative, discogs_year, discogs_conf, discogs_source_label,
                 CONF_DISCOGS_CORROBORATED, SRC_DISCOGS_CORROBORATED,
                 candidate_evidence=discogs_evidence,
             )

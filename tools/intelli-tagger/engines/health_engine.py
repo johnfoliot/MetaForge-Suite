@@ -26,7 +26,7 @@ def check_health(root_path):
     # Ensure remediation directory exists
     REPAIR_DIR.mkdir(parents=True, exist_ok=True)
 
-    target_files = list(root_path.glob("*.mp3"))
+    target_files = list(root_path.glob("**/*.mp3"))
     if not target_files:
         yield '<div class="it-log-entry it-val-error" style="margin-left:1rem;">⚠️ No .mp3 files found in target directory.</div>'
         return
