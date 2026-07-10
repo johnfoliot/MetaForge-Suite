@@ -264,63 +264,162 @@ sounding year with no basis.
 # =========================================================
 
 
-def resolve_personnel_ai(artist, album):
+def _credit_name_is_grounded(name, grounded_text):
     """
-    Returns a list of {"name": str, "role": str} candidates, or an empty
-    list if nothing could be grounded. Never raises.
+    Defense-in-depth check for a [confirmed]-tagged credit, added
+    2026-07-10. NOT a guarantee the specific track/role claim attached to
+    this name is what a real search backed -- just that the name itself
+    isn't conjured from nowhere despite the model tagging it [confirmed].
+    This is the exact gap that let a real hallucination through: an
+    earlier prompt version produced "Lee \"Scratch\" Perry" as a
+    [confirmed] backing-vocals credit on a track where 12 genuine grounded
+    searches had run, yet the name never appeared in a single grounded
+    span -- the model's own self-reported tag was simply wrong, the same
+    over-trust bug class already found and fixed once before for
+    resolve_original_year_ai()'s self-reported "resolved: true" flag.
+
+    Checks the full (quote-stripped) name first, then falls back to just
+    the last word (typically a surname, >2 chars to avoid noise) so a
+    minor formatting difference between the CREDITS line and the
+    narrative text (e.g. "Ernest Ranglin" vs. a Sources sentence that
+    just says "Ranglin") doesn't cause a false downgrade of a credit that
+    really is grounded.
+    """
+    if not name or not grounded_text:
+        return False
+    cleaned = re.sub(r"[\"'“”]", "", name).strip()
+    grounded_lower = grounded_text.lower()
+    if cleaned.lower() in grounded_lower:
+        return True
+    words = cleaned.split()
+    last_word = words[-1] if words else ""
+    return len(last_word) > 2 and last_word.lower() in grounded_lower
+
+
+def resolve_personnel_ai(artist, album, label=None, catalog_number=None):
+    """
+    Returns a list of {"name", "role", "sources", "evidence_scope",
+    "evidence_detail", "ai_confirmed"} candidates, or an empty list if
+    nothing could be grounded. Never raises.
+
+    label/catalog_number are optional, MB-sourced confirmed release
+    identity (see musicbrainz_id.py's get_release_details -- the release
+    the user already picked from a scored candidate list, not a guess).
+    Used to disambiguate the search when given; the function works fine
+    without them, just with less certainty about which exact release the
+    model's search actually describes.
 
     Prompt structure fixed 2026-07-09 -- same bug class as
-    resolve_original_year_ai(), confirmed live against a real failing
-    case (Clancy Eccles' "Feel The Rythm", found via John's own manual
-    search in seconds while this function returned nothing). The old
-    prompt demanded a rigid "Name - Role" list as the ENTIRE response,
-    which produced a perfectly-formatted but completely UNGROUNDED
-    15-person list -- grounding_chunks was empty, no real search ever
-    happened, the model just answered from trained recall. Our own
-    "never trust ungrounded recall" check correctly rejected it, but the
-    underlying prompt was the actual problem. Asking for natural-language
-    reasoning FIRST, with a clearly delimited "CREDITS:" section only at
-    the end, reliably triggers real tool use. Parsing is scoped to ONLY
-    the text after "CREDITS:" rather than every line of the response --
-    the narrative section can legitimately contain a stray " - " (e.g. a
-    date range) that would otherwise risk being misparsed as a name/role
-    pair.
+    resolve_original_year_ai(): a rigid "entire response must be a
+    Name - Role list" instruction measurably suppresses real grounded
+    search in this SDK/model combination (confirmed live: produced a
+    perfectly-formatted but completely UNGROUNDED list, grounding_chunks
+    empty). Fixed by asking for natural-language reasoning FIRST, with a
+    "CREDITS:" section only at the end -- reliably triggers real tool
+    use. Second fix, same day: raw credit COUNT looked "thin-safe" even
+    when every credit was production/engineering and zero were
+    performers -- fixed by explicitly requiring backing/session
+    musicians as their own required search, not one item in a flat list.
 
-    Second fix, same day, John's own catch: once grounding was reliably
-    happening, a real result STILL came back inconsistent from one call
-    to the next on the exact same album -- one run surfaced the full
-    backing band (bassist, drummer, guitarists, etc.), the next two runs
-    found only production/engineering credits with zero performers, even
-    though the actual band is real and well-documented. That's thin in
-    the sense that actually matters for MetaForge's Personnel Bridge use
-    case (a session musician's own performance credits), even when the
-    raw credit COUNT looks rich. Explicitly calling out backing/session
-    musicians as their own required search, not just one item in a flat
-    list, made this reliable: live-tested 3-for-3 (vs. 1-for-3 with the
-    old flat-list prompt) on the identical failing case, with richer
-    detail each time (percussion, backing vocals, horn sections).
+    Rebuilt 2026-07-10 after a real, validated failure found via a live
+    A/B/C comparison (Gemini flat-list vs. Gemini track-by-track vs.
+    Claude web_search, same album -- see project_personnel_engine_v2
+    memory for the full writeup). Concrete finding: the OLD flat-list
+    prompt confidently blended a real, track-specific credit with an
+    unconfirmed house-band guess on ONE line, and separately produced a
+    name unsupported by any other source or method used in the same test
+    -- a probable hallucination the old prompt let straight through. The
+    new prompt requires every credit be explicitly tagged CONFIRMED (a
+    source ties it to that specific track) or INFERRED (general/era/
+    house-band knowledge, not track-verified) -- never presented at the
+    same confidence -- and explicitly instructs the model to identify a
+    compilation's ORIGINAL constituent release(s) as additional search
+    targets.
+
+    Rebuilt AGAIN same day, two further fixes from a direct A/B test of
+    that prompt against a leaner candidate closer to John's own manually-
+    successful phrasing ("give me an accurate, track-by-track personnel
+    list"):
+
+    1. Prompt trimmed toward the lean version's structure (the itemized
+       "two categories" list and the separate release-confirmation
+       paragraph collapsed into one line each) -- but the CONFIRMED/
+       INFERRED definitions were kept at the ORIGINAL, more detailed
+       wording verbatim (naming concrete evidence types: liner notes, a
+       discography entry keyed to track/session, a review naming the
+       specific performance). A/B test showed the lean version's vaguer
+       one-line definition ("a source ties it directly to that track")
+       let a [confirmed] tag slip onto a name ("Lee \"Scratch\" Perry")
+       that the heavier prompt's version correctly excluded -- length
+       wasn't the load-bearing variable, definition specificity was.
+       Confirmed harmless to trim elsewhere: the lean version's broad
+       [inferred] coverage repeating the same house-band list across many
+       tracks looked templated at first glance but John spot-checked it
+       and confirmed the underlying claim (the same five people really
+       were the documented house band for most of this release) --
+       repetition of a TRUE inferred fact isn't a flaw, it's just what an
+       honest answer looks like when the underlying reality doesn't vary
+       track to track.
+    2. _credit_name_is_grounded() added as a second, independent check on
+       top of the model's own [confirmed] tag -- see its own docstring.
+       The old code only checked `grounding_chunks` (did ANY real search
+       happen this turn, aggregate/binary) which the Perry-hallucinating
+       response passed easily (12 real searches ran); nothing checked
+       whether that SPECIFIC name was backed by any of them. Confirmed
+       live via `grounding_supports` (a real, populated field pinning
+       spans of the model's own text to the chunks that back them) that
+       genuinely grounded names ("Ranglin", "Jackie Jackson") DO appear
+       in that text, giving a real, non-hypothetical signal to check
+       against rather than trusting the model's self-report alone.
     """
 
-    prompt = f"""Search the web to find out who performed on and contributed to
-the album "{album}" by {artist}.
+    release_id_bits = [b for b in [
+        f'label "{label}"' if label else None,
+        f'catalog number "{catalog_number}"' if catalog_number else None,
+    ] if b]
+    release_id_line = (
+        f'The specific release I\'m asking about is identified by '
+        f'{" and ".join(release_id_bits)} -- this is confirmed data, use '
+        f'it to make sure you have the right release, not a same-titled '
+        f'reissue or compilation on a different label.\n\n'
+        if release_id_bits else ""
+    )
 
-Two categories matter equally here, and the second is often harder to find
-but just as important -- make a deliberate, separate search for it if your
-first search does not surface it:
-1. Production/technical credits: producers, engineers, songwriters.
-2. The actual BACKING BAND / SESSION MUSICIANS who played the instruments
-   and sang on the recordings -- bassist, guitarist(s), drummer, keyboard/
-   organ player, horn players, backing vocalists, etc. For recordings from
-   labels/eras with a well-documented house band (session musicians shared
-   across many recordings on the same label), search specifically for the
-   backing band/session musicians by name, not just the credited producer/
-   artist.
+    prompt = f"""Who performed on and contributed to the album "{album}" by {artist}? Give me
+an accurate, track-by-track personnel list.
 
-Describe what you find in natural language, citing where the information
-came from.
+{release_id_line}Include both production/technical credits (producer, engineer, songwriter)
+and the backing band/session musicians who actually played on the
+recordings -- search specifically for the session musicians if your first
+pass only turns up the credited artist/producer.
 
-Then, end your response with a section that starts with exactly the line
-CREDITS: followed by one line per person in the format Name - Role.
+If this is a compilation, also check the original release(s) each track
+first came from -- a compilation's own packaging often lacks track-level
+credits even when the original single/session release has them.
+
+For every credit, distinguish clearly between two kinds of evidence -- do
+NOT blend them into one line at the same confidence:
+  CONFIRMED: a source explicitly documents this credit for THIS SPECIFIC
+      track (liner notes, a discography entry keyed to track/session, a
+      review naming the specific performance).
+  INFERRED: documented for the release or artist generally (e.g. "the
+      house band for this label's sessions was X, Y, Z") but NOT confirmed
+      for this specific track. If you name someone only because they were
+      the general house band/era session musicians, not because a source
+      ties them to this track, this is INFERRED.
+
+Describe what you find in natural language first, citing where each piece
+of information came from.
+
+Then end your response with a section that starts with exactly the line
+CREDITS: followed by one line per credit, in this format:
+Track N: Name - Role [confirmed]
+Track N: Name - Role [inferred]
+Album: Name - Role [confirmed]
+Album: Name - Role [inferred]
+
+Use "Album:" instead of a track number for album-wide credits (producer,
+songwriter, etc.) that aren't track-specific by nature.
 
 If your search genuinely finds nothing, end with CREDITS: UNKNOWN instead.
 NEVER guess or fabricate a name or role with no basis.
@@ -346,6 +445,20 @@ NEVER guess or fabricate a name or role with no basis.
         if not chunks:
             return []
 
+        # Per-claim check (2026-07-10) -- see _credit_name_is_grounded's
+        # docstring. The chunk-presence check above only proves SOME real
+        # search happened this turn, not that any specific credit is
+        # backed by it. grounding_supports ties spans of the model's OWN
+        # generated text to the real chunks that back them -- pool all
+        # grounded span text together so each [confirmed] credit's name
+        # can be checked against genuinely search-backed text below,
+        # rather than trusting the model's self-reported tag alone.
+        supports = getattr(grounding, "grounding_supports", None) or []
+        grounded_text = " ".join(
+            seg.text for s in supports
+            if (seg := getattr(s, "segment", None)) and getattr(seg, "text", None)
+        )
+
         credits_section = text.split("CREDITS:", 1)
         if len(credits_section) < 2:
             return []
@@ -369,16 +482,39 @@ NEVER guess or fabricate a name or role with no basis.
 
         results = []
         for line in credits_text.split("\n"):
-            # Non-greedy .{2,60}? for the name, NOT a [^-] exclusion --
-            # a hyphenated entity name (e.g. "The Schuster-Longstreet
-            # Company") is legitimate and must not be rejected just
-            # because it contains a hyphen; only " - " (space-hyphen-
-            # space) is treated as the real name/role delimiter.
-            match = re.match(r"^\s*[-*]?\s*(.{2,60}?)\s+-\s+(.{2,80})\s*$", line)
+            # "Track N:" or "Album:" prefix, then the same Name - Role
+            # shape as before (non-greedy name group, " - " as the real
+            # delimiter -- a hyphenated entity name like "The Schuster-
+            # Longstreet Company" must not be rejected just for
+            # containing a hyphen). The [confirmed|inferred] tag is
+            # optional in the match -- if the model drops it, default to
+            # NOT confirmed rather than assuming the stronger claim; see
+            # module-level "never trust unlabeled as verified" rule.
+            match = re.match(
+                r"^\s*(?:Track\s*(\d+)|Album)\s*:\s*(.{2,60}?)\s+-\s+(.{2,80}?)"
+                r"\s*(?:\[\s*(confirmed|inferred)\s*\])?\s*$",
+                line, re.IGNORECASE
+            )
             if match:
-                name, role = match.group(1).strip(), match.group(2).strip()
+                track_num, name, role, tag = match.groups()
+                name, role = name.strip(), role.strip()
                 if name and role:
-                    results.append({"name": name, "role": role, "sources": sources})
+                    # Model's own tag is necessary but no longer
+                    # sufficient -- a [confirmed] claim also has to
+                    # survive the grounded-text check, or it's treated as
+                    # unconfirmed. An [inferred] tag is never upgraded by
+                    # this check (era/house-band knowledge legitimately
+                    # may not appear verbatim in any grounded span).
+                    self_reported_confirmed = (tag or "").lower() == "confirmed"
+                    ai_confirmed = self_reported_confirmed and _credit_name_is_grounded(name, grounded_text)
+                    results.append({
+                        "name": name,
+                        "role": role,
+                        "sources": sources,
+                        "evidence_scope": "track" if track_num else "album",
+                        "evidence_detail": track_num,
+                        "ai_confirmed": ai_confirmed,
+                    })
 
         return results
 

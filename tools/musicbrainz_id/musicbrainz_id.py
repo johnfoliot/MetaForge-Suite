@@ -166,7 +166,7 @@ def get_release_details():
         res = session.get(
             f"{BASE_URL}/release/{release_id}",
             params={
-                "inc": "recordings+artist-credits+release-groups+work-rels",
+                "inc": "recordings+artist-credits+release-groups+work-rels+labels",
                 "fmt": "json"
             }
         )
@@ -180,6 +180,20 @@ def get_release_details():
         rg_data = release.get("release-group", {}) or {}
         rg_first_release_date = rg_data.get("first-release-date", "")
         rg_secondary_types = rg_data.get("secondary-types", [])
+
+        # Also free in this same response (inc=labels). Unlike Discogs'
+        # equivalent label/catalog capture (discogs_evidence in
+        # discogs_resolution_engine.py, explicitly hedged as "a lead, not
+        # confirmed fact" because its release match is an unverified
+        # top-search-hit), this release_id was already picked by the user
+        # from search_musicbrainz()'s scored candidate list -- genuinely
+        # confirmed data, no hedge needed. Feeds Personnel Scout's AI Web
+        # Search tier (resolve_personnel_ai()) as release-disambiguating
+        # context. First label-info entry only, same "take the primary"
+        # convention as Discogs' labels[0].
+        label_info = (release.get("label-info") or [None])[0] or {}
+        mb_label_name = (label_info.get("label") or {}).get("name", "")
+        mb_catalog_number = label_info.get("catalog-number", "")
 
         remote_tracks = []
 
@@ -244,6 +258,8 @@ def get_release_details():
             "release_year": (release.get("date") or "Unknown")[:4],
             "release_group_first_date": rg_first_release_date,
             "release_group_secondary_types": rg_secondary_types,
+            "mb_label_name": mb_label_name,
+            "mb_catalog_number": mb_catalog_number,
             "remote_tracks": remote_tracks,
             "local_tracks": local_tracks
         })
@@ -266,6 +282,8 @@ def commit_ids_to_files(env_path):
     release_year = data.get("release_year", "Unknown")
     release_group_first_date = data.get("release_group_first_date", "")
     release_group_secondary_types = data.get("release_group_secondary_types", [])
+    mb_label_name = data.get("mb_label_name", "")
+    mb_catalog_number = data.get("mb_catalog_number", "")
 
     stats = {"success": 0, "failed": 0}
 
@@ -344,7 +362,8 @@ def commit_ids_to_files(env_path):
     if stats["success"] > 0:
         _update_manifest(
             local_path, mapping, release_year, artist_seed, album_seed,
-            release_group_first_date, release_group_secondary_types
+            release_group_first_date, release_group_secondary_types,
+            mb_label_name, mb_catalog_number
         )
 
     return jsonify({"status": "success", "summary": stats})
@@ -355,7 +374,8 @@ def commit_ids_to_files(env_path):
 # =========================================================
 def _update_manifest(
     root, mapping, year, artist_seed, album_seed,
-    release_group_first_date="", release_group_secondary_types=None
+    release_group_first_date="", release_group_secondary_types=None,
+    mb_label_name="", mb_catalog_number=""
 ):
     manifest_path = root / "manifest.json"
 
@@ -392,6 +412,8 @@ def _update_manifest(
         "release_year": year,
         "mb_release_group_first_date": release_group_first_date,
         "mb_release_group_secondary_types": release_group_secondary_types or [],
+        "mb_label_name": mb_label_name,
+        "mb_catalog_number": mb_catalog_number,
         "is_physically_synced": True,
         "synced_at": datetime.now().isoformat()
     })

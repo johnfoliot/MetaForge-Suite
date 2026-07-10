@@ -104,6 +104,7 @@ def run_logic(action, tools_dir, env_path):
         if action == "mark_personnel_handled": return _mark_personnel_handled()
         if action == "mark_track_progress": return _mark_track_progress()
         if action == "apply_track_selection": return _apply_track_selection()
+        if action == "build_bulk_personnel_seed": return _build_bulk_personnel_seed()
         return jsonify({"status": "error", "message": f"Action '{action}' unrecognized."}), 404
     except Exception:
         print(f"🔥 MusicBrainz Submit Hub Error [{action}]:\n{traceback.format_exc()}")
@@ -491,6 +492,33 @@ def _get_album_tracks(mf_id, _cache={}):
     return tracks
 
 
+def _live_edges_for_album(mf_id, _cache={}):
+    """
+    Set of (target_id, normalized role) pairs the `edges` table
+    currently, actually has for this album -- used to filter personnel
+    candidates against what MetaForge's own database still believes
+    (John, 2026-07-10, caught live: manually deleted a polluted
+    personnel list from the database before re-running Personnel Scout,
+    but MB Submit kept proposing the deleted person anyway -- confirmed
+    live, "Arkland Parks" had zero rows in `edges` but was still sitting
+    in the JSONL evidence log, since that log is append-only and nothing
+    anywhere reconciles it against DB-side deletions). A candidate whose
+    underlying fact no longer exists in the database shouldn't be
+    proposed to MusicBrainz at all -- MetaForge itself no longer
+    believes it. Cached per mf_id for the life of the process, same
+    pattern as _get_album_tracks.
+    """
+    if mf_id in _cache:
+        return _cache[mf_id]
+    rows = db_engine.execute_query(
+        "SELECT target_id, role FROM edges WHERE source_id=? AND source_type='album'",
+        (mf_id,)
+    ) or []
+    result = {(r["target_id"], (r["role"] or "").strip().lower()) for r in rows}
+    _cache[mf_id] = result
+    return result
+
+
 def _load_personnel_candidates():
     """
     Reads the append-only personnel evidence log and collapses it to one
@@ -529,6 +557,10 @@ def _load_personnel_candidates():
       MB-submission-redundant, not database-redundant. A role with any
       real detail (an instrument, "Vocals", "Producer", etc.) is NOT
       filtered here -- only the bare self-evident label itself.
+    - Anything no longer present in the `edges` table (see
+      _live_edges_for_album) -- the log is append-only evidence, not a
+      live mirror of the database; a fact deleted from the DB after
+      being logged must not still be proposed to MusicBrainz.
     """
     if not PERSONNEL_CANDIDATE_LOG.exists():
         return []
@@ -559,6 +591,9 @@ def _load_personnel_candidates():
                     and (entry.get("role") or "").strip().lower() in REDUNDANT_SELF_CREDIT_ROLES
                     and (entry.get("name") or "").strip().lower() == (entry.get("artist") or "").strip().lower()):
                 continue
+            live_pair = (entry.get("target_id"), (entry.get("role") or "").strip().lower())
+            if entry.get("mf_id") and live_pair not in _live_edges_for_album(entry["mf_id"]):
+                continue  # deleted from the database since this was logged -- don't propose it
 
             key = _candidate_key(entry)
             existing = by_key.get(key)
@@ -998,5 +1033,145 @@ def _build_personnel_seed():
         "html": seed_html,
         "title": f"MusicBrainz: {candidate.get('name')}",
         "artist_match": artist_match,
+    })
+
+
+def _evidence_to_bulk_personnel_edit_note(items):
+    """
+    items: list of (candidate, artist_match, is_album_scope_step, narrowed)
+    tuples, one per bundled relationship. Combines each person's own
+    evidence block under a name/role header (John, 2026-07-10: "if we
+    can do a 'bulk' upload all the better", after ruling out
+    MusicBrainz's release-level batch editor as unseedable -- see
+    project_mb_contribution_tool memory) so a single seeded page
+    carrying several rels.N relationships still has a clear,
+    per-fact-attributable edit note, not one blurred paragraph a future
+    MB reader can't pull apart. Reuses _personnel_evidence_paragraphs()
+    so the wording is identical to the single-relationship path, just
+    repeated once per person plus ONE shared attribution footer.
+    """
+    paragraphs = []
+    for candidate, artist_match, is_album_scope_step, narrowed in items:
+        paragraphs.append(f"--- {candidate.get('name')} ({candidate.get('role')}) ---")
+        paragraphs.extend(_personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step, narrowed))
+    paragraphs.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
+    return "\n\n".join(paragraphs)
+
+
+def _build_bulk_personnel_seed_html(items, recording_id):
+    """
+    Seeds MULTIPLE rels.N relationships into ONE Recording Edit page
+    submission instead of one relationship per page-load (John,
+    2026-07-10). Same rels.N.* naming already confirmed live for a
+    single relationship -- MB's own "Add relationship" widget on this
+    exact page lets a human add many people one at a time to the same
+    recording, so multiple indices in one seed is the same underlying
+    capability, just pre-filled instead of manually repeated N times.
+    """
+    fields = ""
+    for i, (candidate, artist_match, is_album_scope_step, narrowed) in enumerate(items):
+        link_type = RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"])
+        target_mbid = candidate.get("mb_target_mbid") or (artist_match.get("mbid") if artist_match else None)
+        fields += (
+            _seed_field(f"rels.{i}.type", link_type)
+            + _seed_field(f"rels.{i}.target", target_mbid)
+            + _seed_field(f"rels.{i}.target_credit", candidate.get("name"))
+        )
+    fields += _seed_field("edit_note", _evidence_to_bulk_personnel_edit_note(items))
+
+    edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit"
+    return f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Opening MusicBrainz...</title></head>
+<body>
+<p>Opening MusicBrainz Recording editor, pre-filled with {len(items)} credits from MetaForge Studio's evidence...</p>
+<form id="mb-seed-form" method="POST" action="{html.escape(edit_url)}">
+{fields}</form>
+<script>document.getElementById('mb-seed-form').submit();</script>
+</body>
+</html>"""
+
+
+def _build_bulk_personnel_seed():
+    """
+    Request: {keys: [candidate_key, ...], recording_id: "..."}. Every
+    key must resolve to a candidate that either already targets this
+    exact recording (track-scoped), or is an album-scoped credit
+    currently still open for this specific track (not yet present in
+    its own track_progress). Silently skips any key that doesn't
+    actually apply here rather than erroring the whole batch --
+    defensive against stale frontend state, e.g. a candidate got
+    dismissed between page load and this click.
+    """
+    data = request.json or {}
+    keys = data.get("keys") or []
+    recording_id = data.get("recording_id")
+    if not keys or not recording_id:
+        return jsonify({"status": "error", "message": "keys and recording_id are required."}), 400
+
+    candidates_by_key = {_candidate_key(c): c for c in _load_personnel_candidates()}
+    review_state = _load_personnel_review_state()
+
+    items = []
+    for key in keys:
+        candidate = candidates_by_key.get(key)
+        if not candidate:
+            continue
+        rid = candidate.get("mb_recording_id")
+        is_album_scope_step = not rid
+        if rid and rid != recording_id:
+            continue  # track-scoped for a DIFFERENT recording -- not part of this bundle
+
+        entry = review_state.get(key) or {}
+        track_progress = entry.get("track_progress", {}) or {}
+        if is_album_scope_step and recording_id in track_progress:
+            continue  # already resolved (submitted/skipped) for this specific track
+        if not is_album_scope_step and entry.get("status") in ("submitted", "dismissed"):
+            continue
+
+        narrowed = any(status == "skipped" for status in track_progress.values())
+
+        artist_match = None
+        if not candidate.get("mb_target_mbid"):
+            artist_match = _fetch_artist_by_name(candidate["name"])
+
+        items.append((candidate, artist_match, is_album_scope_step, narrowed, key))
+
+    # De-dup at the MB level, not MetaForge's (John, 2026-07-10, caught
+    # live testing: 72 credits collapsed to 46 unique targets). Two
+    # genuinely different free-text roles ("Harmonica", "Flute") can
+    # both classify to the same coarse relation_type
+    # (ASSOCIATED_WITH -> link_type 129, a catch-all with no
+    # instrument-specific attribute wired up yet) -- correct and
+    # distinct as separate facts in MetaForge's own database, but the
+    # literal same relationship if both were seeded as rels.N here.
+    # MusicBrainz itself rejects an exact duplicate ("this relationship
+    # already exists," confirmed live the same evening) -- so this has
+    # to be caught before building the seed, not left for MB to reject
+    # one arbitrarily. Keys on (link_type, resolved target identity),
+    # keeping whichever duplicate has the higher confidence; ties keep
+    # whichever was seen first.
+    best_by_target = {}
+    for candidate, artist_match, is_album_scope_step, narrowed, key in items:
+        link_type = RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"])
+        target_mbid = candidate.get("mb_target_mbid") or (artist_match.get("mbid") if artist_match else None)
+        dedup_key = (link_type, target_mbid or candidate.get("name", "").strip().lower())
+        existing = best_by_target.get(dedup_key)
+        if not existing or (candidate.get("confidence") or 0) > (existing[0].get("confidence") or 0):
+            best_by_target[dedup_key] = (candidate, artist_match, is_album_scope_step, narrowed, key)
+
+    items = [v[:4] for v in best_by_target.values()]
+    included_keys = [v[4] for v in best_by_target.values()]
+
+    if not items:
+        return jsonify({"status": "error", "message": "None of the requested credits apply to this recording."}), 400
+
+    seed_html = _build_bulk_personnel_seed_html(items, recording_id)
+    return jsonify({
+        "status": "success",
+        "html": seed_html,
+        "title": f"MusicBrainz: {len(items)} credits",
+        "count": len(items),
+        "included_keys": included_keys,
     })
 # --- END OF FILE musicbrainz_submit.py ---

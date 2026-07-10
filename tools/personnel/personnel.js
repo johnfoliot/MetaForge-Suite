@@ -254,7 +254,36 @@ window.metaforge.personnel = {
             const tr = document.createElement('tr');
             tr.style.borderBottom = "1px solid #444";
             const provenance = row.provenance || 'MetaForge (Manual)';
-            const meta = row.confidence !== undefined ? `${provenance} · conf ${row.confidence}` : provenance;
+            // Track scope was already reaching this row object (every
+            // source sets evidence_scope/evidence_detail server-side --
+            // the AI Web Search tier's 2026-07-10 rebuild in particular
+            // depends on this being visible for review, not just present
+            // in the data) but was never actually rendered -- John caught
+            // this live, testing the new confirmed/inferred prompt.
+            const scopeLabel = row.evidence_scope === 'track' && row.evidence_detail
+                ? `Track ${row.evidence_detail}`
+                : (row.evidence_scope === 'album' ? 'Album-wide' : '');
+            // Manual override control (John, 2026-07-10): only rendered
+            // for genuine AI Web Search rows -- ai_confirmed is null for
+            // MB/Discogs/Wikipedia, where the confirmed/inferred
+            // distinction doesn't apply at all, not just "unset". Lets a
+            // reviewer who independently checks an [inferred] credit
+            // (his own example: spot-verifying the Clancy Eccles house
+            // band roster) upgrade it BEFORE committing, instead of only
+            // ever accepting whatever the AI tier assigned.
+            const isAiTier = row.ai_confirmed !== null && row.ai_confirmed !== undefined;
+            const nameForLabel = (row.name || '').replace(/"/g, '&quot;');
+            const statusControl = isAiTier
+                ? `<select class="p-map-status" aria-label="Confidence status for ${nameForLabel}"
+                           style="font-size:0.6rem; background:var(--bg-main); color:var(--text-output); border:1px solid var(--bg-accent); margin-right:4px; vertical-align:middle;"
+                           onchange="window.metaforge.personnel.updateConfidenceStatus(${idx}, this.value)">
+                       <option value="confirmed" ${row.ai_confirmed ? 'selected' : ''}>Confirmed</option>
+                       <option value="inferred" ${row.ai_confirmed ? '' : 'selected'}>Inferred</option>
+                   </select>`
+                : '';
+            const meta = row.confidence !== undefined
+                ? `${statusControl}${provenance} · conf ${row.confidence}${scopeLabel ? ' · ' + scopeLabel : ''}`
+                : `${statusControl}${provenance}`;
             tr.innerHTML = `
                 <td style="padding:4px;"><input type="text" class="mb-input-text p-map-name" value="${(row.name || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'name', this.value)"></td>
                 <td style="padding:4px;">
@@ -276,6 +305,25 @@ window.metaforge.personnel = {
 
     updateMappingField: function(idx, field, value) {
         if (this.state.mapping[idx]) this.state.mapping[idx][field] = value;
+    },
+
+    updateConfidenceStatus: function(idx, value) {
+        // Manual override for an AI Web Search row's confirmed/inferred
+        // status (John, 2026-07-10). Switches to whichever exact number
+        // personnel.py's _classify_free_text_candidates already computed
+        // for that status (confirmed_confidence / inferred_confidence)
+        // rather than re-deriving AI_INFERRED_CONFIDENCE_PENALTY here --
+        // one source of truth for the value, not duplicated logic that
+        // could drift out of sync with the backend.
+        const row = this.state.mapping[idx];
+        if (!row) return;
+        const confirmed = value === 'confirmed';
+        row.ai_confirmed = confirmed;
+        const target = confirmed ? row.confirmed_confidence : row.inferred_confidence;
+        if (target !== undefined && target !== null) {
+            row.confidence = target;
+        }
+        this.renderMapping();
     },
 
     addManualRow: function() {

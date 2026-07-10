@@ -40,7 +40,7 @@ def _add_personnel():
     # piling up a duplicate -- see edge_store.py's module docstring.
     data = request.json
     mf_id = data['mf_id']
-    name = data['name']
+    name = data['name'].strip()
     role = data['role']
     provenance = data.get('provenance', 'MetaForge')
     tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()

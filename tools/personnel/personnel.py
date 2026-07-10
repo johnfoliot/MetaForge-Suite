@@ -30,6 +30,15 @@ if str(_IT_ENGINES_DIR) not in sys.path:
     sys.path.insert(0, str(_IT_ENGINES_DIR))
 from mb_resolution_engine import MBResolutionEngine  # noqa: E402
 
+# Applied when an AI Web Search credit is explicitly tagged [inferred]
+# (era/house-band knowledge, not tied to this specific track by any
+# source -- see ai_engine.resolve_personnel_ai's 2026-07-10 rebuild).
+# Keeps an inferred credit's confidence below both a genuinely
+# confirmed AI credit and Discogs' own extraartists baseline (0.9),
+# without zeroing it out -- still "useful, not gospel" per this
+# project's own guiding philosophy, just weighted honestly.
+AI_INFERRED_CONFIDENCE_PENALTY = 0.3
+
 USER_AGENT = "MetaForgeStudio/1.0 (contact: forensic-dev@metaforge.studio)"
 API_URL = "https://en.wikipedia.org/w/api.php"
 
@@ -123,6 +132,12 @@ def _resolve_waterfall():
     mb_track_map = manifest.get('mb_track_map', []) or []
     mb_preseed = manifest.get('mb_artist_rels_by_recording')  # dict or None if absent
     discogs_preseed = manifest.get('discogs_extraartists')    # dict or None if absent
+    # MB's own confirmed label/catalog (see musicbrainz_id.py's
+    # get_release_details) -- release-disambiguating context for the AI
+    # Web Search tier, sourced from a release the user already picked
+    # from a scored candidate list, not a blind top-hit guess.
+    mb_label_name = manifest.get('mb_label_name') or None
+    mb_catalog_number = manifest.get('mb_catalog_number') or None
 
     all_edges = []
 
@@ -169,7 +184,9 @@ def _resolve_waterfall():
 
     ai_edges = []
     if thin and artist and album:
-        ai_edges = _classify_free_text_candidates(_auto_ai_personnel(artist, album), "AI Web Search")
+        ai_edges = _classify_free_text_candidates(
+            _auto_ai_personnel(artist, album, mb_label_name, mb_catalog_number), "AI Web Search"
+        )
         # Recompute against the FINAL combined set before this leaks into
         # the response -- the value above only ever reflected MB+Discogs
         # alone (that's correct as the GATE deciding whether to bother
@@ -189,6 +206,15 @@ def _resolve_waterfall():
             "evidence_scope": e.get('evidence_scope'), "evidence_detail": e.get('evidence_detail'),
             "mb_recording_id": e.get('mb_recording_id'), "mb_target_mbid": e.get('mbid'),
             "sources": e.get('sources'),
+            # Manual-override support for the preview table (John,
+            # 2026-07-10) -- ai_confirmed is None for MB/Discogs/Wikipedia
+            # (the confirmed/inferred distinction doesn't apply to them),
+            # a real True/False for AI Web Search. confirmed_confidence/
+            # inferred_confidence are the two exact numbers a status
+            # toggle switches between; see _classify_free_text_candidates.
+            "ai_confirmed": e.get('ai_confirmed'),
+            "confirmed_confidence": e.get('confirmed_confidence'),
+            "inferred_confidence": e.get('inferred_confidence'),
         }
         for e in all_edges + ai_edges
     ]
@@ -247,6 +273,37 @@ def _classify_free_text_candidates(candidates, provenance):
     judge whether these results were actually valuable. One raw
     candidate can expand into zero (fully junk), one, or several atomic
     edges (a multi-role credit like "Producer, Photography").
+
+    Two fields added 2026-07-10 for AI Web Search candidates specifically
+    (resolve_personnel_ai() now returns them; Wikipedia's raw {name, role}
+    dicts never set these, so behavior there is unchanged):
+    - evidence_scope/evidence_detail: normalize_personnel() only detects
+      track scope from a numeric parenthetical INSIDE the role text
+      (Wikipedia's "(5, 7)" style) -- it has no way to know a plain
+      "Lead Vocals" role actually came from a "Track 5:" line in the AI
+      tier's own structured response. When the candidate itself already
+      declares a scope, trust that over normalize_personnel()'s guess.
+    - ai_confirmed: whether the AI tier's own [confirmed]/[inferred] tag
+      said this credit is tied to this specific track/release, or is
+      general era/house-band knowledge. Missing (Wikipedia, or any other
+      source) means the confirmed/inferred distinction doesn't apply at
+      all for this source -- deliberately kept as None, not defaulted to
+      True/False, so the UI can tell "not applicable" apart from a real
+      answer (see confirmed_confidence/inferred_confidence below).
+
+    confirmed_confidence/inferred_confidence added same day, for the
+    Personnel Scout UI's manual override control (John, 2026-07-10): a
+    human reviewer who independently checks an [inferred] credit and
+    decides it's actually solid (his own example -- the Clancy Eccles
+    house band roster, spot-checked and confirmed against a real source)
+    should be able to upgrade it BEFORE committing, not just accept
+    whatever confidence the AI tier assigned. Both values are only
+    computed for genuine AI-tier candidates (checked via `'ai_confirmed'
+    in c`, not truthiness -- a Wikipedia/MB/Discogs candidate never has
+    this key at all) so the frontend can render the override control only
+    where the distinction is real, and toggling between the two exact
+    numbers already computed here avoids re-deriving or duplicating
+    AI_INFERRED_CONFIDENCE_PENALTY client-side.
     """
     config = load_config()
     edges = []
@@ -256,12 +313,25 @@ def _classify_free_text_candidates(candidates, provenance):
             continue
         if is_junk_name(name, config):
             continue
+        is_ai_tier = 'ai_confirmed' in c
         for atom in normalize_personnel(role):
+            base = atom['confidence']
+            if is_ai_tier:
+                confirmed_confidence = base
+                inferred_confidence = max(0.1, base - AI_INFERRED_CONFIDENCE_PENALTY)
+                confidence = confirmed_confidence if c.get('ai_confirmed') else inferred_confidence
+            else:
+                confirmed_confidence = inferred_confidence = None
+                confidence = base
             edges.append({
                 "name": name, "role": atom['role'], "relation_type": atom['relation_type'],
-                "confidence": atom['confidence'], "provenance": provenance,
-                "evidence_scope": atom['evidence_scope'], "evidence_detail": atom['evidence_detail'],
+                "confidence": confidence, "provenance": provenance,
+                "evidence_scope": c.get('evidence_scope') or atom['evidence_scope'],
+                "evidence_detail": c.get('evidence_detail') if c.get('evidence_scope') else atom['evidence_detail'],
                 "sources": c.get('sources'),
+                "ai_confirmed": c.get('ai_confirmed') if is_ai_tier else None,
+                "confirmed_confidence": confirmed_confidence,
+                "inferred_confidence": inferred_confidence,
             })
     return edges
 
@@ -342,7 +412,7 @@ def _auto_wikipedia_personnel(artist, album):
 # TIER 4: AI WEB SEARCH (AUTOMATIC, ONLY IF STILL THIN AFTER WIKIPEDIA)
 # ==========================================================================
 
-def _auto_ai_personnel(artist, album):
+def _auto_ai_personnel(artist, album, label=None, catalog_number=None):
     """
     Automatic last-resort AI tier, mirroring the original-year waterfall's
     AI Web Search tier -- only reached when MB+Discogs+Wikipedia together
@@ -350,10 +420,14 @@ def _auto_ai_personnel(artist, album):
     ai_engine.resolve_personnel_ai's own docstring for why AllMusic is
     never named in the prompt). Never raises; returns an empty list on
     any failure.
+
+    label/catalog_number are MB's own confirmed release identity (see
+    _resolve_waterfall's manifest read) -- passed through as
+    disambiguating context, not required.
     """
     try:
         import ai_engine
-        return ai_engine.resolve_personnel_ai(artist, album)
+        return ai_engine.resolve_personnel_ai(artist, album, label, catalog_number)
     except Exception:
         return []
 

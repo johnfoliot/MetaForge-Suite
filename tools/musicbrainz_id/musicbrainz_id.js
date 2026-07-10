@@ -148,6 +148,8 @@ window.metaforge.musicbrainz_id = {
                 this.state.currentReleaseYear = data.release_year;
                 this.state.releaseGroupFirstDate = data.release_group_first_date;
                 this.state.releaseGroupSecondaryTypes = data.release_group_secondary_types;
+                this.state.mbLabelName = data.mb_label_name;
+                this.state.mbCatalogNumber = data.mb_catalog_number;
                 this.state.remoteTracks = data.remote_tracks;
                 this.state.localFiles = data.local_tracks;
                 
@@ -254,6 +256,8 @@ window.metaforge.musicbrainz_id = {
                     release_year: this.state.currentReleaseYear,
                     release_group_first_date: this.state.releaseGroupFirstDate,
                     release_group_secondary_types: this.state.releaseGroupSecondaryTypes,
+                    mb_label_name: this.state.mbLabelName,
+                    mb_catalog_number: this.state.mbCatalogNumber,
                     mapping: mapping
                 })
             });

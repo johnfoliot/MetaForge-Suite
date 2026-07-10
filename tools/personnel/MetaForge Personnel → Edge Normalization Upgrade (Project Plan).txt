@@ -1,11 +1,8 @@
-(Project Plan)
 Goal (simple version)
 
 Turn messy scraped personnel data into:
 
-consistent, reusable, IPM-ready graph edges
-
-without losing raw information.
+consistent, reusable, IPM-ready graph edges without losing raw information.
 
 PHASE 1 — DATABASE PREPARATION (do this first)
 1. Modify edges table (minimal but necessary)
@@ -46,6 +43,8 @@ WRITTEN_BY
 ASSOCIATED_WITH (fallback)
 Rule:
 NEVER expand beyond this without explicit redesign phase later
+
+
 PHASE 3 — CREATE NEW MODULE (IMPORTANT)
 Create file:
 tools/personnel/edge_normalizer.py
