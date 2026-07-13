@@ -64,9 +64,32 @@ window.metaforge.musicbrainz_submit = {
     },
 
     escapeHtml: function(str) {
-        const div = document.createElement('div');
-        div.textContent = str === null || str === undefined ? '' : String(str);
-        return div.innerHTML;
+        // Was a div.textContent/.innerHTML trick, which escapes &, <, >
+        // correctly but leaves double quotes untouched (John, 2026-07-13,
+        // real bug caught live: a name like Clifton "Jackie" Jackson,
+        // embedded raw into onclick="...('${key}')", prematurely
+        // terminates that double-quoted HTML attribute -- corrupting the
+        // button and everything after it in the markup, which is exactly
+        // why those buttons went unclickable). Explicit escaping instead,
+        // adding '"' -> '&quot;'.
+        //
+        // Deliberately does NOT also escape single quotes here -- every
+        // caller that embeds an escaped value inside a single-quoted JS
+        // string literal (onclick="...('${esc(x)}')") already handles
+        // that separately via .replace(/'/g, "\\'") on the result of
+        // this function. Escaping ' to &#39; here would decode back to a
+        // literal ' at HTML-parse time (same timing as &quot; -> "),
+        // which still needs JS backslash-escaping to be safe inside a
+        // single-quoted string -- &#39; alone wouldn't provide that, and
+        // would make the existing .replace(/'/g, ...) calls into
+        // silent no-ops (nothing left for them to find), reintroducing
+        // the same class of bug for names containing an apostrophe.
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     },
 
     // Groups a flat candidate list by (artist, album) -- MusicBrainz's
@@ -406,8 +429,20 @@ window.metaforge.musicbrainz_submit = {
         if (c.status === "dismissed" || c.status === "submitted") {
             const submittedCount = Object.values(c.track_progress || {}).filter(v => v === "submitted").length;
             const skippedCount = Object.values(c.track_progress || {}).filter(v => v === "skipped").length;
-            const summary = c.status === "dismissed" ? "Dismissed" :
-                `${submittedCount} submitted, ${skippedCount} skipped (${total}/${total} tracks reviewed)`;
+            const reviewedTracks = Object.keys(c.track_progress || {}).length;
+            // Release-wide submissions (John, 2026-07-13) mark "submitted"
+            // directly with an EMPTY track_progress -- one relationship
+            // covered the whole album, no per-track stepping happened at
+            // all. Distinct wording from the old track-by-track-completed
+            // case, which always has reviewedTracks === total.
+            let summary;
+            if (c.status === "dismissed") {
+                summary = "Dismissed";
+            } else if (reviewedTracks === 0) {
+                summary = "Submitted release-wide (one relationship covers the whole album)";
+            } else {
+                summary = `${submittedCount} submitted, ${skippedCount} skipped (${total}/${total} tracks reviewed)`;
+            }
             return `
                 <tr style="border-bottom:1px solid #333; opacity:0.55;">
                     ${identityCells}
@@ -428,6 +463,27 @@ window.metaforge.musicbrainz_submit = {
                         Album-wide credit -- Track ${stepNum} of ${total}: "${trackTitle}"
                     </div>
                     <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        ${c.release_seedable ? `
+                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto;"
+                                onclick="window.metaforge.musicbrainz_submit.openReleaseRelationshipInMusicBrainz('${key}')"
+                                title="Submits ONE relationship attached to the whole release, instead of stepping through every track">
+                            Submit Release-Wide
+                        </button>
+                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
+                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'submitted')"
+                                title="Only click this after you've personally confirmed the release-wide edit actually went through in MusicBrainz -- this does not check for you">
+                            Mark Release Submitted
+                        </button>
+                        ` : `
+                        <!-- Per-track stepper (John, 2026-07-13): only shown when
+                             release_seedable is false -- this credit's relation
+                             type/role has no confirmed release-level MB mapping
+                             yet, so per-track submission is the only path. When
+                             release-wide IS available, these are pure redundant
+                             clutter offering a strictly worse option alongside
+                             the better one -- "too many buttons to be clear on
+                             what is happening," his own words, real UX fix, not
+                             deleted functionality. -->
                         <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
                                 onclick="window.metaforge.musicbrainz_submit.openTrackSelectionModal('${key}')">
                             Select Tracks
@@ -444,6 +500,7 @@ window.metaforge.musicbrainz_submit = {
                                 onclick="window.metaforge.musicbrainz_submit.markTrackProgress('${key}', '${trackId}', 'skipped')">
                             Skip Track
                         </button>
+                        `}
                         <button class="mf-btn-danger" style="font-size:0.75rem; padding:4px 8px;"
                                 onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'dismissed')">
                             Dismiss Remaining
@@ -495,6 +552,71 @@ window.metaforge.musicbrainz_submit = {
             }
         } catch (e) {
             this.updateStatus("Network error building submission.", "error");
+        }
+    },
+
+    // Release-level relationship path (John, 2026-07-13) -- one MB
+    // submission covering the whole album instead of stepping through
+    // every track. Only shown when the backend confirms this credit's
+    // relation_type has a known release-scoped MB relationship type
+    // (c.release_seedable, see musicbrainz_submit.py's
+    // RELEASE_ARTIST_LINK_TYPES). This opens a REAL navigation to
+    // MusicBrainz's own live page and drives its "Add relationship"
+    // dialog via injected JS -- genuinely more fragile than the seeded
+    // static pages elsewhere in this tool, since it's automating a page
+    // MetaForge doesn't control. If MusicBrainz ever changes that page's
+    // markup, the script's own alert() fallback tells the user to finish
+    // adding the relationship by hand rather than failing silently.
+    openReleaseRelationshipInMusicBrainz: async function(key) {
+        this.updateStatus("Opening MusicBrainz release page...", "success");
+        try {
+            const seedRes = await fetch('/run_tool_logic/musicbrainz_submit/build_release_relationship_seed', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: key })
+            });
+            const seedData = await seedRes.json();
+            if (seedData.status !== "success") {
+                this.updateStatus(seedData.message || "Failed to build release-level submission.", "error");
+                return;
+            }
+
+            const openRes = await fetch('/open_mb_relationship_seed_window', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: seedData.title, url: seedData.url, script: seedData.script })
+            });
+            const openData = await openRes.json();
+            if (openData.status !== "success") {
+                this.updateStatus(openData.message || "Failed to open MusicBrainz window.", "error");
+                return;
+            }
+
+            // Deliberately does NOT auto-mark this candidate submitted
+            // (John, 2026-07-13 -- a real, serious bug he caught live: an
+            // earlier version of this function marked it submitted the
+            // moment the window opened, conflating "the window opened"
+            // with "the automation actually finished filling everything
+            // in and a human confirmed it." Since the automation CAN
+            // legitimately fail partway through -- an instrument search
+            // with no exact match, an artist field that didn't populate --
+            // that earlier version could silently drop a credit from the
+            // queue with NOTHING actually submitted to MusicBrainz.
+            // "We MUST default to a specific, manual 'clearing' of the
+            // screen to avoid this type of accidental drop" -- his own
+            // words. The row now stays exactly as it was; a human clicks
+            // "Mark Release Submitted" themselves once they've personally
+            // confirmed the real edit went through in the MusicBrainz
+            // window, same trust model as every other completion action
+            // in this tool.
+
+            if (seedData.artist_match) {
+                this.updateStatus(`MusicBrainz opened -- artist matched via search (score ${seedData.artist_match.score}/100) to "${seedData.artist_match.name}", please confirm this is correct before submitting.`, "success");
+            } else {
+                this.updateStatus("MusicBrainz opened -- MetaForge is filling in the relationship, review it there before clicking Enter edit.", "success");
+            }
+        } catch (e) {
+            this.updateStatus("Network error building release-level submission.", "error");
         }
     },
 

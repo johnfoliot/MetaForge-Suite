@@ -217,7 +217,7 @@ display: none;
 <section class="intelli_tagger-description" aria-labelledby="intelli_tagger-info-label">
     <h2 id="intelli_tagger-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-		<p class="data-text tool_notes">The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker.</p>
+		<p class="data-text tool_notes"><!-- The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker. --></p>
         <button class="mf-button-gold-fixed" 
                 style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
                 onclick="metaforge.intelli_tagger.openHelp()"  

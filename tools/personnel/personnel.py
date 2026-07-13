@@ -39,6 +39,56 @@ from mb_resolution_engine import MBResolutionEngine  # noqa: E402
 # project's own guiding philosophy, just weighted honestly.
 AI_INFERRED_CONFIDENCE_PENALTY = 0.3
 
+# Applied when a HUMAN manually confirms an AI Web Search credit via the
+# Personnel Scout UI's status control (John, 2026-07-11 -- real bug found
+# the prior session: the manual toggle only switched to
+# confirmed_confidence, which is classify_role()'s role-TEXT
+# classification confidence, not a fact-verification confidence -- a
+# generic role like "Backing Band" caps out at 0.5 even after a human
+# personally checked and confirmed it, which is backwards). Deliberately
+# equal to CONFIDENCE_DISCOGS (0.9), not classify_role()'s output, not
+# 1.0 -- a human who independently verified a fact is trusted at least as
+# much as Discogs' own structured editorial data, but "useful, not
+# gospel" still applies; nothing in this pipeline claims certainty.
+MANUAL_CONFIRM_CONFIDENCE = 0.9
+
+# Three-tier version of the same idea, for the "click to verify" flow
+# (John, 2026-07-11 -- see project_mb_contribution_tool memory for the
+# full Google grounding-terms finding this is downstream of). A human who
+# clicks through an AI-suggested source and looks at it doesn't always
+# find the same STRENGTH of evidence -- a direct statement tying the fact
+# to this exact track is worth more than era-general context, which is
+# worth more than a vague, uncited mention. Deliberately a SELECT with
+# short truncated labels ("Explicit"/"Inferred"/"Anecdotal"), not a free-
+# text box -- John's own call: free text adds friction that discourages
+# use by anyone but him, AND (a bonus, not the original reason) a fixed
+# set of MetaForge-authored option text can never accidentally contain
+# copy-pasted content from the source page, which a free-text box could.
+# "explicit" is deliberately the same 0.9 as MANUAL_CONFIRM_CONFIDENCE --
+# both represent the same "a human directly confirms this" judgment, just
+# reached via two different UI paths (the quick per-row dropdown vs. this
+# richer click-through-and-classify flow).
+MANUAL_VERIFICATION_TIERS = {
+    "explicit": {
+        "confidence": MANUAL_CONFIRM_CONFIDENCE,
+        "text": "This is directly confirmed by what I found",
+    },
+    "inferred": {
+        "confidence": 0.7,
+        "text": "This matches what I found, but isn't specific to this track",
+    },
+    "anecdotal": {
+        # 0.6, not the 0.5 flat "no real evidence" floor used elsewhere
+        # (see classify_role()'s fallback and Wikipedia's ASSOCIATED_WITH
+        # baseline) -- John, 2026-07-11: even a non-conclusive manual
+        # check is still slightly stronger than no human in the loop at
+        # all, so this tier deliberately sits just above that floor
+        # rather than matching it.
+        "confidence": 0.6,
+        "text": "There's some supporting mention, but no solid source",
+    },
+}
+
 USER_AGENT = "MetaForgeStudio/1.0 (contact: forensic-dev@metaforge.studio)"
 API_URL = "https://en.wikipedia.org/w/api.php"
 
@@ -215,11 +265,21 @@ def _resolve_waterfall():
             "ai_confirmed": e.get('ai_confirmed'),
             "confirmed_confidence": e.get('confirmed_confidence'),
             "inferred_confidence": e.get('inferred_confidence'),
+            "candidate_urls": e.get('candidate_urls'),
         }
         for e in all_edges + ai_edges
     ]
 
-    return jsonify({"status": "success", "candidates": candidates, "thin": thin})
+    # Sent once, top-level, rather than duplicated on every candidate --
+    # it's a fixed constant (MANUAL_CONFIRM_CONFIDENCE), not a per-row
+    # value. Lets personnel.js's manual-confirm toggle use the exact
+    # backend number instead of hardcoding a second copy that could drift
+    # out of sync (John, 2026-07-11).
+    return jsonify({
+        "status": "success", "candidates": candidates, "thin": thin,
+        "manual_confirm_confidence": MANUAL_CONFIRM_CONFIDENCE,
+        "manual_verification_tiers": MANUAL_VERIFICATION_TIERS,
+    })
 
 
 def _is_thin(edges):
@@ -332,6 +392,13 @@ def _classify_free_text_candidates(candidates, provenance):
                 "ai_confirmed": c.get('ai_confirmed') if is_ai_tier else None,
                 "confirmed_confidence": confirmed_confidence,
                 "inferred_confidence": inferred_confidence,
+                # Ephemeral per-credit source links for the "click to
+                # verify" modal (John, 2026-07-11) -- see
+                # ai_engine.py's _credit_candidate_uris. Only meaningful
+                # for AI-tier candidates; never persisted past this
+                # preview response (see MB_CANDIDATE_LOG entries above,
+                # which never include this field).
+                "candidate_urls": c.get('candidate_urls') if is_ai_tier else None,
             })
     return edges
 
@@ -558,7 +625,9 @@ def _parse_allmusic_html():
 
 def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation_type, role,
                                   provenance, confidence, evidence_scope, evidence_detail,
-                                  mb_recording_id=None, mb_target_mbid=None, sources=None):
+                                  mb_recording_id=None, mb_target_mbid=None, sources=None,
+                                  manually_reviewed=None, verification_tier=None,
+                                  verified_source_url=None):
     """Appends one JSONL entry to MB_CANDIDATE_LOG. Never raises -- a
     logging failure must never break a real commit.
 
@@ -573,10 +642,40 @@ def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation
 
     sources is the AI Web Search grounding chunks' site titles (John,
     2026-07-09, "can we 'hint' at the sources that the AI search
-    referenced?") -- carried through so the MB submission edit note can
-    name them without a URL, which he explicitly said isn't needed here.
-    Always None for MB/Discogs/manual provenance, which have no AI
-    grounding to report."""
+    referenced?") -- domain names only, never a URL (that's what
+    verified_source_url, below, is for). Always None for MB/Discogs/
+    manual provenance, which have no AI grounding to report.
+
+    manually_reviewed (2026-07-11): True/False if a human touched this
+    row's confidence status via Personnel Scout's manual override control
+    (see personnel.js's updateConfidenceStatus), None if never touched --
+    kept distinct from a bare confidence NUMBER so the MB submission tool
+    can eventually say "a human verified this" in an edit note rather
+    than just showing a higher number with no explanation of why.
+
+    verification_tier (2026-07-11): one of MANUAL_VERIFICATION_TIERS'
+    keys ("explicit"/"inferred"/"anecdotal") if this row went through the
+    "click to verify" flow (a human clicked an AI-suggested source and
+    judged the STRENGTH of what they found there), None otherwise. Kept
+    separate from manually_reviewed -- that flag covers the quick per-row
+    status dropdown, which is a binary confirm/un-confirm with no
+    strength judgment attached. A row can have manually_reviewed=True and
+    verification_tier=None (quick toggle only) or both set (toggle, then
+    later click-verified) -- never assume one implies the other.
+
+    verified_source_url (2026-07-13, John changed his mind on "titles
+    only, no URLs" once he saw a real edit note with nothing clickable in
+    it): the RESOLVED destination page's own URL, captured via
+    window.location.href inside the verify window itself after a real
+    human-driven page load -- e.g. the actual discogs.com/wikipedia.org
+    page, never Gemini's opaque grounding-chunk redirect link
+    (vertexaisearch.cloud.google.com/grounding-api-redirect/...), which
+    stays exactly as off-limits as it always was. That distinction is
+    load-bearing: a URL discovered by asking the browser "what page is
+    this" after a genuine end-user navigation isn't a component of
+    Google's Grounded Result the way the original redirect link is. Only
+    ever set when verification_tier is also set (both come from the same
+    click-to-verify submission); None for every other path."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "mf_id": mf_id, "artist": artist, "album": album,
@@ -585,7 +684,9 @@ def _log_mb_correction_candidate(mf_id, artist, album, name, target_id, relation
         "provenance": provenance, "confidence": confidence,
         "evidence_scope": evidence_scope, "evidence_detail": evidence_detail,
         "mb_recording_id": mb_recording_id, "mb_target_mbid": mb_target_mbid,
-        "sources": sources,
+        "sources": sources, "manually_reviewed": manually_reviewed,
+        "verification_tier": verification_tier,
+        "verified_source_url": verified_source_url,
     }
     try:
         MB_CANDIDATE_LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -627,12 +728,14 @@ def _commit():
     mb_known = {(r['target_id'], r['relation_type']) for r in mb_rows} if mb_rows else set()
 
     def _maybe_log_candidate(name, tid, relation_type, role, provenance, confidence, evidence_scope, evidence_detail,
-                              mb_recording_id=None, mb_target_mbid=None, sources=None):
+                              mb_recording_id=None, mb_target_mbid=None, sources=None, manually_reviewed=None,
+                              verification_tier=None, verified_source_url=None):
         if provenance != "MusicBrainz" and (tid, relation_type) not in mb_known:
             _log_mb_correction_candidate(
                 mf_id, artist, album, name, tid, relation_type, role,
                 provenance, confidence, evidence_scope, evidence_detail,
-                mb_recording_id, mb_target_mbid, sources,
+                mb_recording_id, mb_target_mbid, sources, manually_reviewed,
+                verification_tier, verified_source_url,
             )
 
     for p in personnel:
@@ -658,7 +761,9 @@ def _commit():
             _maybe_log_candidate(
                 name, tid, p['relation_type'], role, provenance, confidence, evidence_scope, evidence_detail,
                 mb_recording_id=p.get('mb_recording_id'), mb_target_mbid=p.get('mb_target_mbid'),
-                sources=p.get('sources'),
+                sources=p.get('sources'), manually_reviewed=p.get('manually_reviewed'),
+                verification_tier=p.get('verification_tier'),
+                verified_source_url=p.get('verified_source_url'),
             )
             count += 1
         else:

@@ -35,6 +35,19 @@ window.initializeMetaForgeBranding = async function() {
     } catch (e) { console.warn("Branding Boot Error"); }
 };
 
+// Suppresses the native right-click context menu on the main app shell only
+// (John, 2026-07-13). AreDefaultContextMenusEnabled had to go back on
+// app-wide to restore Ctrl+F (see ui/app.py's webview.start(debug=True))
+// -- that's a pywebview/WebView2 setting with no per-window granularity,
+// so this page-level JS listener is the only way to keep the main
+// window's own look-and-feel while still allowing the right-click menu
+// on other windows (the verify window's docked overlay in particular
+// wants it available for standard page interaction on whatever external
+// source site is loaded there). This file only ever loads in the main
+// window's shell page, never in a companion window, so scope is
+// automatic -- nothing else needs to opt in or out.
+document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+
 // --- ENGINE: MODE SWITCHER ---
 
 window.mfSwitchMode = function(mode) {

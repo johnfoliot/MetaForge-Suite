@@ -296,6 +296,56 @@ def _credit_name_is_grounded(name, grounded_text):
     return len(last_word) > 2 and last_word.lower() in grounded_lower
 
 
+def _credit_candidate_uris(name, supports, chunks):
+    """
+    Per-credit candidate source links for Personnel Scout's "click to
+    verify" flow (2026-07-11) -- NOT for persistence. See the Google
+    grounding-terms finding in project_mb_contribution_tool memory:
+    displaying a grounded link to the SAME user who ran the search, in
+    their own live session, is the one thing these terms clearly permit;
+    extracting and storing that same data for later reuse/redisplay is
+    not. Callers MUST treat this as ephemeral, frontend-only data -- never
+    write it to a database row or a log file.
+
+    Same name-matching rule as _credit_name_is_grounded (full name, then
+    a >2-char last-word fallback) but applied per grounding_supports SPAN
+    instead of one pooled string, so a matching span's own
+    grounding_chunk_indices can be resolved back to that chunk's real
+    web.uri. Deduplicated, capped at 3 -- a credit rarely needs more than
+    a couple of candidate links to check, and showing more would just be
+    clutter for the person reviewing them.
+    """
+    if not name or not supports or not chunks:
+        return []
+    cleaned = re.sub(r"[\"'“”]", "", name).strip()
+    if not cleaned:
+        return []
+    words = cleaned.split()
+    last_word = words[-1] if words else ""
+    cleaned_lower = cleaned.lower()
+    last_word_lower = last_word.lower() if len(last_word) > 2 else None
+
+    uris = []
+    for s in supports:
+        seg = getattr(s, "segment", None)
+        seg_text = getattr(seg, "text", None) if seg else None
+        if not seg_text:
+            continue
+        seg_lower = seg_text.lower()
+        if cleaned_lower not in seg_lower and not (last_word_lower and last_word_lower in seg_lower):
+            continue
+        for idx in (getattr(s, "grounding_chunk_indices", None) or []):
+            if idx is None or idx < 0 or idx >= len(chunks):
+                continue
+            web = getattr(chunks[idx], "web", None)
+            uri = getattr(web, "uri", None) if web else None
+            if uri and uri not in uris:
+                uris.append(uri)
+                if len(uris) >= 3:
+                    return uris
+    return uris
+
+
 def resolve_personnel_ai(artist, album, label=None, catalog_number=None):
     """
     Returns a list of {"name", "role", "sources", "evidence_scope",
@@ -514,6 +564,9 @@ NEVER guess or fabricate a name or role with no basis.
                         "evidence_scope": "track" if track_num else "album",
                         "evidence_detail": track_num,
                         "ai_confirmed": ai_confirmed,
+                        # Ephemeral only -- see _credit_candidate_uris'
+                        # docstring. Callers must never persist this list.
+                        "candidate_urls": _credit_candidate_uris(name, supports, chunks),
                     })
 
         return results

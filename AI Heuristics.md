@@ -27,13 +27,40 @@ This isn't a formatting instruction to the model ("please only state verified fa
 
 ## Confidence isn't uniform, even within the AI tier
 
-Not every AI-sourced fact is treated with the same confidence. For example, a person explicitly named as playing a specific instrument gets one confidence level; a person mentioned only as generally "associated with" a recording, without a clearly classifiable role, gets a lower one. A recording *session* date used as a stand-in for a *release* date is flagged as a weaker, proxy claim rather than presented as an equally strong fact. These distinctions are preserved and shown to the reviewer rather than flattened into a single "AI said so" bucket.
+Not every fact carries the same weight, and MetaForge Studio doesn't pretend otherwise. Facts from MusicBrainz's own data or Discogs' structured editorial records are treated as high-confidence by default — they're not free text the tool had to interpret.
+
+AI-sourced facts are split into two distinct tiers, and the difference is deliberate, not cosmetic:
+
+- **Confirmed** — a real source ties this specific fact to this specific track: liner notes, a discography entry keyed to that exact recording, a review naming the specific performance.
+- **Inferred** — the fact is reasonable but not track-specific. "This was the label's regular house band during this era" is real, useful context, but it isn't the same claim as a source stating that band played on *this particular* recording. Inferred facts are always shown at visibly lower confidence than confirmed ones — never blended into the same number, never presented with the certainty of a fact someone actually verified.
+
+The model's own claim to have "confirmed" something isn't taken at face value either. Before a confirmed tag is trusted, MetaForge Studio cross-checks it against the actual search results the API returned — not just whether a search happened somewhere in the response, but whether that specific name genuinely appears in real, search-backed text. A fact the model tags as confirmed but that never actually shows up in any of its own real search results is automatically treated as unconfirmed instead, regardless of what the model itself claimed. This exists because self-reported certainty and actual grounded evidence are two different things, and only the second one is trustworthy.
+
+A recording *session* date used as a stand-in for a *release* date is flagged as a weaker, proxy claim the same way, rather than presented as an equally strong fact.
+
+## How a human verifies an AI-sourced fact
+
+Before anything reaches MusicBrainz, the tool's user reviews every AI-sourced fact and can independently check it, in one of two ways.
+
+The quick way: toggling a credit between "confirmed" and "inferred" based on the user's own judgment, without leaving the review screen. This is recorded under its own distinct category — "Submitter Confirmed" — kept separate from the AI's own self-reported confidence, so a reviewer can always tell "the AI proposed this" apart from "a person looked at it before it was ever submitted."
+
+The thorough way: clicking through to one of the actual pages the AI's search surfaced, reading it directly in a live window, and recording an honest judgment of what it actually shows. This judgment is shown at one of three distinct levels, not inflated into a single flat "verified" checkbox:
+
+- **Explicit** — the page directly and specifically confirms this fact.
+- **Inferred** — the page supports the fact, but isn't specific to this exact track or release.
+- **Anecdotal** — the page offers some supporting mention, without being a solid, citable source.
+
+Whichever level applies, the resulting edit note states plainly that a human reached that judgment, not the AI, and — because this is now the user's own first-party citation, not something extracted from the AI's search results — includes the actual page they looked at as a real, clickable link.
+
+This is also why most AI-sourced facts in an edit note show only the names of the sites consulted (e.g. "discogs.com, wikipedia.org") rather than a direct link: Google's search-grounding terms don't allow MetaForge Studio to extract and redisplay the specific links its own AI search surfaced to a different audience than the person who ran the search. A human independently visiting a page and citing it themselves isn't subject to that restriction — which is exactly why a link only appears once a person, not the AI, has vouched for it.
 
 ## Album-level facts vs. track-level facts
 
 Some personnel credits are documented at the level of a specific track (a guest soloist on one song, for instance). Others are only known at the level of the whole album (e.g., "this was the session's regular backing band"). MetaForge Studio keeps that distinction rather than assuming one implies the other.
 
-When a credit is only known at the album level but MusicBrainz's own data model requires editing one specific recording at a time, MetaForge Studio is explicit about the gap in the edit note itself: it states plainly that the underlying evidence describes the *album*, that it's being applied to *this* track on the assumption it holds across the release, and asks the reviewer to confirm that's accurate for this specific track before submitting. The assumption is visible, not hidden.
+MusicBrainz itself distinguishes between these two levels of fact, and MetaForge Studio now submits accordingly. For an album-wide credit, when MusicBrainz's own data model supports attaching that specific kind of relationship directly to the release as a whole (producer, arranger, and performer credits, for instance), MetaForge Studio submits it that way — one real release-level fact, not an assumption repeated across every track. This is a more accurate representation of what's actually known, and it's what a human editor would do by hand in the same situation.
+
+For a relation type MusicBrainz doesn't yet support at the release level, or for a fact that genuinely needs to be tied to one specific recording, MetaForge Studio falls back to editing individual tracks, and is explicit about the gap in the edit note itself: it states plainly that the underlying evidence describes the *album*, that it's being applied to *this* track on the assumption it holds across the release, and asks the reviewer to confirm that's accurate for this specific track before submitting. The assumption is visible, not hidden.
 
 Before submitting, the tool's user can also review the album's full track list and explicitly exclude specific tracks a credit doesn't apply to (e.g. a single guest musician known to appear on only 2 of 16 tracks). Once any track has been excluded that way, the edit note for the remaining tracks changes accordingly — it no longer claims the credit is assumed to hold across the whole release, since that would no longer be true; instead it states that other tracks were reviewed and excluded, and this specific track was deliberately kept as one the credit is believed to apply to.
 

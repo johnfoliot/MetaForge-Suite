@@ -19,6 +19,7 @@ import requests
 import pycountry
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 from flask import jsonify, request
 from common import config_handler, db_engine
 
@@ -37,6 +38,24 @@ MB_API_USER_AGENT = "MetaForge/1.0 (musicbrainz_submit)"
 # makes sense, an MB editor now has somewhere real to verify the claims
 # instead of being asked to trust an anonymous tool).
 METAFORGE_HEURISTICS_URL = "https://github.com/johnfoliot/MetaForge-Suite/blob/main/AI%20Heuristics.md"
+
+# Third-person, permanent-record versions of the verify modal's own
+# dropdown text (John, 2026-07-13 -- same "audience fix" rule as every
+# other caveat in _personnel_evidence_paragraphs: this becomes permanent
+# MusicBrainz edit history, its real audience is a future MB editor, not
+# the submitter at the moment of clicking). Paired with a Source: URL
+# line whenever candidate.verified_source_url is present -- the resolved
+# destination page a human actually confirmed against, never Gemini's
+# opaque grounding redirect link (see personnel.py's MANUAL_VERIFICATION_TIERS
+# and project_mb_contribution_tool memory for the compliance reasoning
+# this rests on). Keys must match personnel.py's MANUAL_VERIFICATION_TIERS
+# exactly -- not re-imported from there since this tool has no dependency
+# on tools/personnel today, deliberately kept that way.
+VERIFICATION_TIER_EDIT_NOTE_TEXT = {
+    "explicit": "The submitter directly confirmed this fact against an independent source.",
+    "inferred": "The submitter found this matches independent evidence, though not specific to this exact track or release.",
+    "anecdotal": "The submitter found some supporting mention of this in an independent source, without a solid citation.",
+}
 
 # Confirmed live 2026-07-09 by inspecting the real "Add relationship"
 # autocomplete DOM on an existing recording's /edit page (not guessed,
@@ -64,6 +83,126 @@ RELATION_TYPE_TO_LINK_TYPE = {
 }
 
 UNSUPPORTED_RELATION_TYPES = {"COMPOSED", "WRITTEN_BY"}
+
+# Release-scoped artist-release relationship type IDs (John, 2026-07-13,
+# confirmed live via his own DOM capture of /release/{id}/edit-relationships'
+# "Add relationship" -> Related type: Artist dialog). A DIFFERENT numeric
+# ID table than RELATION_TYPE_TO_LINK_TYPE above -- MusicBrainz keys
+# relationship types per entity-PAIR, so the same real-world relationship
+# ("produced") has two different IDs depending on whether it's attached
+# to a Recording or a Release (confirmed: produced is 141 recording-scope,
+# 30 release-scope). Only mapped for relation types actually seen and
+# confirmed present in that dialog's real DOM -- not guessed for the rest.
+#
+# Interesting finding, flagged not acted on: that same dialog also showed
+# "wrote / writer" (54) and "composed / composer" (55) as real, direct
+# artist-release relationship types. WRITTEN_BY/COMPOSED are blocked
+# entirely at the Recording level (UNSUPPORTED_RELATION_TYPES above,
+# confirmed Work-level there) -- but might have a real release-level home
+# after all. Would need its own confirmation/decision before touching the
+# UNSUPPORTED_RELATION_TYPES filter, not done here.
+RELEASE_ARTIST_LINK_TYPES = {
+    "PRODUCED": 30,       # produced / producer
+    "PERFORMED_ON": 51,   # performed / performer
+    "ARRANGED_BY": 295,   # arranged / arranger
+}
+
+# Search term to type into the relationship-type autocomplete before
+# selecting by ID (John, 2026-07-13, live-caught bug: the UNFILTERED
+# dropdown only shows a fixed "Recent items" + "performance" category
+# preview -- "produced / producer" (30) never appeared there at all
+# except as item-30-recent, a volatile per-session ID this code
+# deliberately never relies on. Typing a query is what actually renders
+# the plain, stable item-{ID} entry, confirmed from John's own second DOM
+# capture (after he manually typed "produced").
+RELEASE_LINK_TYPE_SEARCH_TERMS = {
+    30: "produced",
+    51: "performed",
+    295: "arranged",
+}
+
+# Release-scoped "vocals" relationship type -- confirmed live in the same
+# DOM capture as RELEASE_ARTIST_LINK_TYPES above.
+RELEASE_VOCALS_LINK_TYPE = 60
+
+# Release-scoped "instruments" relationship type (John, 2026-07-13, real
+# catch mid-testing: a PERFORMED_ON credit whose role names a specific
+# instrument -- "Guitar", "Bass", "Drums" -- was being seeded as generic
+# "performed / performer" (51), throwing away information MetaForge
+# actually has. Selecting THIS type instead reveals MB's own "Instrument"
+# search field, confirmed live via John's own screenshot of the resulting
+# dialog. Matches the existing RELATION_TYPE_TO_LINK_TYPE comment from
+# 2026-07-09 flagging this exact limitation as deferred, not new scope.
+RELEASE_INSTRUMENTS_LINK_TYPE = 44
+
+
+# Generic ASSOCIATED_WITH noise that isn't a real instrument name, even
+# though it's non-empty (John, 2026-07-13). ASSOCIATED_WITH is
+# MetaForge's own lower-confidence catch-all -- real credits like "Organ"/
+# "Saxophone"/"Trumpet" land here rather than PERFORMED_ON (confirmed
+# live: this is exactly why those rows had no release-wide button at
+# all), but so do genuinely vague ones this list exists to exclude.
+GENERIC_NON_INSTRUMENT_ROLES = {
+    "backing band", "associated with", "misc", "miscellaneous",
+    "performer", "artist", "primary artist", "main artist", "lead artist",
+}
+
+
+def _release_seed_fields(relation_type, role):
+    """
+    Decides (link_type, type_search_term, instrument_search_term) for the
+    release-wide path, given BOTH the relation_type and the role text --
+    or (None, None, None) if this credit shouldn't offer that path at
+    all. Scoped to the release-wide path only for now -- the per-track
+    URL-seeding path has its own, separate limitation, not touched here.
+
+    PRODUCED/ARRANGED_BY: simple, static lookup, role text irrelevant.
+
+    PERFORMED_ON: MetaForge's own "this artist performed" classification,
+    fairly high confidence. A role naming vocals ("Vocals", "Lead
+    Vocals") -> the dedicated "vocals" type (60). Any other non-empty
+    role -> "instruments" (44), with the role text itself as the term to
+    search MB's own Instrument field for -- the automation requires an
+    EXACT (or startsWith, see the JS builder) match there, never a
+    best-guess. An EMPTY role falls back to generic "performed /
+    performer" (51) -- nothing to search for, and PERFORMED_ON's own
+    confidence still supports asserting the plain relationship.
+
+    ASSOCIATED_WITH (John, 2026-07-13, real bug caught live -- two real
+    "Organ" credits had no release-wide button at all, since this
+    relation_type wasn't in RELEASE_ARTIST_LINK_TYPES): deliberately
+    does NOT fall back to "performed/performer" the way PERFORMED_ON
+    does -- this is MetaForge's own genuinely LOWER-confidence catch-all
+    (these credits are logged at confidence 0.2, versus 0.6-0.9 for
+    PERFORMED_ON), so asserting a confident "performed on this release"
+    relationship for a vague ASSOCIATED_WITH credit would overstate what
+    MetaForge actually knows. Only offered when the role text is
+    specific enough to plausibly BE an instrument -- empty roles and
+    GENERIC_NON_INSTRUMENT_ROLES noise get (None, None, None), meaning no
+    release-wide button at all for those, same as before this change.
+    """
+    role_clean = (role or "").strip()
+    role_lower = role_clean.lower()
+
+    if relation_type in ("PRODUCED", "ARRANGED_BY"):
+        link_type = RELEASE_ARTIST_LINK_TYPES[relation_type]
+        return link_type, RELEASE_LINK_TYPE_SEARCH_TERMS[link_type], None
+
+    if relation_type == "PERFORMED_ON":
+        if not role_clean:
+            return RELEASE_ARTIST_LINK_TYPES["PERFORMED_ON"], RELEASE_LINK_TYPE_SEARCH_TERMS[51], None
+        if "vocal" in role_lower:
+            return RELEASE_VOCALS_LINK_TYPE, "vocals", None
+        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", role_clean
+
+    if relation_type == "ASSOCIATED_WITH":
+        if not role_clean or role_lower in GENERIC_NON_INSTRUMENT_ROLES:
+            return None, None, None
+        if "vocal" in role_lower:
+            return RELEASE_VOCALS_LINK_TYPE, "vocals", None
+        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", role_clean
+
+    return None, None, None
 
 
 def _fetch_primary_artist_credit(mb_recording_id):
@@ -105,6 +244,7 @@ def run_logic(action, tools_dir, env_path):
         if action == "mark_track_progress": return _mark_track_progress()
         if action == "apply_track_selection": return _apply_track_selection()
         if action == "build_bulk_personnel_seed": return _build_bulk_personnel_seed()
+        if action == "build_release_relationship_seed": return _build_release_relationship_seed()
         return jsonify({"status": "error", "message": f"Action '{action}' unrecognized."}), 404
     except Exception:
         print(f"🔥 MusicBrainz Submit Hub Error [{action}]:\n{traceback.format_exc()}")
@@ -303,6 +443,27 @@ def _seed_field(name, value):
     return f'<input type="hidden" name="{html.escape(str(name))}" value="{html.escape(str(value))}">\n'
 
 
+def _seed_query_params(pairs):
+    """
+    Builds a URL query string for the Recording relationship editor's
+    seeding mechanism (John, 2026-07-13). Switched from a POST-submitted
+    hidden-field form (_seed_field, above) after live-confirming that
+    /recording/{id}/edit only reads rels.N.*/edit_note from the URL's own
+    query string -- a POST body loaded a real, completely blank edit
+    page instead (Relationships and Edit note both empty, even though the
+    browser's own "confirm form submission" dialog correctly showed the
+    POST data being sent). This matches the ORIGINAL live-tested
+    mechanism from 2026-07-09, which used a GET query string throughout
+    -- the POST-form implementation had quietly drifted from it. Note
+    this does NOT apply to the date-correction seeding elsewhere in this
+    file (_build_seed_html, /release/add) -- that target was separately
+    confirmed to require an actual POST (see project_mb_contribution_tool
+    memory, 2026-07-09), so it's untouched. Skips None/empty values, same
+    as _seed_field.
+    """
+    return urlencode([(k, v) for k, v in pairs if v not in (None, "")])
+
+
 def _country_to_iso(name):
     """
     Discogs' `country` field is a free-text display name ("Jamaica"), but
@@ -492,6 +653,21 @@ def _get_album_tracks(mf_id, _cache={}):
     return tracks
 
 
+def _get_release_mbid(mf_id):
+    """
+    The release's own MusicBrainz ID (library_master.mb_album_id) --
+    needed to seed /release/{id}/edit-relationships (John, 2026-07-13),
+    a different target than mb_recording_id, which only identifies one
+    track. Returns None if the album was never MB-ID'd.
+    """
+    if not mf_id:
+        return None
+    res = db_engine.execute_query("SELECT mb_album_id FROM library_master WHERE mf_id=?", (mf_id,))
+    if res and res[0].get('mb_album_id'):
+        return res[0]['mb_album_id']
+    return None
+
+
 def _live_edges_for_album(mf_id, _cache={}):
     """
     Set of (target_id, normalized role) pairs the `edges` table
@@ -631,8 +807,18 @@ def _list_personnel_candidates():
         else:
             album_tracks = _get_album_tracks(c["mf_id"])
             track_progress = review.get("track_progress", {}) or {}
-            if review.get("status") == "dismissed":
-                status = "dismissed"
+            # A directly-stored "submitted"/"dismissed" status (John,
+            # 2026-07-13, real UX bug caught live) previously only
+            # honored "dismissed" here -- "submitted" fell straight
+            # through to the track_progress-based derivation below,
+            # which still read as "pending" (0 of N tracks stepped)
+            # even after mark_personnel_handled had genuinely recorded
+            # it as submitted. This is exactly what a release-wide
+            # submission needs: ONE relationship covers the whole album,
+            # so the per-track stepper has nothing left to do and
+            # shouldn't keep prompting for it.
+            if review.get("status") in ("dismissed", "submitted"):
+                status = review["status"]
             elif not album_tracks or len(track_progress) == 0:
                 status = "pending"
             elif len(track_progress) < len(album_tracks):
@@ -654,6 +840,18 @@ def _list_personnel_candidates():
             "status": status,
             "album_tracks": album_tracks,
             "track_progress": track_progress,
+            # Whether this credit has a confirmed release-level MB
+            # relationship type available (John, 2026-07-13, real bug
+            # fixed: this used to check relation_type alone against
+            # RELEASE_ARTIST_LINK_TYPES, which meant ASSOCIATED_WITH
+            # credits -- real ones like "Organ"/"Saxophone" -- never got
+            # the button at all, even though "instruments" was a genuine
+            # fit for them). Now calls the SAME dispatcher
+            # _build_release_relationship_seed() itself uses
+            # (_release_seed_fields), so this flag and the actual seed
+            # logic can never drift apart -- single source of truth,
+            # server-side, role-aware, not just relation_type-aware.
+            "release_seedable": _release_seed_fields(c.get("relation_type"), c.get("role"))[0] is not None,
         })
 
     rows.sort(key=lambda r: (r["status"] not in ("pending", "in_progress"), -(r["confidence"] or 0)))
@@ -775,7 +973,7 @@ def _fetch_artist_by_name(name):
         return None
 
 
-def _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step=False, narrowed=False):
+def _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step=False, narrowed=False, entity_label="recording"):
     """
     The per-person evidence/caveat paragraphs, WITHOUT the shared
     attribution footer -- factored out (John, 2026-07-09, "if we can do
@@ -784,15 +982,33 @@ def _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step=
     shared footer at the end, instead of duplicating this logic or
     drifting the two paths apart. See _evidence_to_personnel_edit_note
     and _evidence_to_bulk_personnel_edit_note below for the two callers.
+
+    entity_label (2026-07-13): "recording" (default, matches every
+    existing caller) or "release" -- the release-level relationship path
+    (_build_release_relationship_seed) attaches the fact to the RELEASE
+    entity itself, not any one recording, so the evidence sentence needs
+    to say so accurately rather than always claiming "this recording."
     """
     paragraphs = []
 
-    evidence_line = (f"Evidence: {candidate.get('provenance')} credits this recording to "
+    evidence_line = (f"Evidence: {candidate.get('provenance')} credits this {entity_label} to "
                       f"{candidate.get('name')} as \"{candidate.get('role')}\".")
     sources = candidate.get("sources")
     if sources:
         evidence_line += f" (sources: {', '.join(sources)})"
     paragraphs.append(evidence_line)
+
+    # Human "click to verify" judgment, when present (John, 2026-07-13) --
+    # only ever set together (see personnel.py's _log_mb_correction_candidate),
+    # so tier_text without a URL never happens in practice, but the URL is
+    # still gated on its own presence rather than assumed.
+    tier = candidate.get("verification_tier")
+    if tier in VERIFICATION_TIER_EDIT_NOTE_TEXT:
+        tier_line = VERIFICATION_TIER_EDIT_NOTE_TEXT[tier]
+        url = candidate.get("verified_source_url")
+        if url:
+            tier_line += f" Source: {url}"
+        paragraphs.append(tier_line)
 
     if is_album_scope_step and narrowed:
         paragraphs.append(
@@ -824,7 +1040,7 @@ def _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step=
     return paragraphs
 
 
-def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step=False, narrowed=False):
+def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step=False, narrowed=False, entity_label="recording"):
     """
     Now carries MetaForge Studio attribution + a link to AI Heuristics.md
     (John, 2026-07-09), same reversal applied to the date-correction edit
@@ -902,42 +1118,12 @@ def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_ste
     "not a certain match" were never actually in tension, they answer
     two different questions, and the note now says so explicitly.
     """
-    paragraphs = []
-
-    evidence_line = (f"Evidence: {candidate.get('provenance')} credits this recording to "
-                      f"{candidate.get('name')} as \"{candidate.get('role')}\".")
-    sources = candidate.get("sources")
-    if sources:
-        evidence_line += f" (sources: {', '.join(sources)})"
-    paragraphs.append(evidence_line)
-
-    if is_album_scope_step and narrowed:
-        paragraphs.append(
-            "This credit was captured at the album level; other tracks on this release have "
-            "already been reviewed and excluded for this specific credit. This track was kept as "
-            "one the credit is believed to apply to, based on available evidence."
-        )
-    elif is_album_scope_step:
-        paragraphs.append(
-            "This credit was captured at the album level using best available evidence, but not "
-            "confirmed per-track; it is applied here on the assumption it holds across the whole "
-            "release. Per-track confirmation is not possible without production notes currently "
-            "not publicly accessible to MetaForge Studio."
-        )
-
-    if candidate.get("mb_target_mbid") and not artist_match:
-        pass  # Already-known MBID, no live search needed -- no caveat required.
-    elif artist_match:
-        paragraphs.append(
-            f"Artist name search matched \"{artist_match.get('name')}\" (MusicBrainz text-match "
-            f"score {artist_match.get('score')}/100 -- this reflects how closely the NAME matched, "
-            f"not whether this is confirmed to be the same real person; MusicBrainz can have "
-            f"multiple distinct artists sharing an identical name). Not independently confirmed to "
-            f"be the correct specific artist beyond this name-text match."
-        )
-    else:
-        paragraphs.append("No confident MusicBrainz artist match found automatically.")
-
+    # Was a byte-for-byte duplicate of _personnel_evidence_paragraphs()
+    # until 2026-07-13 -- consolidated while adding the verification_tier/
+    # verified_source_url paragraph there, so this and the bulk path
+    # (_evidence_to_bulk_personnel_edit_note) can never silently drift
+    # apart on wording again.
+    paragraphs = _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step, narrowed, entity_label)
     paragraphs.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
     return "\n\n".join(paragraphs)
 
@@ -965,22 +1151,19 @@ def _build_personnel_seed_html(candidate, artist_match, recording_id, is_album_s
     link_type = RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"])
     target_mbid = candidate.get("mb_target_mbid") or (artist_match.get("mbid") if artist_match else None)
 
-    fields = (
-        _seed_field("rels.0.type", link_type)
-        + _seed_field("rels.0.target", target_mbid)
-        + _seed_field("rels.0.target_credit", candidate.get("name"))
-        + _seed_field("edit_note", _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step, narrowed))
-    )
-
-    edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit"
+    query = _seed_query_params([
+        ("rels.0.type", link_type),
+        ("rels.0.target", target_mbid),
+        ("rels.0.target_credit", candidate.get("name")),
+        ("edit_note", _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step, narrowed)),
+    ])
+    edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit?{query}"
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Opening MusicBrainz...</title></head>
 <body>
 <p>Opening MusicBrainz Recording editor, pre-filled from MetaForge Studio's evidence...</p>
-<form id="mb-seed-form" method="POST" action="{html.escape(edit_url)}">
-{fields}</form>
-<script>document.getElementById('mb-seed-form').submit();</script>
+<script>window.location.replace({json.dumps(edit_url)});</script>
 </body>
 </html>"""
 
@@ -1068,26 +1251,23 @@ def _build_bulk_personnel_seed_html(items, recording_id):
     recording, so multiple indices in one seed is the same underlying
     capability, just pre-filled instead of manually repeated N times.
     """
-    fields = ""
+    pairs = []
     for i, (candidate, artist_match, is_album_scope_step, narrowed) in enumerate(items):
         link_type = RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"])
         target_mbid = candidate.get("mb_target_mbid") or (artist_match.get("mbid") if artist_match else None)
-        fields += (
-            _seed_field(f"rels.{i}.type", link_type)
-            + _seed_field(f"rels.{i}.target", target_mbid)
-            + _seed_field(f"rels.{i}.target_credit", candidate.get("name"))
-        )
-    fields += _seed_field("edit_note", _evidence_to_bulk_personnel_edit_note(items))
+        pairs.append((f"rels.{i}.type", link_type))
+        pairs.append((f"rels.{i}.target", target_mbid))
+        pairs.append((f"rels.{i}.target_credit", candidate.get("name")))
+    pairs.append(("edit_note", _evidence_to_bulk_personnel_edit_note(items)))
 
-    edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit"
+    query = _seed_query_params(pairs)
+    edit_url = f"https://musicbrainz.org/recording/{recording_id}/edit?{query}"
     return f"""<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Opening MusicBrainz...</title></head>
 <body>
 <p>Opening MusicBrainz Recording editor, pre-filled with {len(items)} credits from MetaForge Studio's evidence...</p>
-<form id="mb-seed-form" method="POST" action="{html.escape(edit_url)}">
-{fields}</form>
-<script>document.getElementById('mb-seed-form').submit();</script>
+<script>window.location.replace({json.dumps(edit_url)});</script>
 </body>
 </html>"""
 
@@ -1173,5 +1353,310 @@ def _build_bulk_personnel_seed():
         "title": f"MusicBrainz: {len(items)} credits",
         "count": len(items),
         "included_keys": included_keys,
+    })
+
+
+# ==========================================================================
+# RELEASE-LEVEL RELATIONSHIP SEEDING (John, 2026-07-13)
+#
+# For a genuinely album-wide credit (Producer, Arranger -- see
+# RELEASE_ARTIST_LINK_TYPES), one release-level MusicBrainz relationship
+# is the correct fact to submit, not N per-track ones. Confirmed live
+# that /release/{id}/edit-relationships has NO query-string seeding
+# mechanism at all (unlike /recording/{id}/edit) -- a GET test with the
+# same rels.N.* params produced no visible change. The only way to get
+# this page pre-filled is to actually drive its own "Add relationship"
+# dialog with injected JS, stopping short of the page's real "Enter
+# edit" submit button. See _build_release_relationship_automation_js's
+# own docstring for the fragility trade-off this accepts.
+# ==========================================================================
+
+def _build_release_relationship_automation_js(link_type, target_mbid, target_name, edit_note, search_term, instrument_term=None):
+    """
+    DOM automation against MusicBrainz's LIVE /release/{id}/edit-relationships
+    page. This drives the page's own "Add relationship" dialog under
+    "Release relationships" directly: clicks it open, selects the
+    relationship type by its numeric link_type ID (deterministic --
+    avoids fuzzy text matching against a label that could theoretically
+    change), pastes the artist's real MBID into the target field (the
+    field's own placeholder documents MBID-paste as supported input,
+    sidestepping fuzzy name search entirely -- same principle as the
+    recording-edit seed always preferring a real MBID over a name
+    search), clicks the dialog's own "Done" button (which only adds the
+    relationship to THIS PAGE's pending in-memory list -- not a
+    MusicBrainz submission by itself), fills the shared edit-note
+    textarea, and STOPS. Never touches "Enter edit" -- that remains the
+    one real submission action, same "nothing here submits itself" rule
+    as every other seed in this file.
+
+    instrument_term (2026-07-13): when the relationship type is
+    "instruments" (44), MB reveals an additional Instrument search field
+    -- this MUST be filled with an exact (case-insensitive) label match
+    before the automation proceeds to click "Done", never a best-guess
+    suggestion. There's no known, stable numeric ID to select by here
+    (unlike link_type, which is MB's own real controlled-vocabulary ID) --
+    matching is by the option's own visible text instead, using
+    directText() to read just the instrument name and exclude any nested
+    description span. If no exact match renders, this throws (same as
+    every other required step), surfacing the fallback alert() rather
+    than silently clicking Done with no instrument specified -- that
+    would submit a real fact with less precision than MetaForge actually
+    has evidence for.
+
+    Genuinely riskier than the URL-seeding approach used elsewhere in
+    this file: this scripts MusicBrainz's own live React-based
+    relationship editor, which MetaForge has no control over and no test
+    coverage against -- if MusicBrainz changes this page's markup or
+    component structure, this breaks silently. Every step below has its
+    own timeout and falls through to an alert() telling the user to
+    finish adding the relationship by hand, rather than failing silently
+    or leaving the page in a half-filled state with no explanation.
+    """
+    payload = json.dumps({
+        "linkType": str(link_type),
+        "targetMbid": target_mbid,
+        "targetName": target_name,
+        "editNote": edit_note,
+        "searchTerm": search_term,
+        "instrumentTerm": instrument_term,
+    })
+    return f"""
+(function() {{
+    var DATA = {payload};
+
+    function findVisible(selector) {{
+        var els = document.querySelectorAll(selector);
+        for (var i = 0; i < els.length; i++) {{
+            if (els[i].offsetParent !== null) return els[i];
+        }}
+        return null;
+    }}
+
+    function setNativeValue(el, value) {{
+        var proto = Object.getPrototypeOf(el);
+        var desc = Object.getOwnPropertyDescriptor(proto, 'value');
+        if (desc && desc.set) {{ desc.set.call(el, value); }} else {{ el.value = value; }}
+        el.dispatchEvent(new Event('input', {{bubbles: true}}));
+    }}
+
+    // Text of an option <li> BEFORE any nested description <span> --
+    // these dropdown items render as "Label<span class=autocomplete-comment>
+    // description</span>", and the description text must never count
+    // toward an exact match.
+    function directText(li) {{
+        var text = '';
+        for (var i = 0; i < li.childNodes.length; i++) {{
+            var node = li.childNodes[i];
+            if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
+            else break;
+        }}
+        return text.trim().toLowerCase();
+    }}
+
+    function waitFor(checkFn, timeoutMs) {{
+        return new Promise(function(resolve, reject) {{
+            var waited = 0;
+            var intervalMs = 150;
+            var timer = setInterval(function() {{
+                var result;
+                try {{ result = checkFn(); }} catch (e) {{ result = null; }}
+                if (result) {{
+                    clearInterval(timer);
+                    resolve(result);
+                }} else {{
+                    waited += intervalMs;
+                    if (waited >= timeoutMs) {{
+                        clearInterval(timer);
+                        reject(new Error('timed out waiting for the page'));
+                    }}
+                }}
+            }}, intervalMs);
+        }});
+    }}
+
+    function fail(err) {{
+        alert('MetaForge could not finish this automatically (' + (err ? err.message : 'unknown error') +
+              ').\\n\\nPlease add it manually under "Release relationships":\\nRelationship type ID: ' + DATA.linkType +
+              '\\nArtist: ' + DATA.targetName + ' (' + DATA.targetMbid + ')');
+    }}
+
+    async function run() {{
+        // The page's initial shell (what 'loaded'/evaluate_js sees) renders
+        // fast, but the actual tracklist/relationships editor content
+        // loads asynchronously after that -- confirmed live 2026-07-13,
+        // this automation was firing while the page still showed its own
+        // "Loading..." spinner. Poll for both the section AND its button
+        // together, generously timed (a large release with many tracks
+        // can take a real while to finish fetching/rendering), instead of
+        // a single synchronous check.
+        var addBtn = await waitFor(function() {{
+            var section = document.getElementById('release-rels');
+            return section ? section.querySelector('button.add-relationship') : null;
+        }}, 20000);
+        addBtn.click();
+
+        var typeInput = await waitFor(function() {{ return findVisible('input.relationship-type'); }}, 6000);
+        typeInput.click();
+        typeInput.focus();
+
+        // Typing a query is required, not optional (John, 2026-07-13,
+        // caught live): the UNFILTERED dropdown only ever shows a fixed
+        // "Recent items" + "performance" category preview -- the exact,
+        // stable item-ID entry this code selects by only actually
+        // renders once a search has been typed to filter the list.
+        setNativeValue(typeInput, DATA.searchTerm);
+
+        var typeOption = await waitFor(function() {{
+            return document.querySelector('li[id$="-item-' + DATA.linkType + '"]');
+        }}, 6000);
+        typeOption.click();
+
+        // Instrument sub-field (John, 2026-07-13) -- only present when
+        // linkType is "instruments" (44), which reveals a new,
+        // narrower attributes panel with its own search field. No known
+        // stable ID to select by here (unlike relationship type), so
+        // this matches by the option's own exact visible text via
+        // directText() -- required, not best-effort: if nothing matches
+        // exactly, this throws and the whole automation stops rather
+        // than clicking Done with a vaguer credit than the evidence
+        // actually supports.
+        if (DATA.instrumentTerm) {{
+            var instrumentInput = await waitFor(function() {{
+                return findVisible('.attribute-container.instrument input[placeholder="instrument"]');
+            }}, 6000);
+            instrumentInput.click();
+            instrumentInput.focus();
+            setNativeValue(instrumentInput, DATA.instrumentTerm);
+
+            // startsWith, not exact equality (John, 2026-07-13, real bug
+            // caught live): MB's actual controlled-vocabulary label for
+            // "Drums" is "drums (drum set)" -- a real parenthetical
+            // qualifier this pipeline's plain role text was never going
+            // to match exactly. startsWith is still precise enough to
+            // avoid matching an unrelated instrument that merely
+            // contains the search term somewhere in the middle, while
+            // handling MB's own naming convention correctly.
+            var wantedText = DATA.instrumentTerm.trim().toLowerCase();
+            var instrumentOption = await waitFor(function() {{
+                var opts = document.querySelectorAll('li[role="option"]');
+                for (var i = 0; i < opts.length; i++) {{
+                    if (directText(opts[i]).indexOf(wantedText) === 0) return opts[i];
+                }}
+                return null;
+            }}, 6000);
+            instrumentOption.click();
+        }}
+
+        // Selecting a relationship type (and, for instruments, then an
+        // instrument) changes which attribute fields the dialog shows --
+        // John's own screenshots confirm the attributes panel is
+        // genuinely different per type. That strongly suggests this
+        // section re-renders, and a real live bug (2026-07-13, Artist
+        // field left empty even though Instrument had correctly filled)
+        // is consistent with grabbing an element reference while that
+        // re-render is still settling. A short pause here, plus
+        // verifying the value actually stuck immediately after setting
+        // it (and retrying once against a freshly re-queried element if
+        // not), is a defensive mitigation for that race -- not a
+        // confirmed root cause, since this couldn't be directly debugged
+        // without live devtools access.
+        await new Promise(function(resolve) {{ setTimeout(resolve, 400); }});
+
+        var targetInput = await waitFor(function() {{ return findVisible('input.relationship-target'); }}, 6000);
+        targetInput.click();
+        targetInput.focus();
+        setNativeValue(targetInput, DATA.targetMbid);
+
+        if (targetInput.value !== DATA.targetMbid) {{
+            // The value didn't stick -- likely a re-render replaced this
+            // element out from under us. Re-query fresh and try once more
+            // before giving up to the normal resolve-or-timeout wait below.
+            targetInput = await waitFor(function() {{ return findVisible('input.relationship-target'); }}, 4000);
+            targetInput.click();
+            targetInput.focus();
+            setNativeValue(targetInput, DATA.targetMbid);
+        }}
+
+        // MBID paste either auto-resolves (the input's own value changes
+        // to the artist's real name) or surfaces a matching suggestion
+        // to click -- whichever happens first, this doesn't assume which.
+        await waitFor(function() {{
+            if (targetInput.value && targetInput.value !== DATA.targetMbid) return true;
+            var opt = document.querySelector('li[id*="' + DATA.targetMbid + '"]');
+            if (opt) {{ opt.click(); return true; }}
+            return false;
+        }}, 8000);
+
+        var doneBtn = await waitFor(function() {{
+            var btns = document.querySelectorAll('.form .buttons-right button.positive');
+            for (var i = 0; i < btns.length; i++) {{
+                if (!btns[i].disabled) return btns[i];
+            }}
+            return null;
+        }}, 6000);
+        doneBtn.click();
+
+        var noteEl = await waitFor(function() {{ return document.getElementById('edit-note-text'); }}, 4000);
+        setNativeValue(noteEl, DATA.editNote);
+
+        alert('MetaForge filled in the relationship and edit note below "Release relationships" -- '
+              + 'please review the Preview and edit note, then click "Enter edit" yourself to submit.');
+    }}
+
+    run().catch(fail);
+}})();
+"""
+
+
+def _build_release_relationship_seed():
+    """
+    Request: {key: candidate_key}. Resolves the candidate's release-level
+    seed (link_type/artist MBID/release MBID), builds the automation
+    script, and hands back {url, script} for the frontend to open via a
+    real navigation + evaluate_js -- NOT the html= companion-window
+    pattern the other seed builders use, since this needs a genuine
+    top-level load of MusicBrainz's own live page for the script to run
+    against, not a locally-built static page.
+    """
+    data = request.json or {}
+    key = data.get("key")
+    if not key:
+        return jsonify({"status": "error", "message": "key is required."}), 400
+
+    candidates = {_candidate_key(c): c for c in _load_personnel_candidates()}
+    candidate = candidates.get(key)
+    if not candidate:
+        return jsonify({"status": "error", "message": "Candidate not found."}), 404
+
+    link_type, search_term, instrument_term = _release_seed_fields(candidate.get("relation_type"), candidate.get("role"))
+    if not link_type:
+        return jsonify({"status": "error", "message": "No confirmed release-level relationship type for this credit yet -- use the per-track submission instead."}), 400
+
+    release_id = _get_release_mbid(candidate.get("mf_id"))
+    if not release_id:
+        return jsonify({"status": "error", "message": "No MusicBrainz release ID found for this album."}), 400
+
+    artist_match = None
+    target_mbid = candidate.get("mb_target_mbid")
+    if not target_mbid:
+        artist_match = _fetch_artist_by_name(candidate.get("name"))
+        target_mbid = artist_match.get("mbid") if artist_match else None
+    if not target_mbid:
+        return jsonify({"status": "error", "message": "No MusicBrainz artist match found -- add this relationship manually."}), 400
+
+    # is_album_scope_step=False deliberately: the whole point of a
+    # release-level relationship is that the "captured at album level,
+    # not confirmed per-track" caveat no longer applies -- the fact IS
+    # genuinely release-wide now, not an assumption being spread across
+    # tracks that were never individually checked.
+    edit_note = _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_step=False, narrowed=False, entity_label="release")
+    script = _build_release_relationship_automation_js(link_type, target_mbid, candidate.get("name"), edit_note, search_term, instrument_term)
+
+    return jsonify({
+        "status": "success",
+        "url": f"https://musicbrainz.org/release/{release_id}/edit-relationships",
+        "script": script,
+        "title": f"MusicBrainz: {candidate.get('name')} (release-wide)",
+        "artist_match": artist_match,
     })
 # --- END OF FILE musicbrainz_submit.py ---

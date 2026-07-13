@@ -11,7 +11,8 @@ window.metaforge.personnel = {
     state: {
         localPath: "",
         mapping: [],
-        isLocked: false
+        isLocked: false,
+        pendingVerifyIdx: null
     },
 
     init: function() {
@@ -118,6 +119,11 @@ window.metaforge.personnel = {
             const data = await res.json();
             if (data.status === "success") {
                 this.state.mapping = data.candidates || [];
+                // Single source of truth for the manual-confirm target
+                // value (John, 2026-07-11) -- read once from the backend
+                // rather than hardcoding a second copy of
+                // MANUAL_CONFIRM_CONFIDENCE here that could drift.
+                this.state.manualConfirmConfidence = data.manual_confirm_confidence;
                 this.renderMapping();
                 if (this.state.mapping.length === 0) {
                     this.updateStatus("No automatic matches found -- try Wikipedia search or Check AllMusic below.", "error");
@@ -281,9 +287,27 @@ window.metaforge.personnel = {
                        <option value="inferred" ${row.ai_confirmed ? '' : 'selected'}>Inferred</option>
                    </select>`
                 : '';
+            // "Click to verify" trigger (John, 2026-07-11): only rendered
+            // when the AI tier actually surfaced source links for this
+            // credit (candidate_urls -- see ai_engine.py's
+            // _credit_candidate_uris, capped at 3, ephemeral/never
+            // persisted). Distinct from the Confirmed/Inferred select
+            // above: that's a quick self-assessed toggle, this opens a
+            // live companion window so a human can look at the actual
+            // source and record their OWN judgment (see
+            // project_mb_contribution_tool memory for why Gemini's
+            // grounding terms require that human-in-the-loop step).
+            const hasVerifyLinks = isAiTier && Array.isArray(row.candidate_urls) && row.candidate_urls.length > 0;
+            const verifyControl = hasVerifyLinks
+                ? `<button class="mf-button-gold-fixed" style="font-size:0.6rem; padding:1px 6px; margin-right:4px; vertical-align:middle;"
+                           onclick="window.metaforge.personnel.verifySource(${idx})">Verify Source${row.candidate_urls.length > 1 ? 's' : ''}</button>`
+                : '';
+            const tierLabel = row.verification_tier
+                ? ` · Verified: ${row.verification_tier.charAt(0).toUpperCase()}${row.verification_tier.slice(1)}`
+                : '';
             const meta = row.confidence !== undefined
-                ? `${statusControl}${provenance} · conf ${row.confidence}${scopeLabel ? ' · ' + scopeLabel : ''}`
-                : `${statusControl}${provenance}`;
+                ? `${statusControl}${verifyControl}${provenance} · conf ${row.confidence}${scopeLabel ? ' · ' + scopeLabel : ''}${tierLabel}`
+                : `${statusControl}${verifyControl}${provenance}`;
             tr.innerHTML = `
                 <td style="padding:4px;"><input type="text" class="mb-input-text p-map-name" value="${(row.name || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'name', this.value)"></td>
                 <td style="padding:4px;">
@@ -309,21 +333,97 @@ window.metaforge.personnel = {
 
     updateConfidenceStatus: function(idx, value) {
         // Manual override for an AI Web Search row's confirmed/inferred
-        // status (John, 2026-07-10). Switches to whichever exact number
-        // personnel.py's _classify_free_text_candidates already computed
-        // for that status (confirmed_confidence / inferred_confidence)
-        // rather than re-deriving AI_INFERRED_CONFIDENCE_PENALTY here --
-        // one source of truth for the value, not duplicated logic that
-        // could drift out of sync with the backend.
+        // status (John, 2026-07-10, fixed 2026-07-11). A CONFIRMED toggle
+        // no longer switches to confirmed_confidence -- that number is
+        // classify_role()'s role-TEXT classification confidence, not a
+        // fact-verification confidence, so a generic role like "Backing
+        // Band" capped out at 0.5 even after a human personally checked
+        // it (real bug, caught live). A human confirmation now sets the
+        // fixed MANUAL_CONFIRM_CONFIDENCE value (read from the backend as
+        // state.manualConfirmConfidence, not duplicated here) and marks
+        // provenance as "Submitter Confirmed" so the DB/evidence log can
+        // tell "the AI said this, unverified" apart from "a human
+        // verified this." An INFERRED toggle reverts provenance to "AI
+        // Web Search" (every AI-tier row starts there; this control only
+        // ever renders for AI-tier rows) and uses the AI's own
+        // inferred_confidence, unchanged. Either direction sets
+        // manually_reviewed=true -- even reverting to inferred means a
+        // human looked at it and agreed, worth keeping distinct from
+        // "never reviewed at all."
         const row = this.state.mapping[idx];
         if (!row) return;
         const confirmed = value === 'confirmed';
         row.ai_confirmed = confirmed;
-        const target = confirmed ? row.confirmed_confidence : row.inferred_confidence;
-        if (target !== undefined && target !== null) {
-            row.confidence = target;
+        row.manually_reviewed = true;
+        if (confirmed) {
+            const target = this.state.manualConfirmConfidence;
+            row.confidence = (target !== undefined && target !== null) ? target : row.confirmed_confidence;
+            row.provenance = "Submitter Confirmed";
+        } else {
+            if (row.inferred_confidence !== undefined && row.inferred_confidence !== null) {
+                row.confidence = row.inferred_confidence;
+            }
+            row.provenance = "AI Web Search";
         }
         this.renderMapping();
+    },
+
+    // Opens the live "click to verify" companion window for one AI-tier
+    // credit's candidate sources (John, 2026-07-11). Only one verify
+    // session is ever open at a time -- pendingVerifyIdx just tracks
+    // which mapping row the eventual result applies to, same
+    // single-companion-window assumption MB Submit's pseudo-tab already
+    // makes.
+    verifySource: async function(idx) {
+        const row = this.state.mapping[idx];
+        if (!row || !Array.isArray(row.candidate_urls) || row.candidate_urls.length === 0) return;
+        this.state.pendingVerifyIdx = idx;
+        try {
+            await fetch('/open_verify_window', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    urls: row.candidate_urls,
+                    title: `Verify: ${row.name} — ${row.role}`
+                })
+            });
+        } catch (e) {
+            console.error("Failed to open verify window:", e);
+            this.updateStatus("Could not open the verify window.", "error");
+        }
+    },
+
+    // Called by ui/app.py's VerifyWindowAPI._finish() via evaluate_js once
+    // the human either submits a real verdict or every source resolved
+    // False (discarded). result.discarded means "leave this row exactly
+    // as it was" -- per John's design, closing/discarding the verify
+    // session is a deliberate no-op, never an implicit downgrade.
+    onVerifyModalResult: function(result) {
+        const idx = this.state.pendingVerifyIdx;
+        this.state.pendingVerifyIdx = null;
+        if (idx === null || idx === undefined || !this.state.mapping[idx]) return;
+        const row = this.state.mapping[idx];
+
+        if (!result || result.discarded) {
+            this.updateStatus("No source confirmed this credit -- left unchanged.", "success");
+            return;
+        }
+
+        row.ai_confirmed = true;
+        row.manually_reviewed = true;
+        row.verification_tier = result.verification_tier;
+        row.confidence = result.confidence;
+        row.provenance = "Submitter Confirmed";
+        // The RESOLVED destination page's own URL (John, 2026-07-13) --
+        // captured via window.location.href inside the verify window
+        // itself, after a real human-driven page load, not Gemini's
+        // opaque grounding-chunk redirect link. See
+        // project_mb_contribution_tool memory for why that distinction
+        // makes this citable to MusicBrainz where the raw grounding URL
+        // wasn't.
+        row.verified_source_url = result.source_url || null;
+        this.renderMapping();
+        this.updateStatus(`Verified as "${result.verification_tier}" -- confidence updated.`, "success");
     },
 
     addManualRow: function() {
