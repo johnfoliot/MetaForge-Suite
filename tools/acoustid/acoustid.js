@@ -13,18 +13,10 @@ window.metaforge.acoustid = {
 
     /**
      * Master Task Runner: Orchestrates Step 1 (Submit) or Step 2 (Resolve).
-     * Implements COGA 4.5.4 (Error Prevention) via Seek-Confirmation.
      */
     runTask: async function(taskType) {
         const consoleBox = document.getElementById('acoustid-console');
         if (!consoleBox) return;
-
-        // 1. SEEK CONFIRMATION (Directive VI / COGA 4.5.4)
-        const msg = (taskType === 'submit') 
-            ? "This will submit new fingerprints to the AcoustID database. Continue?"
-            : "This will query the global database for resolved identities. Continue?";
-        
-        if (!confirm(msg)) return;
 
         // Reset console and show initialization state
         consoleBox.innerHTML = `<div class="status-warn"><span style="font-size:1rem;">ᯓ➤ Initializing AcoustID ${taskType} sequence...</span><p style="margin-left:2.3rem; font-size:.8rem; margin-bottom:.5rem;"> ⚠ <span style="color:red; font-weight:bold;">(Do not close window!)</span></p>`;

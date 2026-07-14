@@ -16,6 +16,11 @@ from common import config_handler, db_engine, tag_engine
 DATA_DIR     = config_handler.DATA_DIR / "acoustid"
 PENDING_FILE = DATA_DIR / "pending_acoustid.txt"
 HISTORY_FILE = DATA_DIR / "submission_history.txt"
+# Bounded retry/backoff for AcoustID 429 responses -- added 2026-07-14
+# ahead of a real 7,700+ track bulk run, where hitting a rate limit
+# somewhere in the middle was a real, not hypothetical, risk.
+MAX_RATE_LIMIT_RETRIES = 5
+RATE_LIMIT_BASE_DELAY  = 2  # seconds; doubles each retry, capped below
 # Real bug fixed here 2026-07-13, found live: this was
 # `config_handler.ACOUSTID_API_KEY` with no `()` -- assigning the
 # function OBJECT itself, not its return value. requests would have
@@ -143,7 +148,28 @@ def submit_fingerprints():
                 if meta.get("mb_recording_id"):
                     params["mbid.0"] = meta["mb_recording_id"]
 
-                response = session.post("https://api.acoustid.org/v2/submit", data=params, timeout=15)
+                response, rate_limited = None, False
+                delay = RATE_LIMIT_BASE_DELAY
+                for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+                    response = session.post("https://api.acoustid.org/v2/submit", data=params, timeout=15)
+                    if response.status_code != 429:
+                        break
+                    retry_after = response.headers.get("Retry-After")
+                    wait = float(retry_after) if retry_after and retry_after.replace('.', '', 1).isdigit() else delay
+                    rate_limited = True
+                    if attempt < MAX_RATE_LIMIT_RETRIES:
+                        yield (f'<div class="status-message" style="color:var(--mf-gold);"><span aria-hidden="true">⏳</span> '
+                               f'[{index}/{total_tracks}] Rate-limited, waiting {wait:.0f}s (retry {attempt + 1}/{MAX_RATE_LIMIT_RETRIES})...</div>')
+                        time.sleep(wait)
+                        delay = min(delay * 2, 60)
+
+                if rate_limited and response.status_code == 429:
+                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
+                           f'[{index}/{total_tracks}] STILL RATE LIMITED after {MAX_RATE_LIMIT_RETRIES} retries: {path.name} -- will retry next run</div>')
+                    remaining_pending.append(path_str)
+                    time.sleep(1)
+                    continue
+
                 data = response.json()
 
                 if data.get("status") == "ok":
@@ -209,7 +235,28 @@ def resolve_ids():
                     "meta": "recordings"
                 }
                 
-                res_obj = session.get("https://api.acoustid.org/v2/lookup", params=params, timeout=15)
+                res_obj, rate_limited = None, False
+                delay = RATE_LIMIT_BASE_DELAY
+                for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+                    res_obj = session.get("https://api.acoustid.org/v2/lookup", params=params, timeout=15)
+                    if res_obj.status_code != 429:
+                        break
+                    retry_after = res_obj.headers.get("Retry-After")
+                    wait = float(retry_after) if retry_after and retry_after.replace('.', '', 1).isdigit() else delay
+                    rate_limited = True
+                    if attempt < MAX_RATE_LIMIT_RETRIES:
+                        yield (f'<div class="status-message" style="color:var(--mf-gold);"><span aria-hidden="true">⏳</span> '
+                               f'[{index}/{total_tracks}] Rate-limited, waiting {wait:.0f}s (retry {attempt + 1}/{MAX_RATE_LIMIT_RETRIES})...</div>')
+                        time.sleep(wait)
+                        delay = min(delay * 2, 60)
+
+                if rate_limited and res_obj.status_code == 429:
+                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
+                           f'[{index}/{total_tracks}] STILL RATE LIMITED after {MAX_RATE_LIMIT_RETRIES} retries: {path.name} -- will retry next run</div>')
+                    remaining_history.append(path_str)
+                    time.sleep(1)
+                    continue
+
                 res = res_obj.json()
 
                 if res.get('results') and res['results'][0].get('id'):
