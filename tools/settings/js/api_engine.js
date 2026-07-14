@@ -32,7 +32,7 @@ window.metaforge.settings.api = {
         const container = document.getElementById('api-form-container');
         
         let html = `
-            <table class="meta-table" style="border-spacing: 0 10px; border-collapse: separate; margin-bottom: 20px; position:relative; top:-80px; width: 100%;">
+            <table class="meta-table" style="border-spacing: 0 10px; border-collapse: separate; margin-bottom: 20px; width: 100%;">
                 <tbody>`;
         
         const sortedKeys = Object.keys(data).sort();

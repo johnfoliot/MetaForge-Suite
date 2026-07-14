@@ -10,6 +10,7 @@ import json
 import threading
 import sqlite3
 import re
+import webbrowser
 import webview
 import requests
 from pathlib import Path
@@ -737,6 +738,21 @@ class VerifyWindowAPI:
 
 
 class MetaForgeAPI:
+    def open_external_url(self, url):
+        # Fixes a real bug (John, 2026-07-13): plain <a target="_blank">
+        # links don't reliably open anything from inside a pywebview
+        # window -- there's no real "new tab" to open one into, and
+        # pywebview doesn't automatically hand external navigation off to
+        # the OS's default browser. webbrowser.open() does that
+        # explicitly. Only http(s) URLs are allowed -- this is called
+        # from the main window's own js_api bridge, reachable by any JS
+        # running there, so it's worth being deliberate about what it can
+        # launch rather than passing an arbitrary string straight through.
+        if isinstance(url, str) and url.startswith(("http://", "https://")):
+            webbrowser.open(url)
+            return True
+        return False
+
     def select_folder(self):
         global window
         if window:

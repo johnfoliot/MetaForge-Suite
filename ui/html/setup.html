@@ -168,9 +168,14 @@
                 </div>
 
                 <div class="input-group">
-                    <label for="acoustid">AcoustID Key</label>
+                    <label for="acoustid">AcoustID Application Key</label>
                     <input type="text" id="acoustid" class="mf-input" placeholder="Your API key..." required>
-                    <p style="font-size:.75rem">Need a key? See: <a href="https://acoustid.org/api-key" target="_blank" style="color:var(--mf-gold)!important;">acoustid.org</a></p>
+                    <p style="font-size:.75rem">Need a key? Register an application to get one:
+                        <a href="https://acoustid.org/my-applications"
+                           onclick="if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external_url) { window.pywebview.api.open_external_url(this.href); return false; }"
+                           style="color:var(--mf-gold)!important;">acoustid.org/my-applications</a>
+                        &mdash; a separate personal "user" key can be added later in Settings, only needed if you want to submit new fingerprints back to AcoustID.
+                    </p>
                 </div>
 
                 <div class="input-group">

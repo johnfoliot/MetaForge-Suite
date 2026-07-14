@@ -71,7 +71,7 @@ def initialize_routes(app, window_func, TOOLS_DIR, ENV_PATH, set_file_attribute)
             data = request.form
             content = (
                 f"USER_EMAIL={data.get('user_email')}\n"
-                f"ACOUSTID_KEY={data.get('acoustid_key')}\n"
+                f"ACOUSTID_APPLICATION_KEY={data.get('acoustid_key')}\n"
                 f"GEMINI_KEY={data.get('gemini_key')}\n"
                 f"LIBRARY_ROOT={data.get('library_root')}\n"
                 f"ENABLED_TOOLS=dashboard:0,settings:99\n"

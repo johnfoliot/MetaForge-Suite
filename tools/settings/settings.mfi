@@ -107,17 +107,37 @@
 
         <!-- Tab: Api Keys -->
         <div id="panel-api-keys" class="settings-panel" style="display:none;">
-            <div class="api-help-aside">
-                <h3 class="data-text" style="font-size: 0.9rem;">Getting your keys</h3>
-                <ul class="api-help-list">
-                    <li>AcoustID: visit <a href="https://acoustid.org/api-key" target="_blank">acoustid.org</a></li>
-                    <li>Discogs: visit <a href="https://www.discogs.com/settings/developers" target="_blank">Discogs Developers</a></li>
-                    <li>Gemini: visit <a href="https://aistudio.google.com/app/api-keys" target="_blank">Google AI Studio</a></li>
-                </ul>
+            <!-- Real layout bug fixed here (John, 2026-07-13): this used
+                 to be a float:right aside plus a pair of matched
+                 position:relative;top:-80px hacks (here and on the
+                 table in api_engine.js) to visually pull the form back
+                 up level with the aside. That only ever worked because
+                 the aside's height happened to roughly match; it broke
+                 the moment the AcoustID help text grew from one line to
+                 two. Replaced with a real flex layout -- no magic
+                 offsets, reflows correctly regardless of how tall either
+                 side is, and wraps on narrow viewports for free. -->
+            <div class="api-keys-layout">
+                <div class="api-keys-main">
+                    <h2 class="data-text api-main-heading" tabindex="-1">Configuation &amp; API keys</h2>
+                    <div id="api-form-container"></div>
+                    <button onclick="metaforge.settings.api.save()">Save Settings</button>
+                </div>
+                <div class="api-help-aside">
+                    <h3 class="data-text" style="font-size: 0.9rem;">Getting your keys</h3>
+                    <ul class="api-help-list">
+                        <li>AcoustID (Application key, used for every lookup): register at
+                            <a href="https://acoustid.org/my-applications" onclick="window.metaforge.openExternalLink(this.href); return false;">acoustid.org/my-applications</a>
+                        </li>
+                        <li>AcoustID (User key, only needed to submit new fingerprints): shown on
+                            <a href="https://acoustid.org/api-key" onclick="window.metaforge.openExternalLink(this.href); return false;">acoustid.org/api-key</a>
+                            once you're signed in
+                        </li>
+                        <li>Discogs: visit <a href="https://www.discogs.com/settings/developers" onclick="window.metaforge.openExternalLink(this.href); return false;">Discogs Developers</a></li>
+                        <li>Gemini: visit <a href="https://aistudio.google.com/app/api-keys" onclick="window.metaforge.openExternalLink(this.href); return false;">Google AI Studio</a></li>
+                    </ul>
+                </div>
             </div>
-            <h2 class="data-text api-main-heading" tabindex="-1">Configuation &amp; API keys</h2>
-            <div id="api-form-container"></div>
-            <button onclick="metaforge.settings.api.save()" style="position:relative; top:-80px;">Save Settings</button>
         </div>
 
         <!-- Tab: Check for Updates -->
@@ -230,8 +250,10 @@
 	
     .sub-genre-input { color: var(--mf-gold) !important; font-weight: bold; }
 
-    .api-help-aside { float: right; padding: 1rem; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; }
-    .api-help-list { list-style-type: none; font-size: 0.8rem; margin-top: 10px; line-height: 1.4; }
+    .api-keys-layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+    .api-keys-main { flex: 1 1 400px; min-width: 0; }
+    .api-help-aside { flex: 0 0 300px; padding: 1rem; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; }
+    .api-help-list {font-size: 0.8rem; margin-top: 10px; line-height: 1.4;}
     .api-help-list a { color: var(--mf-gold); }
     .api-main-heading { margin-bottom: 10px; font-size: 1.1rem; color: var(--mf-gold); }
 </style>

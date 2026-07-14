@@ -38,8 +38,22 @@ def GEMINI_API_KEY():
     return os.getenv("GEMINI_KEY")
 
 
-def ACOUSTID_API_KEY():
-    return os.getenv("ACOUSTID_KEY")
+def ACOUSTID_APPLICATION_KEY():
+    # Used as the "client" parameter for BOTH AcoustID lookups and
+    # submissions (John, 2026-07-13 -- renamed from ACOUSTID_API_KEY
+    # after discovering AcoustID actually has two distinct key types,
+    # and the old generic name invited confusing them). This is the
+    # "Application API key" from acoustid.org/my-applications.
+    return os.getenv("ACOUSTID_APPLICATION_KEY")
+
+
+def ACOUSTID_USER_KEY():
+    # The personal "user" key AcoustID generates on sign-in -- required
+    # ONLY for the "user" parameter when submitting new fingerprints
+    # (tools/acoustid.py), never for lookups. Distinct from the
+    # application key above; AcoustID's own docs confirm both are
+    # required together for a real submission.
+    return os.getenv("ACOUSTID_USER_KEY")
 
 
 def DISCOGS_TOKEN():
@@ -61,7 +75,8 @@ def check_system():
     print("--- MetaForge Suite: System Check ---")
     print(f"Root: {PROJECT_ROOT}")
     print(f"DB: {'OK' if DB_PATH.exists() else 'MISSING'}")
-    print(f"ACOUSTID: {'OK' if ACOUSTID_API_KEY() else 'MISSING'}")
+    print(f"ACOUSTID (application): {'OK' if ACOUSTID_APPLICATION_KEY() else 'MISSING'}")
+    print(f"ACOUSTID (user, submissions only): {'OK' if ACOUSTID_USER_KEY() else 'MISSING'}")
     print(f"DISCOGS: {'OK' if DISCOGS_TOKEN() else 'MISSING'}")
 
 

@@ -13,7 +13,10 @@ from common import config_handler
 
 
 FPCALC = config_handler.FPCALC_EXE
-ACOUSTID_KEY = config_handler.os.getenv("ACOUSTID_KEY")
+# Lookups only ever need the application key (John, 2026-07-13 -- renamed
+# from ACOUSTID_KEY once AcoustID's separate "user" key, needed only for
+# submissions, was discovered; see config_handler.ACOUSTID_APPLICATION_KEY).
+ACOUSTID_KEY = config_handler.ACOUSTID_APPLICATION_KEY()
 PENDING_FILE = config_handler.DATA_DIR / "acoustid" / "pending_acoustid.txt"
 
 
@@ -56,6 +59,7 @@ def generate_acoustid(file_path):
         )
 
         if result.returncode != 0:
+            print(f"[FINGERPRINT ERROR] fpcalc exited {result.returncode} for {file_path}: {result.stderr.strip()}")
             return dict(EMPTY)
 
         fp_data = json.loads(result.stdout)
@@ -64,6 +68,7 @@ def generate_acoustid(file_path):
         duration = fp_data.get("duration")
 
         if not fingerprint:
+            print(f"[FINGERPRINT ERROR] fpcalc produced no fingerprint for {file_path}")
             return dict(EMPTY)
 
         if duration is None:
@@ -98,6 +103,18 @@ def generate_acoustid(file_path):
         data = response.json()
 
         if data.get("status") != "ok":
+            # A real API-level failure (bad/revoked key, quota exceeded,
+            # malformed request) previously collapsed into the exact same
+            # silent "acoustid: None" as a genuine "not in the database"
+            # miss -- indistinguishable without live investigation
+            # (caught 2026-07-13: every track in a batch came back None,
+            # which turned out to be AcoustID rejecting the stored key
+            # outright, not 100% of tracks being unrecognized). Loud and
+            # specific now, so a broken key/account shows up on the very
+            # first track instead of looking like normal "nothing found."
+            err = data.get("error", {})
+            print(f"[FINGERPRINT ERROR] AcoustID API returned status={data.get('status')!r} "
+                  f"(code {err.get('code')}: {err.get('message')}) for {file_path}")
             return dict(EMPTY)
 
         results = data.get("results", [])
@@ -118,6 +135,7 @@ def generate_acoustid(file_path):
         }
 
     except Exception as e:
+        print(f"[FINGERPRINT ERROR] {type(e).__name__}: {e} for {file_path}")
         return dict(EMPTY)
 
 

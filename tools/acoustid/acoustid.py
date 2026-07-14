@@ -16,7 +16,19 @@ from common import config_handler, db_engine, tag_engine
 DATA_DIR     = config_handler.DATA_DIR / "acoustid"
 PENDING_FILE = DATA_DIR / "pending_acoustid.txt"
 HISTORY_FILE = DATA_DIR / "submission_history.txt"
-API_KEY      = config_handler.ACOUSTID_API_KEY
+# Real bug fixed here 2026-07-13, found live: this was
+# `config_handler.ACOUSTID_API_KEY` with no `()` -- assigning the
+# function OBJECT itself, not its return value. requests would have
+# serialized that as the literal string "<function ACOUSTID_API_KEY at
+# 0x...>" for the "client" parameter on every lookup/submit call this
+# tool ever made, regardless of whatever key was actually in .env.
+# Confirmed live: type(API_KEY) was <class 'function'> before this fix.
+API_KEY      = config_handler.ACOUSTID_APPLICATION_KEY()
+# Only needed for real submissions (the "user" parameter) -- lookups
+# never use this. Not yet wired into submit_fingerprints() itself; that
+# function still needs its own fix (wrong endpoint entirely -- see
+# project memory) before this constant does anything useful.
+USER_KEY     = config_handler.ACOUSTID_USER_KEY()
 FPCALC       = config_handler.FPCALC_EXE
 
 def run_logic(action, tools_dir, env_path):
@@ -32,8 +44,50 @@ def run_logic(action, tools_dir, env_path):
 
 # --- [ CORE OPERATIONS ] ---
 
+def _lookup_track_metadata(path):
+    """
+    Best-effort track metadata (title/artist/album/year/MB recording ID)
+    to enrich an AcoustID submission -- every field AcoustID's submit API
+    accepts here is optional, so a lookup failure must never block the
+    actual fingerprint submission, just make it plainer. Joins `tracks`
+    to `library_master` since artist/album live on the album row, not
+    the track row.
+    """
+    try:
+        db_path = str(path).replace('\\', '/')
+        rows = db_engine.execute_query(
+            "SELECT t.title, t.mb_recording_id, t.original_year, "
+            "       lm.artist_name, lm.album_title "
+            "FROM tracks t LEFT JOIN library_master lm ON t.mf_id = lm.mf_id "
+            "WHERE t.file_path = ?",
+            (db_path,)
+        )
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
+
+
 def submit_fingerprints():
-    """STEP 1: Submit unknown tracks to the AcoustID database."""
+    """STEP 1: Submit unknown tracks to the AcoustID database.
+
+    Rebuilt 2026-07-13 -- this previously called /v2/lookup (a read-only
+    endpoint) and reported "SUBMITTED" whenever that merely returned
+    HTTP 200, regardless of whether anything was actually contributed.
+    Nothing had ever been genuinely submitted to AcoustID through this
+    tool. Real submission needs the /v2/submit endpoint, POST, BOTH the
+    application key (client) and a separate personal user key (user)
+    together -- AcoustID rejects a submission missing either -- and
+    AcoustID's own index-suffixed batch convention (duration.0/
+    fingerprint.0/etc.), always index 0 here since this still submits
+    one track per request, matching the existing per-track loop/progress
+    reporting rather than batching many tracks into one call.
+    """
+    if not API_KEY or not USER_KEY:
+        missing = [name for name, val in (("ACOUSTID_APPLICATION_KEY", API_KEY), ("ACOUSTID_USER_KEY", USER_KEY)) if not val]
+        yield (f'<div class="status-error"><span aria-hidden="true">🔥</span> '
+               f'Missing {" and ".join(missing)} -- add {"it" if len(missing) == 1 else "them"} in Settings before submitting.</div>')
+        return
+
     if not PENDING_FILE.exists() or PENDING_FILE.stat().st_size == 0:
         yield f'<span aria-hidden="true">⚠</span> No pending tracks found in data/acoustid/pending_acoustid.txt'
         return
@@ -48,30 +102,60 @@ def submit_fingerprints():
         for index, path_str in enumerate(pending_paths, 1):
             path = Path(path_str.strip())
             if not path.exists():
+                # Real bug fixed 2026-07-14, found live: this used to just
+                # `continue` without re-queuing, so a track moved/renamed
+                # after being queued vanished from pending_acoustid.txt for
+                # good instead of waiting to be found again. Now stays
+                # queued like every other failure branch below.
                 yield f'<div class="status-message"><span aria-hidden="true">🤷🏻</span> [{index}/{total_tracks}] LOST: {path.name}</div>'
+                remaining_pending.append(path_str)
                 continue
 
             try:
                 # 1. Generate Fingerprint
                 result = subprocess.run([str(FPCALC), "-json", str(path)], capture_output=True, text=True)
                 fp_data = json.loads(result.stdout)
-                
-                # 2. API Submission
+                fingerprint = fp_data.get('fingerprint')
+                duration = fp_data.get('duration')
+
+                if not fingerprint or duration is None:
+                    yield f'<div class="status-message"><span aria-hidden="true">⚠</span> [{index}/{total_tracks}] NO FINGERPRINT: {path.name}</div>'
+                    remaining_pending.append(path_str)
+                    continue
+
+                # 2. Real AcoustID submission
+                meta = _lookup_track_metadata(path)
                 params = {
                     "client": API_KEY,
+                    "user": USER_KEY,
                     "format": "json",
-                    "duration": int(fp_data.get('duration', 0)),
-                    "fingerprint": fp_data.get('fingerprint'),
-                    "meta": "recordings"
+                    "duration.0": int(round(float(duration))),
+                    "fingerprint.0": fingerprint,
                 }
-                response = session.get("https://api.acoustid.org/v2/lookup", params=params, timeout=15)
-                
-                if response.status_code == 200:
-                    yield f'<div class="status-message"><span aria-hidden="true">✅</span> [{index}/{total_tracks}] SUBMITTED: {path.name}</div>'
+                if meta.get("title"):
+                    params["track.0"] = meta["title"]
+                if meta.get("artist_name"):
+                    params["artist.0"] = meta["artist_name"]
+                if meta.get("album_title"):
+                    params["album.0"] = meta["album_title"]
+                if meta.get("original_year"):
+                    params["year.0"] = meta["original_year"]
+                if meta.get("mb_recording_id"):
+                    params["mbid.0"] = meta["mb_recording_id"]
+
+                response = session.post("https://api.acoustid.org/v2/submit", data=params, timeout=15)
+                data = response.json()
+
+                if data.get("status") == "ok":
+                    submissions = data.get("submissions") or []
+                    sub_status = submissions[0].get("status") if submissions else "pending"
+                    yield f'<div class="status-message"><span aria-hidden="true">✅</span> [{index}/{total_tracks}] SUBMITTED ({sub_status}): {path.name}</div>'
                     with open(HISTORY_FILE, 'a', encoding='utf-8') as h:
                         h.write(f"{path}\n")
                 else:
-                    yield f'<div class="status-message"><span aria-hidden="true">⚠</span> [{index}/{total_tracks}] API REJECTED: {path.name}</div>'
+                    err = data.get("error", {})
+                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
+                           f'[{index}/{total_tracks}] API REJECTED: {path.name} (code {err.get("code")}: {err.get("message")})</div>')
                     remaining_pending.append(path_str)
 
                 time.sleep(1)
@@ -108,6 +192,10 @@ def resolve_ids():
         for index, path_str in enumerate(history_paths, 1):
             path = Path(path_str.strip())
             if not path.exists():
+                # Same silent-drop bug as submit_fingerprints() -- was
+                # falling out of submission_history.txt for good instead of
+                # staying queued for a later resolution attempt.
+                remaining_history.append(path_str)
                 continue
 
             try:

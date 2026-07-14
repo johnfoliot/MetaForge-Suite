@@ -7,9 +7,27 @@
 
 // --- GLOBAL UTILITIES ---
 
+window.metaforge = window.metaforge || {};
+
 window.checkMetaForgeBridge = function() {
     if (!window.pywebview || !window.pywebview.api) return false;
     return true;
+};
+
+// Real bug fixed here (John, 2026-07-13): plain <a target="_blank">
+// links don't reliably open a real browser tab from inside a pywebview
+// window -- there's no OS-level "new tab" concept for pywebview to hand
+// off to. Routes through the main window's own js_api bridge instead
+// (see ui/app.py's MetaForgeAPI.open_external_url, which calls Python's
+// webbrowser.open()). Falls back to a plain window.open() only if the
+// bridge genuinely isn't available yet, so a link never becomes
+// completely inert while the page is still loading.
+window.metaforge.openExternalLink = function(url) {
+    if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external_url) {
+        window.pywebview.api.open_external_url(url);
+    } else {
+        window.open(url, '_blank');
+    }
 };
 
 window.applyThemeFile = function(themeFileName) {
