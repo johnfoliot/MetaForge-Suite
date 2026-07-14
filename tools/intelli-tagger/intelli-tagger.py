@@ -196,7 +196,7 @@ def _orchestrate_tagger_batch(data, env_path):
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/genre.png" style="height:13px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines preparing for per-track tagging...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:15px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines performing per-track tagging...</div>'
 
     # A real progress marker for this window -- previously nothing yielded
     # here carried a PROGRESS comment at all, so the bar sat frozen on
