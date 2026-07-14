@@ -191,7 +191,20 @@ window.metaforge.musicbrainz_submit = {
             return;
         }
 
-        const groups = this._groupByAlbum(this.state.candidates);
+        // Fully resolved albums (nothing pending/in_progress left) are
+        // dropped from the UI entirely rather than lingering as a
+        // collapsed row forever (John, 2026-07-14: without this, this
+        // screen will accumulate hundreds/thousands of already-handled
+        // releases over time). renderCounts() still shows the true
+        // submitted/dismissed totals separately -- this only affects
+        // what actually renders here.
+        const groups = this._groupByAlbum(this.state.candidates).filter(g => g.pending > 0);
+
+        if (groups.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Nothing pending -- every known candidate has been submitted or dismissed.</td></tr>';
+            return;
+        }
+
         body.innerHTML = groups.map(group => {
             const header = this._renderGroupHeader("year", group, 5);
             if (!this.state.expandedGroups.year.has(group.key)) return header;
@@ -336,7 +349,16 @@ window.metaforge.musicbrainz_submit = {
             return;
         }
 
-        const groups = this._groupByAlbum(this.state.personnelCandidates);
+        // Same UI-sanitation fix as renderQueue() above (John, 2026-07-14):
+        // fully resolved albums drop out of this list entirely instead of
+        // lingering as a collapsed row forever.
+        const groups = this._groupByAlbum(this.state.personnelCandidates).filter(g => g.pending > 0);
+
+        if (groups.length === 0) {
+            body.innerHTML = '<tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Nothing pending -- every known candidate has been submitted or dismissed.</td></tr>';
+            return;
+        }
+
         body.innerHTML = groups.map(group => {
             const header = this._renderGroupHeader("personnel", group, 4);
             if (!this.state.expandedGroups.personnel.has(group.key)) return header;

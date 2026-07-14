@@ -28,6 +28,25 @@ REVIEW_STATE = config_handler.DATA_DIR / "musicbrainz" / "year_correction_review
 PERSONNEL_CANDIDATE_LOG = config_handler.DATA_DIR / "musicbrainz" / "personnel_correction_candidates.jsonl"
 PERSONNEL_REVIEW_STATE = config_handler.DATA_DIR / "musicbrainz" / "personnel_correction_review_state.json"
 
+# Permanent audit trail of everything actually reached "submitted"
+# (John, 2026-07-14: "a running record of all of our remediation/updates").
+# ONE shared file for both year and personnel corrections -- his own
+# wording asked for "ALL of our remediation/updates" in one place, not two
+# parallel logs -- distinguished by each line's own "type" field. Written
+# once per candidate, the first time its status is genuinely observed as
+# "submitted" (never for "dismissed" -- that's a rejection, not a
+# remediation), tracked via a "remediation_logged" flag persisted
+# alongside the existing review-state entry so a page reload can never
+# double-log the same fact.
+REMEDIATION_LOG = config_handler.DATA_DIR / "musicbrainz" / "remediation_log.jsonl"
+
+
+def _log_remediation(entry_type, payload):
+    entry = {"type": entry_type, "timestamp": datetime.now().isoformat(), **payload}
+    REMEDIATION_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(REMEDIATION_LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
 MB_RELEASE_ADD_URL = "https://musicbrainz.org/release/add"
 MB_API_USER_AGENT = "MetaForge/1.0 (musicbrainz_submit)"
 
@@ -82,7 +101,16 @@ RELATION_TYPE_TO_LINK_TYPE = {
     "ASSOCIATED_WITH": 129,  # miscellaneous roles / miscellaneous support
 }
 
-UNSUPPORTED_RELATION_TYPES = {"COMPOSED", "WRITTEN_BY"}
+# Renamed 2026-07-14 (was UNSUPPORTED_RELATION_TYPES) once COMPOSED
+# gained a real release-level home (RELEASE_ARTIST_LINK_TYPES above) --
+# these stay genuinely unsupported at the RECORDING level specifically
+# (Work-level only, confirmed 2026-07-09/2026-07-14), but "unsupported"
+# outright is no longer accurate for any of them now that all three have
+# a real release-level home below. LYRICIST added 2026-07-14 alongside
+# the WRITTEN_BY correction -- MB's own style guide confirms "Writer" is
+# deliberately the generic fallback and Lyricist the more precise type
+# for a words-only credit (see edge_constants.py's RelationType comment).
+RECORDING_LEVEL_UNSUPPORTED_RELATION_TYPES = {"COMPOSED", "WRITTEN_BY", "LYRICIST"}
 
 # Release-scoped artist-release relationship type IDs (John, 2026-07-13,
 # confirmed live via his own DOM capture of /release/{id}/edit-relationships'
@@ -94,17 +122,37 @@ UNSUPPORTED_RELATION_TYPES = {"COMPOSED", "WRITTEN_BY"}
 # 30 release-scope). Only mapped for relation types actually seen and
 # confirmed present in that dialog's real DOM -- not guessed for the rest.
 #
-# Interesting finding, flagged not acted on: that same dialog also showed
-# "wrote / writer" (54) and "composed / composer" (55) as real, direct
-# artist-release relationship types. WRITTEN_BY/COMPOSED are blocked
-# entirely at the Recording level (UNSUPPORTED_RELATION_TYPES above,
-# confirmed Work-level there) -- but might have a real release-level home
-# after all. Would need its own confirmation/decision before touching the
-# UNSUPPORTED_RELATION_TYPES filter, not done here.
+# COMPOSED confirmed real 2026-07-14, acted on: John live-tested "composed
+# / composer" (55) directly against a real release ("Hope Chest: The
+# Fredonia Recordings") -- the field exists, auto-matched the artist by
+# MBID, and the edit was successfully added (screenshot confirmed). This
+# is what surfaced the actual bug: a Discogs "Written-By" credit was
+# misclassified as ASSOCIATED_WITH (see performance.json) and the
+# release-wide automation then tried searching that text in the
+# Instrument field. COMPOSED still stays out of RELATION_TYPE_TO_LINK_TYPE
+# above -- the Recording-level editor has no composer field at all
+# (Work-level only, confirmed 2026-07-09) -- this is release-level-only
+# support.
+#
+# WRITTEN_BY(54)/LYRICIST(56) added 2026-07-14, correcting the first-pass
+# decision above: "Written-By" was initially mapped to COMPOSED, but
+# MusicBrainz's own style guide states "Writer" (54) IS the precise,
+# deliberate type for this -- "used... when no more specific information
+# is available. If possible, the more specific composer, lyricist and/or
+# librettist types should be used, rather than this relationship type."
+# That's an exact match for what Discogs' "Written-By" itself represents
+# (their own generic fallback for an unsplit music+lyrics credit). Both
+# IDs confirmed via MB's own relationship-type detail pages, cross-checked
+# against every ID already live-tested this session (writer/composer/
+# performer/instrument/vocal all matched exactly) -- this method is now
+# trusted for confirming NEW IDs, not just corroborating known ones.
 RELEASE_ARTIST_LINK_TYPES = {
     "PRODUCED": 30,       # produced / producer
     "PERFORMED_ON": 51,   # performed / performer
     "ARRANGED_BY": 295,   # arranged / arranger
+    "COMPOSED": 55,        # composed / composer
+    "WRITTEN_BY": 54,      # wrote / writer (generic fallback)
+    "LYRICIST": 56,        # lyrics / lyricist
 }
 
 # Search term to type into the relationship-type autocomplete before
@@ -119,6 +167,15 @@ RELEASE_LINK_TYPE_SEARCH_TERMS = {
     30: "produced",
     51: "performed",
     295: "arranged",
+    55: "composed",
+    # "wrote"/"lyrics" match MB's own dropdown label convention
+    # ("wrote / writer", "lyrics / lyricist" -- verb-first, same pattern
+    # as every entry above) but, unlike the numeric IDs above, these two
+    # search TERMS haven't been live-confirmed by actually typing them
+    # into the dialog and watching the filtered result render -- worth a
+    # first live test rather than assuming.
+    54: "wrote",
+    56: "lyrics",
 }
 
 # Release-scoped "vocals" relationship type -- confirmed live in the same
@@ -156,7 +213,11 @@ def _release_seed_fields(relation_type, role):
     all. Scoped to the release-wide path only for now -- the per-track
     URL-seeding path has its own, separate limitation, not touched here.
 
-    PRODUCED/ARRANGED_BY: simple, static lookup, role text irrelevant.
+    PRODUCED/ARRANGED_BY/COMPOSED/WRITTEN_BY/LYRICIST: simple, static
+    lookup, role text irrelevant. COMPOSED added 2026-07-14, live-
+    confirmed working against a real release. WRITTEN_BY/LYRICIST added
+    the same day, correcting the earlier COMPOSED-only decision -- see
+    RELEASE_ARTIST_LINK_TYPES comment for the full reasoning.
 
     PERFORMED_ON: MetaForge's own "this artist performed" classification,
     fairly high confidence. A role naming vocals ("Vocals", "Lead
@@ -184,7 +245,18 @@ def _release_seed_fields(relation_type, role):
     role_clean = (role or "").strip()
     role_lower = role_clean.lower()
 
-    if relation_type in ("PRODUCED", "ARRANGED_BY"):
+    # Strip a bracketed qualifier (e.g. "Drums [Studio]" -> "Drums")
+    # before using role text as MB's Instrument search term -- John,
+    # 2026-07-14, live-caught: this is a real, meaningful Discogs
+    # qualifier and stays untouched everywhere else (display, edit note,
+    # role classification -- role_clean/role above), but it isn't part
+    # of the actual instrument name and broke the exact/startsWith match
+    # against MB's own instrument label ("drums (drum set)"). A
+    # DIFFERENT bracket style than the round-paren track-number
+    # qualifier edge_normalizer.py already strips before classification.
+    instrument_search_text = re.sub(r'\s*\[.*?\]\s*', ' ', role_clean).strip() or role_clean
+
+    if relation_type in ("PRODUCED", "ARRANGED_BY", "COMPOSED", "WRITTEN_BY", "LYRICIST"):
         link_type = RELEASE_ARTIST_LINK_TYPES[relation_type]
         return link_type, RELEASE_LINK_TYPE_SEARCH_TERMS[link_type], None
 
@@ -193,14 +265,14 @@ def _release_seed_fields(relation_type, role):
             return RELEASE_ARTIST_LINK_TYPES["PERFORMED_ON"], RELEASE_LINK_TYPE_SEARCH_TERMS[51], None
         if "vocal" in role_lower:
             return RELEASE_VOCALS_LINK_TYPE, "vocals", None
-        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", role_clean
+        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", instrument_search_text
 
     if relation_type == "ASSOCIATED_WITH":
         if not role_clean or role_lower in GENERIC_NON_INSTRUMENT_ROLES:
             return None, None, None
         if "vocal" in role_lower:
             return RELEASE_VOCALS_LINK_TYPE, "vocals", None
-        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", role_clean
+        return RELEASE_INSTRUMENTS_LINK_TYPE, "instruments", instrument_search_text
 
     return None, None, None
 
@@ -300,9 +372,26 @@ def _list_candidates():
     candidates = _load_candidates()
 
     rows = []
+    state_dirty = False
     for c in candidates:
         rid = c["mb_recording_id"]
         review = state.get(rid)
+
+        if review and review.get("status") == "submitted" and not review.get("remediation_logged"):
+            _log_remediation("year", {
+                "mb_recording_id": rid,
+                "artist": c.get("artist"),
+                "album": c.get("album"),
+                "title": c.get("title"),
+                "current_release_year": c.get("current_release_year"),
+                "proposed_original_year": c.get("proposed_original_year"),
+                "orig_year_conf": c.get("orig_year_conf"),
+                "orig_year_source": c.get("orig_year_source"),
+                "evidence": c.get("evidence"),
+            })
+            review["remediation_logged"] = True
+            state_dirty = True
+
         rows.append({
             "mb_recording_id": rid,
             "artist": c.get("artist"),
@@ -316,6 +405,9 @@ def _list_candidates():
             "status": review["status"] if review else "pending",
             "status_timestamp": review["timestamp"] if review else None,
         })
+
+    if state_dirty:
+        _save_review_state(state)
 
     # Highest-confidence, still-pending candidates first -- the ones most
     # worth a human's limited review time surface at the top, not buried
@@ -757,9 +849,17 @@ def _load_personnel_candidates():
             except Exception:
                 continue
 
-            if entry.get("relation_type") in UNSUPPORTED_RELATION_TYPES:
-                continue
-            if entry.get("relation_type") not in RELATION_TYPE_TO_LINK_TYPE:
+            # Include a candidate if EITHER submission path can actually
+            # use it -- recording-level (RELATION_TYPE_TO_LINK_TYPE) or
+            # release-level (_release_seed_fields). Changed 2026-07-14:
+            # this used to be a flat RELATION_TYPE_TO_LINK_TYPE-only check,
+            # which meant COMPOSED never reached the queue at all even
+            # after gaining real release-level support above -- it would
+            # have just silently vanished instead of offering
+            # "Submit Release-Wide". WRITTEN_BY has no home on either
+            # path yet and still gets excluded here.
+            if (entry.get("relation_type") not in RELATION_TYPE_TO_LINK_TYPE
+                    and _release_seed_fields(entry.get("relation_type"), entry.get("role"))[0] is None):
                 continue
             if is_junk_role(entry.get("role", ""), config) or is_junk_name(entry.get("name", ""), config):
                 continue
@@ -795,6 +895,7 @@ def _list_personnel_candidates():
     candidates = _load_personnel_candidates()
 
     rows = []
+    state_dirty = False
     for c in candidates:
         key = _candidate_key(c)
         review = state.get(key) or {}
@@ -826,6 +927,33 @@ def _list_personnel_candidates():
             else:
                 status = "submitted"
 
+        # Log to the permanent remediation trail exactly once, the first
+        # time this candidate is genuinely observed as "submitted" (John,
+        # 2026-07-14). Deliberately checked HERE rather than in each
+        # write-path (_mark_personnel_handled/_mark_track_progress)
+        # separately -- this is the one place that already reconciles
+        # BOTH ways a personnel credit can end up submitted (a direct
+        # mark, or completing the per-track stepper), so logging here
+        # can't miss the stepper-completion case or double-log the same
+        # fact if the two paths ever raced.
+        if status == "submitted" and not review.get("remediation_logged"):
+            _log_remediation("personnel", {
+                "key": key,
+                "mf_id": c.get("mf_id"),
+                "artist": c.get("artist"),
+                "album": c.get("album"),
+                "mb_recording_id": rid,
+                "name": c.get("name"),
+                "mb_target_mbid": c.get("mb_target_mbid"),
+                "relation_type": c.get("relation_type"),
+                "role": c.get("role"),
+                "provenance": c.get("provenance"),
+                "confidence": c.get("confidence"),
+            })
+            review["remediation_logged"] = True
+            state[key] = review
+            state_dirty = True
+
         rows.append({
             "key": key,
             "mb_recording_id": rid,
@@ -853,6 +981,9 @@ def _list_personnel_candidates():
             # server-side, role-aware, not just relation_type-aware.
             "release_seedable": _release_seed_fields(c.get("relation_type"), c.get("role"))[0] is not None,
         })
+
+    if state_dirty:
+        _save_personnel_review_state(state)
 
     rows.sort(key=lambda r: (r["status"] not in ("pending", "in_progress"), -(r["confidence"] or 0)))
 
@@ -1186,6 +1317,16 @@ def _build_personnel_seed():
     if not candidate:
         return jsonify({"status": "error", "message": "Candidate not found."}), 404
 
+    # Guard added 2026-07-14: the queue can now include relation_types
+    # (COMPOSED) that only have a release-level seed, no recording-level
+    # one -- reachable here via the per-track stepper fallback UI, which
+    # would otherwise build a broken rels.0.type=None seed.
+    if RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"]) is None:
+        return jsonify({"status": "error", "message": (
+            f'"{candidate.get("relation_type")}" has no recording-level MusicBrainz relationship type -- '
+            f'use "Submit Release-Wide" for this credit instead.'
+        )}), 400
+
     recording_id = candidate.get("mb_recording_id") or recording_id_override
     if not recording_id:
         return jsonify({"status": "error", "message": "No target track specified for this album-wide credit."}), 400
@@ -1296,6 +1437,12 @@ def _build_bulk_personnel_seed():
     for key in keys:
         candidate = candidates_by_key.get(key)
         if not candidate:
+            continue
+        # Same guard as _build_personnel_seed() (2026-07-14): a
+        # release-level-only relation_type (COMPOSED) has no recording
+        # seed to build here -- skip it silently, same as any other
+        # stale/inapplicable key, rather than building rels.N.type=None.
+        if RELATION_TYPE_TO_LINK_TYPE.get(candidate["relation_type"]) is None:
             continue
         rid = candidate.get("mb_recording_id")
         is_album_scope_step = not rid
@@ -1596,8 +1743,22 @@ def _build_release_relationship_automation_js(link_type, target_mbid, target_nam
         }}, 6000);
         doneBtn.click();
 
+        // Same stale-element-reference race as the Artist field mitigation
+        // above (John, 2026-07-14, confirmed live: dialog closed and the
+        // relationship showed as pending correctly, but the edit note
+        // textarea stayed empty despite this fill step running with no
+        // error). Adding a relationship likely re-renders nearby page
+        // regions -- a short settle pause plus verify-and-retry against a
+        // freshly re-queried element, exactly like the Artist field fix.
+        await new Promise(function(resolve) {{ setTimeout(resolve, 400); }});
+
         var noteEl = await waitFor(function() {{ return document.getElementById('edit-note-text'); }}, 4000);
         setNativeValue(noteEl, DATA.editNote);
+
+        if (noteEl.value !== DATA.editNote) {{
+            noteEl = await waitFor(function() {{ return document.getElementById('edit-note-text'); }}, 4000);
+            setNativeValue(noteEl, DATA.editNote);
+        }}
 
         alert('MetaForge filled in the relationship and edit note below "Release relationships" -- '
               + 'please review the Preview and edit note, then click "Enter edit" yourself to submit.');
