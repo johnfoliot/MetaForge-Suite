@@ -8,6 +8,7 @@
 # ======================================================================
 import requests
 import re
+import html
 import json
 import sys
 import hashlib
@@ -16,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import jsonify, request
 from common import db_engine, config_handler
-from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, load_config
+from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, is_junk_role, classify_role, load_config
 from tools.personnel import edge_store
 from tools.personnel import mb_personnel_engine
 from tools.personnel import discogs_personnel_engine
@@ -429,14 +430,70 @@ def _extract_credits_from_wikitext(full_text):
     text = re.sub(r'<ref.*?>.*?</ref>', '', text, flags=re.DOTALL)
     text = re.sub(r"'{3,}", "", text)
     text = re.sub(r"''", "", text)
+    # Real bug, found live 2026-07-15: this article's actual credit lines
+    # use "[[Name]]&nbsp;– role" -- HTML entities were never being
+    # decoded at all, so the " – " split below never matched a single
+    # one of them, silently dropping every band-member/musician credit
+    # (only the bare-colon "X Credits:" lines, unaffected by this, ever
+    # got through). html.unescape() alone isn't enough on its own either:
+    # &nbsp; decodes to U+00A0 (a real but DIFFERENT character from a
+    # plain space), which the split regex still wouldn't match -- also
+    # normalized to a plain space.
+    text = html.unescape(text).replace('\xa0', ' ')
 
+    config = load_config()
     candidates = []
     for line in text.split('\n'):
         line = line.strip().strip('|').strip()
         if not line or any(x in line.lower() for x in ['colwidth=', 'style=', 'class=', 'title=']): continue
         line = re.sub(r'^[*#]+\s*', '', line)
         parts = re.split(r" – | - |:", line)
-        if len(parts) >= 2: candidates.append({"name": parts[0].strip(), "role": parts[1].strip()})
+        if len(parts) < 2:
+            continue
+
+        left, right = parts[0].strip(), parts[1].strip()
+
+        # A junk header (e.g. "Managed Care" -- an admin/business credit,
+        # not personnel) can land on either side depending on which
+        # direction the line turns out to use -- checked against BOTH
+        # before deciding anything else, so it's excluded outright
+        # regardless of orientation (John, 2026-07-15).
+        if is_junk_role(left, config) or is_junk_role(right, config):
+            continue
+
+        # Real bug, found live 2026-07-15: not every Wikipedia credits
+        # line follows "Person -- role(s)". Some use the reverse, "Role
+        # header: Person, Person, Person" (confirmed against the actual
+        # "Music from the Motion Picture" (10,000 Maniacs) article --
+        # "Producer Credits: Andreas Laemmermann, Adam Zeitz, ...", "10,000
+        # Maniacs Crew: Scott Barton, Colin Braeger", "Touring guitarist &
+        # vocalist: Melanie Luciano"). The unconditional name=left/
+        # role=right assumption inverted this: the header landed in
+        # "name" and got repeated across every atom, while each real
+        # person's name landed in "role" and got (mis)classified as if it
+        # were role text.
+        #
+        # Two narrow, well-grounded signals (John, 2026-07-15, explicitly
+        # declined a general structural left/right detector as too risky
+        # to misread the working "Person -- role, role" lines this same
+        # regex already handles correctly everywhere else):
+        # 1. LEFT ends in a known generic collective-header suffix
+        #    ("Credits"/"Crew") -- confirmed real idioms in this article.
+        # 2. LEFT itself classifies as a REAL recognized role via the
+        #    SAME classify_role() every other role text in this pipeline
+        #    already trusts (not the ASSOCIATED_WITH 0.5 fallback) -- e.g.
+        #    "touring guitarist & vocalist" matches the existing "ist$"
+        #    pattern, no header suffix needed.
+        header_match = re.match(r'(?i)^.+\s+(credits?|crew)$', left)
+        _, left_conf = classify_role(left.lower(), config)
+        if header_match or left_conf != 0.5:
+            role = re.sub(r'(?i)\s+(credits?|crew)$', '', left).strip() if header_match else left
+            for person in right.split(','):
+                person = person.strip()
+                if person:
+                    candidates.append({"name": person, "role": role})
+        else:
+            candidates.append({"name": left, "role": right})
 
     return text, candidates
 
