@@ -136,11 +136,24 @@ def search_musicbrainz():
 
         releases = []
         for r in result.get("releases", []):
+            # MB's release search already returns a "media" array natively
+            # (no extra inc= params needed, confirmed live) -- one entry
+            # per physical/digital medium, each with its own "format"
+            # ("CD", "Digital Media", "Vinyl", etc.). A multi-disc release
+            # has multiple media entries; joined with "+" rather than
+            # picking just the first, so a real 2xCD release reads as
+            # "CD+CD" instead of silently dropping a disc. "Digital Media"
+            # shortened to "Digital" to fit the narrow column -- every
+            # other MB format string is left exactly as MB returns it,
+            # not guessed at or abbreviated further.
+            formats = [m.get("format") or "Unknown" for m in (r.get("media") or [])]
+            formats = ["Digital" if f == "Digital Media" else f for f in formats]
             releases.append({
                 "id": r.get("id"),
                 "score": r.get("score", "0"),
                 "artist": r.get("artist-credit", [{}])[0].get("name", "Unknown"),
                 "title": r.get("title", "Unknown"),
+                "format": "+".join(formats) if formats else "Unknown",
                 "track_count": r.get("track-count", "0"),
                 "year": r.get("date", "Unknown")[:4],
                 "country_code": r.get("country", "??").lower()

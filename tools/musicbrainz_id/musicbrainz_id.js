@@ -89,7 +89,7 @@ window.metaforge.musicbrainz_id = {
         }
 
         this.announceStatus("Searching MusicBrainz...", "success");
-        resultsBody.innerHTML = `<tr><td colspan="5" style="padding:20px; color:var(--mf-gold);">Consulting MusicBrainz...</td></tr>`;
+        resultsBody.innerHTML = `<tr><td colspan="6" style="padding:20px; color:var(--mf-gold);">Consulting MusicBrainz...</td></tr>`;
 
         try {
             const response = await fetch('/run_tool_logic/musicbrainz_id/search', {
@@ -105,7 +105,7 @@ window.metaforge.musicbrainz_id = {
     renderResults: function(results) {
         const body = document.getElementById('mb-results-body');
         if (!results || results.length === 0) {
-            body.innerHTML = `<tr><td colspan="5" style="padding:20px;">No matches found.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="6" style="padding:20px;">No matches found.</td></tr>`;
             return;
         }
 
@@ -120,6 +120,7 @@ window.metaforge.musicbrainz_id = {
                 <tr onclick="metaforge.musicbrainz_id.selectRelease('${r.id}')" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ') this.click()">
                     <td>${r.score}%</td>
                     <td><strong>${r.artist}</strong><br>${r.title}</td>
+                    <td>${r.format}</td>
                     <td>${r.track_count}</td>
                     <td>${r.year}</td>
                     <td style="text-align:center;" aria-label="Country: ${cc.toUpperCase()}">${flagHtml}</td>

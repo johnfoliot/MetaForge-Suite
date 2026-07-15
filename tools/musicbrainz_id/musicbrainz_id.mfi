@@ -281,13 +281,14 @@
                         <tr>
                             <th style="width:40px;">Score</th>
                             <th>Artist / Album</th>
+                            <th style="width:60px;">Format</th>
                             <th style="width:40px;">Tracks</th>
                             <th style="width:40px;">Year</th>
                             <th style="width:45px; text-align:center;">CC</th>
                         </tr>
                     </thead>
                     <tbody id="mb-results-body">
-                        <tr><td colspan="5" class="tool_notes" style="padding:20px;">Ready for Discovery.</td></tr>
+                        <tr><td colspan="6" class="tool_notes" style="padding:20px;">Ready for Discovery.</td></tr>
                     </tbody>
                 </table>
             </div>
