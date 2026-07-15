@@ -231,7 +231,7 @@ def _orchestrate_tagger_batch(data, env_path):
 }
 </style>
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
-    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:14px; width:auto; margin-bottom:-2px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
+    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px; margin-bottom:5px;margin-top:5px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
     # Recursive -- a box set's tracks live inside "CD 1"/"CD 2" subfolders
