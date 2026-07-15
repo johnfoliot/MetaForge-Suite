@@ -7,6 +7,7 @@
 
 import os
 import sys
+import re
 import json
 from pathlib import Path
 from flask import Response, stream_with_context, request, jsonify
@@ -23,6 +24,29 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from common import config_handler
 import it_context_engine
+
+
+def _natural_track_sort_key(path):
+    """
+    Real bug, found live 2026-07-15: plain lexicographic sort on the raw
+    glob results (`sorted(path.glob(...))`) processed a 13-track album
+    named "1 -" through "13 -" (no zero-padding) as 1, 10, 11, 12, 13, 2,
+    3, ... instead of numeric order. This coincidentally worked whenever
+    every filename in a folder happened to be zero-padded to the same
+    width, which is most of the library but not a safe assumption --
+    never was a deliberate natural sort, just lucky padding.
+
+    Sorts by (parent folder, leading track number, filename) -- the
+    parent-folder component preserves disc-folder ordering for box sets
+    ("CD 1" before "CD 2", plain string comparison, unchanged from
+    before), the leading-number component fixes the actual reported bug
+    WITHIN a folder, and the filename is a final tiebreak for anything
+    with no leading digits at all (sorts after every numbered track,
+    never crashes on an unexpected name).
+    """
+    match = re.match(r'^0*(\d+)', path.stem)
+    number = int(match.group(1)) if match else float('inf')
+    return (path.parent.as_posix(), number, path.name)
 
 
 def run_logic(action, tools_dir, env_path):
@@ -75,7 +99,7 @@ def _handle_get_context():
 def _recover_legacy_mb_seeds(target_path):
     # Recursive for the same reason as the main batch loop below -- a box
     # set's first track may live inside a "CD 1" subfolder.
-    mp3_files = sorted(target_path.glob("**/*.mp3"))
+    mp3_files = sorted(target_path.glob("**/*.mp3"), key=_natural_track_sort_key)
     if not mp3_files:
         return None
 
@@ -238,11 +262,13 @@ def _orchestrate_tagger_batch(data, env_path):
     # (Unpack/Convert and MusicBrainz ID both already handle this
     # correctly), and a non-recursive glob here would silently find zero
     # tracks for one, the other half of the box-set "choke" John flagged
-    # 2026-07-08. Sort order stays correct: filenames are already
-    # disc-prefixed (101, 102, 201...) and "CD 1" sorts before "CD 2" by
-    # plain string comparison, so Path's default lexicographic sort
-    # naturally preserves disc/track order.
-    files = sorted(list(root_path.glob("**/*.mp3")))
+    # 2026-07-08. _natural_track_sort_key preserves disc-folder ordering
+    # ("CD 1" before "CD 2", plain string comparison as before) while
+    # sorting numerically WITHIN a folder -- plain lexicographic sort
+    # here was a real live bug (see that function's docstring): only
+    # coincidentally correct when every filename happens to be
+    # zero-padded to the same width, not a safe assumption library-wide.
+    files = sorted(list(root_path.glob("**/*.mp3")), key=_natural_track_sort_key)
     total_files = len(files)
 
     track_results = []
