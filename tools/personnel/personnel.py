@@ -800,7 +800,22 @@ def _commit():
         if not name: continue
 
         tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
-        db_engine.execute_query("INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name) VALUES (?, ?)", (tid, name), commit=True)
+        # Real gap found live 2026-07-16: mb_target_mbid was already being
+        # read off every candidate here (see _maybe_log_candidate below) and
+        # forwarded to the MB-Submit JSONL log, but never reached
+        # library_artist.mb_artist_id -- the actual identity table Personnel
+        # Bridge (see project_playlist_maker_vision memory) needs a real
+        # MBID on, not the bare name-hash target_id alone. Upsert instead of
+        # INSERT OR IGNORE so a second commit for an already-known artist
+        # can still backfill the MBID the first time it's actually
+        # available; COALESCE never lets a later credit with no MBID
+        # overwrite one a prior credit already resolved.
+        db_engine.execute_query(
+            """INSERT INTO library_artist (mf_artist_id, artist_name, mb_artist_id) VALUES (?, ?, ?)
+               ON CONFLICT(mf_artist_id) DO UPDATE SET
+                   mb_artist_id = COALESCE(excluded.mb_artist_id, library_artist.mb_artist_id)""",
+            (tid, name, p.get('mb_target_mbid')), commit=True
+        )
 
         if p.get('relation_type'):
             role = (p.get('role') or '').strip()
