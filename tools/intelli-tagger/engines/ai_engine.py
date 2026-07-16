@@ -54,6 +54,23 @@ def map_track_taxonomy(artist, title, acoustic_data):
     with open(MOODS_PATH, "r", encoding="utf-8") as f:
         moods_taxonomy = f.read()
 
+    # Parsed (not just the raw text sent to the prompt above) so the
+    # validation step below can check the AI's answer against the real
+    # controlled vocabulary, not just trust it followed the prompt's
+    # instructions. Real bug, found live 2026-07-16: "STRICT semantic
+    # classification engine" in the prompt was the ONLY enforcement --
+    # nothing in code ever checked the returned value was actually one
+    # of the fixed values, and mood had genuinely drifted in the live
+    # database as a result (e.g. "Uplifting", "Soulful", a literal typo
+    # "Melocnholic" -- none of which are real anchors). genre/
+    # sonic_texture/emotional_flavor happened to have zero drift in
+    # practice, but shared the identical unenforced gap.
+    taxonomy_data = json.loads(taxonomy)
+    moods_data = json.loads(moods_taxonomy)
+    valid_moods = set(moods_data.get("anchors", []))
+    valid_textures = set(moods_data.get("modifiers", {}).get("Sonic_Texture", []))
+    valid_flavors = set(moods_data.get("modifiers", {}).get("Emotional_Flavor", []))
+
     # -------------------------------
     # PROMPT
     # -------------------------------
@@ -135,6 +152,24 @@ release or distribution territory of this specific recording.
             raise ValueError(f"Missing field from AI response: {k}")
         if not isinstance(data[k], str) or not data[k].strip():
             raise ValueError(f"Invalid field '{k}' from AI response")
+
+    # Closed-vocabulary enforcement -- an off-list value here must fail
+    # loudly, not get silently written to the database. The caller
+    # (intelli-tagger.py's _orchestrate_tagger_batch) already wraps this
+    # whole function in try/except and falls back to "Unknown" for every
+    # AI field on any exception -- raising here is safe and lands
+    # exactly on that existing, already-correct safety net, never a new
+    # crash risk.
+    if data["parent"] not in taxonomy_data:
+        raise ValueError(f"AI returned parent genre {data['parent']!r} not in taxonomy.json")
+    if data["sub"] not in taxonomy_data.get(data["parent"], []):
+        raise ValueError(f"AI returned sub-genre {data['sub']!r} not valid under parent {data['parent']!r}")
+    if data["mood"] not in valid_moods:
+        raise ValueError(f"AI returned mood {data['mood']!r} outside the fixed anchor list {sorted(valid_moods)}")
+    if data["sonic_texture"] not in valid_textures:
+        raise ValueError(f"AI returned sonic_texture {data['sonic_texture']!r} outside the fixed list {sorted(valid_textures)}")
+    if data["emotional_flavor"] not in valid_flavors:
+        raise ValueError(f"AI returned emotional_flavor {data['emotional_flavor']!r} outside the fixed list {sorted(valid_flavors)}")
 
     # -------------------------------
     # RETURN CONTRACT
