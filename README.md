@@ -30,7 +30,7 @@ Music files often arrive cluttered with "metadata cruft": legacy comments, encod
 This ensures your library is not just organized, but **unified**—free from the conflicting tagging styles and bloat of a dozen different legacy sources.
 
 ### 3. AI-Powered Taxonomy & Acoustic Analysis
-This is arguably the most important section of the MetaForge Intelli-Tagger workflow — it's what turns a folder of audio files into a structured, queryable archive, and it's the direct foundation the future Intelligent Playlist Generator (below) is built on.
+This is arguably the most important section of the MetaForge Intelli-Tagger workflow — it's what turns a folder of audio files into a structured, queryable archive, and it's the direct data foundation upon which the future Intelligent Playlist Generator (below) will be built on.
 
 **Genre / Sub-Genre: an editable taxonomy.** Free-text genre tags are one of the biggest sources of "metadata cruft" in a legacy library — the same album might be tagged `Rock`, `rock`, `Classic Rock`, or `Rock; Pop` depending on which ripping tool or online database touched it last. MetaForge Intelli-Tagger solves this at the root with a **fixed, curated Genre / Sub-Genre taxonomy** rather than letting genre tags accumulate free-form. Every track is classified against a single, controlled vocabulary of primary genres (Blues, Gospel, Reggae, Swing & Standards, and dozens more) and their specific sub-genres (e.g., *Blues* → Delta Blues, Chicago Blues, Electric Blues, Texas Blues). This taxonomy is **fixed by default, but fully editable** — because your genre structure should reflect your own collection's needs, not someone else's.
 
