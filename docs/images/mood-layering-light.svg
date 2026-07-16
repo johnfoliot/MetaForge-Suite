@@ -1,0 +1,54 @@
+<svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <rect x="0" y="0" width="900" height="540" rx="12" fill="#fcfcfb"/>
+
+  <text x="450" y="42" text-anchor="middle" font-size="21" font-weight="600" fill="#0b0b0b">Mood, Texture &amp; Flavor: Layering the Emotional Profile</text>
+  <text x="450" y="66" text-anchor="middle" font-size="13" fill="#52514e">GEMS-inspired: a single Mood label isn't enough, so two more dimensions refine it</text>
+
+  <!-- Card 1: Mood -->
+  <rect x="40" y="110" width="250" height="170" rx="10" fill="#fcfcfb" stroke="#2a78d6" stroke-width="2"/>
+  <rect x="40" y="110" width="250" height="34" rx="10" fill="#2a78d6"/>
+  <rect x="40" y="126" width="250" height="18" fill="#2a78d6"/>
+  <text x="165" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">MOOD · 6 options</text>
+  <text x="165" y="195" text-anchor="middle" font-size="24" font-weight="700" fill="#0b0b0b">Melancholic</text>
+  <text x="165" y="225" text-anchor="middle" font-size="12" fill="#52514e">Placed by Russell's</text>
+  <text x="165" y="242" text-anchor="middle" font-size="12" fill="#52514e">valence / arousal plane</text>
+
+  <!-- Arrow 1 -->
+  <line x1="290" y1="195" x2="320" y2="195" stroke="#898781" stroke-width="2"/>
+  <polygon points="320,195 310,189 310,201" fill="#898781"/>
+  <text x="305" y="180" text-anchor="middle" font-size="16" fill="#898781">+</text>
+
+  <!-- Card 2: Sonic Texture -->
+  <rect x="325" y="110" width="250" height="170" rx="10" fill="#fcfcfb" stroke="#1baf7a" stroke-width="2"/>
+  <rect x="325" y="126" width="250" height="18" fill="#1baf7a"/>
+  <rect x="325" y="110" width="250" height="34" rx="10" fill="#1baf7a"/>
+  <text x="450" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">SONIC TEXTURE · 9 options</text>
+  <text x="450" y="195" text-anchor="middle" font-size="24" font-weight="700" fill="#0b0b0b">Raw</text>
+  <text x="450" y="225" text-anchor="middle" font-size="12" fill="#52514e">How the track is</text>
+  <text x="450" y="242" text-anchor="middle" font-size="12" fill="#52514e">built and recorded</text>
+
+  <!-- Arrow 2 -->
+  <line x1="575" y1="195" x2="605" y2="195" stroke="#898781" stroke-width="2"/>
+  <polygon points="605,195 595,189 595,201" fill="#898781"/>
+  <text x="590" y="180" text-anchor="middle" font-size="16" fill="#898781">+</text>
+
+  <!-- Card 3: Emotional Flavor -->
+  <rect x="610" y="110" width="250" height="170" rx="10" fill="#fcfcfb" stroke="#4a3aa7" stroke-width="2"/>
+  <rect x="610" y="126" width="250" height="18" fill="#4a3aa7"/>
+  <rect x="610" y="110" width="250" height="34" rx="10" fill="#4a3aa7"/>
+  <text x="735" y="133" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">EMOTIONAL FLAVOR · 9 options</text>
+  <text x="735" y="195" text-anchor="middle" font-size="24" font-weight="700" fill="#0b0b0b">Nostalgic</text>
+  <text x="735" y="225" text-anchor="middle" font-size="12" fill="#52514e">A finer emotional shade</text>
+  <text x="735" y="242" text-anchor="middle" font-size="12" fill="#52514e">layered on top of Mood</text>
+
+  <!-- Down arrow to result -->
+  <line x1="450" y1="290" x2="450" y2="330" stroke="#898781" stroke-width="2"/>
+  <polygon points="450,330 444,320 456,320" fill="#898781"/>
+
+  <!-- Result band -->
+  <rect x="100" y="345" width="700" height="150" rx="10" fill="#f0efec" stroke="#e1e0d9" stroke-width="1.5"/>
+  <text x="450" y="378" text-anchor="middle" font-size="12" font-weight="700" fill="#898781" letter-spacing="1">ONE SPECIFIC EMOTIONAL FINGERPRINT</text>
+  <text x="450" y="418" text-anchor="middle" font-size="20" font-weight="600" fill="#0b0b0b">"Melancholic, Raw, Nostalgic" — Intensity 4/10</text>
+  <text x="450" y="450" text-anchor="middle" font-size="13" fill="#52514e">Distinct from a "Melancholic, Orchestral, Atmospheric" track at the same Mood —</text>
+  <text x="450" y="470" text-anchor="middle" font-size="13" fill="#52514e">6 × 9 × 9 × 10 = 4,860 possible acoustic profiles, before Genre is even considered</text>
+</svg>

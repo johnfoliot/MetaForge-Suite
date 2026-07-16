@@ -1,0 +1,49 @@
+<svg viewBox="0 0 720 720" xmlns="http://www.w3.org/2000/svg" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <rect x="0" y="0" width="720" height="720" rx="12" fill="#fcfcfb"/>
+
+  <text x="360" y="42" text-anchor="middle" font-size="21" font-weight="600" fill="#0b0b0b">Russell's Circumplex Model, Discretized</text>
+  <text x="360" y="66" text-anchor="middle" font-size="13" fill="#52514e">MetaForge's 6 Mood anchors, placed by valence and arousal</text>
+
+  <!-- Reference circle -->
+  <circle cx="360" cy="380" r="230" fill="none" stroke="#e1e0d9" stroke-width="1.5" stroke-dasharray="4 5"/>
+
+  <!-- Axes -->
+  <line x1="130" y1="380" x2="600" y2="380" stroke="#c3c2b7" stroke-width="1.5"/>
+  <line x1="360" y1="150" x2="360" y2="610" stroke="#c3c2b7" stroke-width="1.5"/>
+
+  <!-- Axis labels -->
+  <text x="360" y="130" text-anchor="middle" font-size="13" font-weight="600" fill="#52514e">Arousal: Activated</text>
+  <text x="360" y="636" text-anchor="middle" font-size="13" font-weight="600" fill="#52514e">Arousal: Calm</text>
+  <text x="108" y="384" text-anchor="end" font-size="13" font-weight="600" fill="#52514e">Valence: Unpleasant</text>
+  <text x="612" y="384" text-anchor="start" font-size="13" font-weight="600" fill="#52514e">Valence: Pleasant</text>
+
+  <!-- Mood points: circle + connector + label, one fixed hue per mood -->
+  <!-- Joyful -->
+  <circle cx="533" cy="231" r="9" fill="#eda100"/>
+  <text x="533" y="212" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Joyful</text>
+
+  <!-- Energetic -->
+  <circle cx="418" cy="173" r="9" fill="#eb6834"/>
+  <text x="418" y="154" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Energetic</text>
+
+  <!-- Tense -->
+  <circle cx="245" cy="219" r="9" fill="#4a3aa7"/>
+  <text x="245" y="200" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Tense</text>
+
+  <!-- Aggressive -->
+  <circle cx="176" cy="300" r="9" fill="#e34948"/>
+  <text x="176" y="281" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Aggressive</text>
+
+  <!-- Melancholic -->
+  <circle cx="234" cy="518" r="9" fill="#2a78d6"/>
+  <text x="234" y="543" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Melancholic</text>
+
+  <!-- Peaceful -->
+  <circle cx="510" cy="507" r="9" fill="#1baf7a"/>
+  <text x="510" y="532" text-anchor="middle" font-size="14" font-weight="600" fill="#0b0b0b">Peaceful</text>
+
+  <!-- Center mark -->
+  <circle cx="360" cy="380" r="2.5" fill="#898781"/>
+
+  <text x="360" y="685" text-anchor="middle" font-size="11.5" fill="#898781">Six fixed anchor points on Russell's (1980) valence/arousal plane — not a continuous score</text>
+</svg>
