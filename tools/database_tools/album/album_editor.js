@@ -172,9 +172,18 @@ window.metaforge.database_tools.album = {
         // rather than losing their provenance/confidence on every save.
         if (id !== undefined && id !== null) div.dataset.edgeId = id;
         div.style = "display: flex; gap: 6px; align-items: center; margin-bottom: 4px;";
+        // Real bug, found live 2026-07-16: name/role were interpolated raw
+        // into the value="..." attribute with no escaping -- a name
+        // containing a literal double quote (e.g. Willie "Big Eyes" Smith,
+        // a real credit in this library) prematurely terminated the
+        // attribute, corrupting the markup and producing a garbled
+        // &quot;-laden duplicate artist row on save. escapeHTML() already
+        // exists in this file (used elsewhere for track titles) and
+        // already handles quotes correctly -- it just was never called
+        // here.
         div.innerHTML = `
-			<input type="text" class="mb-input-text p-name" placeholder="Name" value="${name || ''}" style="flex: 1.5; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Mono', monospace; padding: 4px;">
-            <input type="text" class="mb-input-text p-role" placeholder="Role" value="${role || ''}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
+			<input type="text" class="mb-input-text p-name" placeholder="Name" value="${this.escapeHTML(name || '')}" style="flex: 1.5; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Mono', monospace; padding: 4px;">
+            <input type="text" class="mb-input-text p-role" placeholder="Role" value="${this.escapeHTML(role || '')}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
 			<button class="mf-button-gold-fixed" style="background: var(--status-error) !important; width: 30px; min-width: 30px; height: 28px; padding: 0;" onclick="this.parentElement.remove()" aria-label="Remove Row" title="Remove Row">&times;</button>`;
         pContainer.appendChild(div);
     },
