@@ -93,9 +93,10 @@
                 <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;">
                     <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--mf-gold);">
 						<tr>
-							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;" 
+							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;"
 								onclick="window.metaforge.personnel.sortMapping('name')">Name ↕</th>
-							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%;">Role</th>
+							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;"
+								onclick="window.metaforge.personnel.sortMapping('role')">Role ↕</th>
 							<th style="padding: 8px; text-align: center; width: 40px;">X</th>
 						</tr>
 					</thead>

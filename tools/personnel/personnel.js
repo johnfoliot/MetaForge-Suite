@@ -439,9 +439,19 @@ window.metaforge.personnel = {
     },
 
 	sortMapping: function(key) {
-        // Simple toggle sort (ascending/descending)
-        if (!this.state.sortDir) this.state.sortDir = 1;
-        else this.state.sortDir *= -1;
+        // Toggle sort (ascending/descending) -- re-clicking the SAME
+        // column flips direction, clicking a DIFFERENT column starts
+        // fresh ascending (John, 2026-07-16, added Role as a sortable
+        // column alongside the existing Name one: without tracking which
+        // column the current direction belongs to, switching from Name
+        // to Role would carry over whatever direction Name was left on
+        // instead of starting predictably).
+        if (this.state.sortKey === key) {
+            this.state.sortDir = (this.state.sortDir || 1) * -1;
+        } else {
+            this.state.sortKey = key;
+            this.state.sortDir = 1;
+        }
 
         this.state.mapping.sort((a, b) => {
             const valA = (a[key] || '').toLowerCase();
