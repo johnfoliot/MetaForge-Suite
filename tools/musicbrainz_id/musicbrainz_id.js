@@ -239,6 +239,13 @@ window.metaforge.musicbrainz_id = {
                 recording_id: remote ? remote.recording_id : "",
                 work_id: remote ? remote.work_id : "",
 
+                // Real per-recording artist-credit from MB (empty for a
+                // normal single-artist release) -- lets the backend rename
+                // each track under its own actual performer instead of the
+                // blanket release-level artist, the fix for Various Artists
+                // compilations losing per-track performer identity.
+                track_artist: remote ? remote.artist : "",
+
                 track_num: index + 1,
                 artist_id: this.state.currentArtistId,
                 album_id: this.state.currentReleaseId,

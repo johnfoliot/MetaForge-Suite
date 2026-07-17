@@ -109,6 +109,15 @@ def execute_commit(
 
     success_count = 0
 
+    # Real per-track artist identities encountered this commit, keyed by
+    # their own mf_artist_id hash -- distinct from the single album-level
+    # mf_artist_id computed above. Populated below and synced into
+    # library_artist after the track loop, so a Various Artists compilation
+    # gets one node per actual performer instead of collapsing all 18
+    # tracks under the album's nominal "Various Artists" filing name (real
+    # bug, found live 2026-07-16 via a corrupted mf_artist_id in production).
+    track_artist_registry = {}
+
     # =========================================================
     # TRACK LOOP
     # =========================================================
@@ -127,6 +136,10 @@ def execute_commit(
                 mb_work_id = _normalize(data.get("mb_work_id"))
                 acoustid = _normalize(data.get("acoustid"))
                 mb_artist_id = _normalize(data.get("mb_artist_id"))
+
+                track_artist_name = (data.get('artist') or artist_name or '').strip()
+                track_mf_artist_id = _hash_artist(track_artist_name) if track_artist_name else mf_artist_id
+                track_artist_registry[track_mf_artist_id] = track_artist_name or artist_name
 
                 cursor.execute("""
                     INSERT INTO tracks (
@@ -151,7 +164,7 @@ def execute_commit(
                 """, (
                     str(f_path.resolve()).replace('\\', '/'),
                     mf_id,
-                    mf_artist_id,
+                    track_mf_artist_id,
                     mb_artist_id,
                     mb_track_id,
                     acoustid,
@@ -208,6 +221,16 @@ def execute_commit(
                 now,
                 manifest_seeds.get('is_compilation', 0)
             )
+
+            # One library_artist node per real performer encountered in the
+            # track loop above -- covers the Various Artists case where
+            # track_artist_registry holds several distinct hashes; a no-op
+            # extra upsert for a normal album, where every track hashed to
+            # the same mf_artist_id _sync_relational_masters already synced.
+            for t_mf_artist_id, t_artist_name in track_artist_registry.items():
+                if t_mf_artist_id == mf_artist_id:
+                    continue
+                _sync_library_artist(cursor, t_mf_artist_id, t_artist_name, "None", "Unknown", now)
 
             conn.commit()
             conn.close()
@@ -354,8 +377,16 @@ def _generate_mf_hashes(artist, album):
 
     return (
         hashlib.sha256(f"{a}|{b}".encode("utf-8")).hexdigest(),
-        hashlib.sha256(a.encode("utf-8")).hexdigest()
+        _hash_artist(a)
     )
+
+
+def _hash_artist(name):
+    # Same identity key edges.target_id/library_artist.mf_artist_id already
+    # use elsewhere (sha256 of the lowercased credited name) -- Personnel
+    # Bridge depends on this being computed identically everywhere an
+    # artist identity gets hashed, not just here.
+    return hashlib.sha256(str(name).strip().lower().encode("utf-8")).hexdigest()
 
 
 # =========================================================
@@ -412,8 +443,29 @@ def _sync_relational_masters(
             1
         ))
 
-    cursor.execute("SELECT 1 FROM library_artist WHERE mf_artist_id = ?", (mf_artist_id,))
-    if cursor.fetchone():
+    _sync_library_artist(
+        cursor, mf_artist_id, artist_name,
+        manifest_seeds.get("mb_ids", {}).get("artist", "None"),
+        country_val, now
+    )
+
+
+def _sync_library_artist(cursor, mf_artist_id, artist_name, mb_artist_id, country_val, now):
+    # Non-destructive on mb_artist_id/country -- "None"/"Unknown" here (the
+    # per-track call site has no real per-performer MBID or country to
+    # offer) must never overwrite a value this artist already has from
+    # Personnel Scout or the MBID backfill. Same COALESCE-style precedent
+    # as personnel.py's _commit() UPSERT fixed 2026-07-16.
+    cursor.execute(
+        "SELECT mb_artist_id, country FROM library_artist WHERE mf_artist_id = ?",
+        (mf_artist_id,)
+    )
+    existing = cursor.fetchone()
+    if existing:
+        existing_mbid, existing_country = existing
+        resolved_mbid = mb_artist_id if mb_artist_id not in (None, "", "None") else existing_mbid
+        resolved_country = country_val if country_val not in (None, "", "Unknown") else existing_country
+
         cursor.execute("""
             UPDATE library_artist
             SET artist_name=?, last_updated=?, mb_artist_id=?, country=?
@@ -421,8 +473,8 @@ def _sync_relational_masters(
         """, (
             artist_name,
             now,
-            manifest_seeds.get("mb_ids", {}).get("artist", "None"),
-            country_val,
+            resolved_mbid,
+            resolved_country,
             mf_artist_id
         ))
     else:
@@ -433,7 +485,7 @@ def _sync_relational_masters(
             VALUES (?, ?, ?, ?, ?)
         """, (
             mf_artist_id,
-            manifest_seeds.get("mb_ids", {}).get("artist", "None"),
+            mb_artist_id,
             artist_name,
             now,
             country_val

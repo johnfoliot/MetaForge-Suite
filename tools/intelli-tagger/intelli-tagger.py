@@ -320,6 +320,12 @@ def _orchestrate_tagger_batch(data, env_path):
                 "mb_artist_id": mb_ids.get("artist", "None"),
                 "mb_album_id": mb_ids.get("album", "None"),
                 "mb_group_id": mb_ids.get("release_group", mb_ids.get("group", "None")),
+                # Real per-track performer from the manifest's mb_track_map
+                # (populated by musicbrainz_id.py's commit step from MB's own
+                # recording-level artist-credit) -- empty for a normal album
+                # where every track shares the one artist. See combined["artist"]
+                # below, which prefers this over the blanket album-level artist.
+                "track_artist": fast_track.get("artist", ""),
             }
 
             yield (
@@ -382,7 +388,14 @@ def _orchestrate_tagger_batch(data, env_path):
             personnel_preseed=mb_personnel_preseed if db_write else None,
         )
         combined.update(year_result)
-        combined["artist"] = artist
+        # Real per-track performer (from the MB-sourced manifest, see
+        # identity_data above) takes priority over the blanket album-level
+        # artist -- the fix for Various Artists compilations, where "artist"
+        # here would otherwise be the release's nominal filing name for
+        # every single track. Falls back to the album-level artist for the
+        # normal case (no per-track override, or the id_engine fallback
+        # path above which doesn't carry one at all).
+        combined["artist"] = combined.get("track_artist") or artist
         combined["release_year"] = release_year
 
         combined["label"] = release_label

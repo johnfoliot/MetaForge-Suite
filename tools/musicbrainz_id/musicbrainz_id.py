@@ -226,6 +226,20 @@ def get_release_details():
                         if work_id:
                             break
 
+                # MB attaches its own artist-credit to the RECORDING
+                # whenever a track's real performer differs from the
+                # release's overall artist-credit -- exactly how Various
+                # Artists compilations are modelled (already free in this
+                # response via inc=artist-credits, zero extra calls). Empty
+                # for a normal single-artist release, where commit_ids_to_
+                # files() below falls back to the release-level artist_seed.
+                # Real bug found live 2026-07-16: this was being fetched
+                # and immediately discarded, so every track on a VA
+                # compilation got renamed AND identity-hashed under the
+                # single "Various Artists" filing name.
+                track_artist_credit = recording.get("artist-credit") or []
+                track_artist = track_artist_credit[0].get("name", "") if track_artist_credit else ""
+
                 remote_tracks.append({
                     "position": str(track.get("number", "")),
                     "title": recording.get("title", "Unknown"),
@@ -235,7 +249,8 @@ def get_release_details():
 
                     # enrichment fields (must exist for manifest)
                     "recording_id": recording_id,
-                    "work_id": work_id
+                    "work_id": work_id,
+                    "artist": track_artist
                 })
 
         local_tracks = []
@@ -357,7 +372,13 @@ def commit_ids_to_files(env_path):
             # silently renamed to "01 - ..." here in Stage 2 -- the
             # actual source of the inconsistency John flagged 2026-07-08.
             t_num = str(item["track_num"])
-            safe_artist = sanitize_filename(artist_seed)
+            # Real per-track performer (e.g. from MB's own recording-level
+            # artist-credit on a Various Artists compilation) takes priority
+            # over the blanket release-level artist_seed -- see track_artist
+            # capture in get_release_details() above. Falls back to
+            # artist_seed for the normal case where every track shares one
+            # artist and MB never returned a differing recording credit.
+            safe_artist = sanitize_filename(item.get("track_artist") or artist_seed)
             safe_title = sanitize_filename(item["target_title"])
 
             new_name = f"{t_num} - {safe_artist} - {safe_title}.mp3"
@@ -404,12 +425,18 @@ def _update_manifest(
     m["mb_track_map"] = []
 
     for item in mapping:
+        # Same per-track-artist-over-blanket-seed precedence as the physical
+        # rename above -- keeps the manifest's filename field in sync with
+        # what's actually on disk, and surfaces the real per-track performer
+        # ("artist") for Intelli-Tagger's identity resolution downstream.
+        track_artist = item.get("track_artist") or artist_seed
         m["mb_track_map"].append({
             "position": item["track_num"],
             "filename": f"{item['track_num']} - "
-                        f"{sanitize_filename(artist_seed)} - "
+                        f"{sanitize_filename(track_artist)} - "
                         f"{sanitize_filename(item['target_title'])}.mp3",
             "title": item["target_title"],
+            "artist": track_artist,
             "mb_track_id": item.get("track_id", ""),
             "mb_recording_id": item.get("recording_id", ""),
             "mb_work_id": item.get("work_id", ""),
