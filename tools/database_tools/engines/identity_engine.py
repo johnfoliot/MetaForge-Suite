@@ -104,7 +104,7 @@ def _get_artist_details_logic(aid):
         "JOIN library_master m ON e.source_id = m.mf_id "
         "WHERE e.target_id = ? AND e.source_type = 'album'", (aid,)
     )
-    
+
     # 4. Filter duplicates seamlessly and attach the requested fallback role text string
     if edges:
         for e in edges:
@@ -112,10 +112,35 @@ def _get_artist_details_logic(aid):
             # If the artist is already tracked as a Primary Artist on this release, skip duplication entirely
             if mid in primary_ids:
                 continue
-                
+
             albums.append({
                 "mf_id": mid,
                 "album_title": e['album_title'],
+                "role": "Appears On"
+            })
+            primary_ids.add(mid)
+
+    # 5. Track-level performer identity (tracks.mf_artist_id, populated by
+    # commit_engine.py) -- real bug found live 2026-07-17: this artist can
+    # be the actual performer on individual tracks of a Various Artists
+    # compilation without ever being the release's own primary artist_name
+    # or holding a personnel edge, so #2/#3 above missed it entirely. This
+    # is exactly the Various Artists case Personnel Bridge exists for.
+    track_albums = db_engine.execute_query(
+        "SELECT DISTINCT t.mf_id, m.album_title FROM tracks t "
+        "JOIN library_master m ON t.mf_id = m.mf_id "
+        "WHERE t.mf_artist_id = ?", (aid,)
+    )
+
+    if track_albums:
+        for r in track_albums:
+            mid = r['mf_id']
+            if mid in primary_ids:
+                continue
+
+            albums.append({
+                "mf_id": mid,
+                "album_title": r['album_title'],
                 "role": "Appears On"
             })
             primary_ids.add(mid)

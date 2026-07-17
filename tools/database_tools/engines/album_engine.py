@@ -99,6 +99,27 @@ def _get_album_details_by_id(mf_id):
             (clean_artist_id,)
         )
 
+    # Real bug found live 2026-07-17: every track's displayed "artist" was
+    # hardcoded to the ALBUM-level library_master.artist_name below, which
+    # is correct for a normal single-artist album but wrong for a Various
+    # Artists compilation, where every track has its own real performer
+    # (tracks.mf_artist_id, populated per-track by commit_engine.py). One
+    # batch lookup here, not N+1 -- resolves each track's own artist name,
+    # falling back to the album-level name only if a track somehow has no
+    # library_artist row of its own.
+    distinct_artist_ids = {dict(t).get('mf_artist_id') for t in tracks} if tracks else set()
+    distinct_artist_ids.discard(None)
+    distinct_artist_ids.discard('')
+
+    track_artist_names = {}
+    if distinct_artist_ids:
+        placeholders = ','.join('?' for _ in distinct_artist_ids)
+        artist_rows = db_engine.execute_query(
+            f"SELECT mf_artist_id, artist_name FROM library_artist WHERE mf_artist_id IN ({placeholders})",
+            tuple(distinct_artist_ids)
+        )
+        track_artist_names = {r['mf_artist_id']: r['artist_name'] for r in artist_rows} if artist_rows else {}
+
     album['tracks'] = []
     if tracks:
         for t in tracks:
@@ -111,10 +132,12 @@ def _get_album_details_by_id(mf_id):
             if not db_title and track_dict.get('file_path'):
                 display_title = Path(track_dict['file_path']).stem
 
+            track_artist = track_artist_names.get(track_dict.get('mf_artist_id')) or album.get('artist_name', '')
+
             album['tracks'].append({
                 "file_path": track_dict.get('file_path', ''),
                 "title": display_title,
-                "artist": album.get('artist_name', ''),
+                "artist": track_artist,
                 "original_year": track_dict.get('original_year', ''),
                 "orig_year_conf": track_dict.get('orig_year_conf', 0),
                 "orig_year_source": track_dict.get('orig_year_source', '')
@@ -198,9 +221,25 @@ def _save_album():
 
         new_title = t['title'].strip()
 
+        # Real bug found live 2026-07-17: the per-track "artist" field the
+        # UI already collects (album_editor.js's .track-artist input) was
+        # never actually persisted -- this UPDATE didn't touch it at all,
+        # so editing a track's artist silently did nothing. Same identity
+        # hash convention as commit_engine.py's _hash_artist() and this
+        # file's own personnel-edge sync just below. Falls back to the
+        # album's own artist when a track's field was left blank.
+        track_artist_name = (t.get('artist') or data['artist']).strip()
+        track_mf_artist_id = hashlib.sha256(track_artist_name.lower().encode('utf-8')).hexdigest()
+
         db_engine.execute_query(
-            "UPDATE tracks SET title=?, genre=?, sub_genre=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=? AND LOWER(TRIM(mf_id))=LOWER(TRIM(?))",
-            (new_title, data['genre'], data['sub_genre'], f_path_str, clean_mf_id),
+            "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
+            (track_mf_artist_id, track_artist_name),
+            commit=True
+        )
+
+        db_engine.execute_query(
+            "UPDATE tracks SET title=?, genre=?, sub_genre=?, mf_artist_id=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=? AND LOWER(TRIM(mf_id))=LOWER(TRIM(?))",
+            (new_title, data['genre'], data['sub_genre'], track_mf_artist_id, f_path_str, clean_mf_id),
             commit=True
         )
 
