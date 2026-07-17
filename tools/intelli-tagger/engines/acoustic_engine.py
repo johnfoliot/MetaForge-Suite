@@ -56,21 +56,40 @@ def analyze_file(file_path):
 def _calculate_key(y, sr):
     """
     Internal Logic: Correlation-based key detection.
-    Maps chroma features against Major profiles.
+    Krumhansl-Schmuckler key-finding -- correlates the track's chroma
+    profile against BOTH Major and Minor reference profiles (12 rotations
+    each, 24 candidates total) and returns whichever correlates highest.
+
+    Real bug, found live 2026-07-17: only the Major profile was ever
+    implemented ("Simplified for Major only as per legacy"), so a genuine
+    minor-key track could only ever be reported as some Major key -- a
+    classic, well-documented confusion in key detection (relative major/
+    minor share the same 7 notes, so a Major-only correlation often still
+    "wins" even on unambiguously minor material), landing incorrect,
+    unflagged data in the database. Completed with the Minor half of the
+    same Krumhansl-Kessler (1982) profile pair the Major values already
+    came from, rather than guessing at replacement values.
     """
     try:
         chroma = librosa.feature.chroma_cqt(y=y, sr=sr)
-        # Krumhansl-Schmuckler profiles (Simplified for Major only as per legacy)
         keys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
         maj_profile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88]
-        
+        min_profile = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17]
+
         # Mean chroma values across the 20s fragment
         chroma_mean = np.mean(chroma, axis=1)
-        
-        # Calculate correlation for each of the 12 possible keys
-        correlations = [np.corrcoef(maj_profile, np.roll(chroma_mean, -i))[0, 1] for i in range(12)]
-        
-        return f"{keys[np.argmax(correlations)]}Maj"
+
+        # Calculate correlation for each of the 12 possible keys, against
+        # both profiles -- 24 candidates total, not just the 12 Major ones.
+        maj_correlations = [np.corrcoef(maj_profile, np.roll(chroma_mean, -i))[0, 1] for i in range(12)]
+        min_correlations = [np.corrcoef(min_profile, np.roll(chroma_mean, -i))[0, 1] for i in range(12)]
+
+        best_maj_idx = int(np.argmax(maj_correlations))
+        best_min_idx = int(np.argmax(min_correlations))
+
+        if maj_correlations[best_maj_idx] >= min_correlations[best_min_idx]:
+            return f"{keys[best_maj_idx]}Maj"
+        return f"{keys[best_min_idx]}Min"
     except:
         return "??"
 
