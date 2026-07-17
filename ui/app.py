@@ -786,7 +786,19 @@ class MetaForgeAPI:
         # and shows alert() for its own status; nothing needs to call
         # back into Python. events.loaded triggers the one-shot injection
         # once the real page has actually finished loading.
-        seed_window = webview.create_window(title, url=url, width=1280, height=900, background_color='#141414')
+        # background_color='#ffffff', not MetaForge's usual '#141414' --
+        # confirmed live 2026-07-17 (verify window, same pattern) that a
+        # dark window background_color shows through as an ugly dark
+        # striped artifact on any region of a loaded third-party page
+        # that doesn't explicitly set its own background (falling back to
+        # the browser-default white the page's own author assumed, not
+        # this window's dark base). '#141414' is correct for windows
+        # loading MetaForge's OWN html (matches the app's real background,
+        # see open_verify_window/the main window below) -- wrong for a
+        # window loading a real external page MetaForge doesn't control
+        # the CSS of, where matching ordinary browser convention (white)
+        # is the safer default.
+        seed_window = webview.create_window(title, url=url, width=1280, height=900, background_color='#ffffff')
         seed_window.events.loaded += lambda: seed_window.evaluate_js(script)
 
     def open_verify_window(self, title, urls):
@@ -817,9 +829,19 @@ class MetaForgeAPI:
             window, urls, MANUAL_VERIFICATION_TIERS,
             on_close=lambda: setattr(self, '_active_verify_api', None),
         )
+        # background_color='#ffffff', not MetaForge's usual '#141414' --
+        # confirmed live 2026-07-17: a dark window background_color shows
+        # through as an ugly dark striped artifact on any region of a
+        # loaded third-party page that doesn't explicitly set its own
+        # background (falling back to the browser-default white the
+        # page's own author assumed, not this window's dark base). See
+        # the identical fix + fuller explanation on
+        # open_mb_relationship_seed_window's window a few lines up --
+        # same root cause, same fix, both windows load real external
+        # pages MetaForge doesn't control the CSS of.
         verify_window = webview.create_window(
             title, url=urls[0], width=1280, height=800,
-            background_color='#141414',
+            background_color='#ffffff',
         )
         verify_api.attach(verify_window)
         self._active_verify_api = verify_api

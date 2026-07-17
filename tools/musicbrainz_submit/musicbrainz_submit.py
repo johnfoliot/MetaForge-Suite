@@ -505,7 +505,7 @@ def _evidence_to_edit_note(candidate):
     else:
         lines.append(f"Evidence source tier: {source}")
 
-    footer = f"Resolved via: {source}\nProposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}"
+    footer = f"Resolved via: {source}\nProposed by MetaForge Studio<br>Methodology: {METAFORGE_HEURISTICS_URL}"
     return "\n\n".join(["\n".join(lines), footer])
 
 
@@ -1255,7 +1255,7 @@ def _evidence_to_personnel_edit_note(candidate, artist_match, is_album_scope_ste
     # (_evidence_to_bulk_personnel_edit_note) can never silently drift
     # apart on wording again.
     paragraphs = _personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step, narrowed, entity_label)
-    paragraphs.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
+    paragraphs.append(f"Proposed by MetaForge Studio<br>Methodology: {METAFORGE_HEURISTICS_URL}")
     return "\n\n".join(paragraphs)
 
 
@@ -1378,7 +1378,7 @@ def _evidence_to_bulk_personnel_edit_note(items):
     for candidate, artist_match, is_album_scope_step, narrowed in items:
         paragraphs.append(f"--- {candidate.get('name')} ({candidate.get('role')}) ---")
         paragraphs.extend(_personnel_evidence_paragraphs(candidate, artist_match, is_album_scope_step, narrowed))
-    paragraphs.append(f"Proposed by MetaForge Studio -- methodology: {METAFORGE_HEURISTICS_URL}")
+    paragraphs.append(f"Proposed by MetaForge Studio <br>Methodology: {METAFORGE_HEURISTICS_URL}")
     return "\n\n".join(paragraphs)
 
 
