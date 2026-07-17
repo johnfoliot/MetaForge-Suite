@@ -53,6 +53,9 @@ def run_logic(action, tools_dir, env_path):
     if action == "get_context":
         return _handle_get_context()
 
+    if action == "get_taxonomy":
+        return _handle_get_taxonomy()
+
     if action == "run_batch":
         data = request.json
         return Response(
@@ -92,6 +95,18 @@ def _handle_get_context():
 
         return jsonify({"status": "success", "manifest": None})
 
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+
+def _handle_get_taxonomy():
+    # Feeds the Various Artists genre-gate interstitial (intelli-tagger.js
+    # promptForcedGenre()) -- just the top-level genre keys, not the full
+    # sub-genre structure the AI prompt itself uses.
+    taxonomy_path = PROJECT_ROOT / "data" / "taxonomy.json"
+    try:
+        taxonomy = json.loads(taxonomy_path.read_text(encoding="utf-8"))
+        return jsonify({"status": "success", "genres": sorted(taxonomy.keys())})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
@@ -153,6 +168,12 @@ def _orchestrate_tagger_batch(data, env_path):
     db_write = data.get('db_write', True)
     mb_ids = data.get('mb_ids', {})
     release_year = data.get('release_year', "Unknown")
+
+    # Various Artists genre-gate (intelli-tagger.js promptForcedGenre()) --
+    # user-confirmed Parent Genre for the whole album, or None if they chose
+    # "Skip / Let AI Decide". See ai_engine.map_track_taxonomy()'s own
+    # forced_parent_genre handling for why this exists.
+    forced_parent_genre = (data.get('forced_parent_genre') or '').strip() or None
 
     mb_track_map_list = data.get('mb_track_map', [])
 
@@ -351,7 +372,8 @@ def _orchestrate_tagger_batch(data, env_path):
             ai_results = ai_engine.map_track_taxonomy(
                 artist,
                 title,
-                acoustic_data
+                acoustic_data,
+                forced_parent_genre=forced_parent_genre
             )
 
         except Exception:

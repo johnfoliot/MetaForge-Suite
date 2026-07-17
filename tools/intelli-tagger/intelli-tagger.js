@@ -168,10 +168,80 @@ window.metaforge.intelli_tagger = {
     },
 
     /**
+     * Various Artists Genre Gate: individual track artists on a VA
+     * compilation are often obscure enough that Gemini has weak or no
+     * training knowledge of them (unlike a recognizable album artist),
+     * causing per-track genre to drift wildly (confirmed live 2026-07-17:
+     * a Gospel compilation drifted as far as "Rock" / "Punk & Post-Punk").
+     * The user already knows the real genre -- it's why the album is filed
+     * where it is -- so this asks once per album instead of guessing per
+     * track. Returns the chosen genre string, or null if the user chose
+     * "Skip / Let AI Decide" (or taxonomy couldn't be fetched at all).
+     */
+    promptForcedGenre: async function() {
+        let genres = [];
+        try {
+            const res = await fetch('/run_tool_logic/intelli-tagger/get_taxonomy');
+            const data = await res.json();
+            if (data.status === "success") genres = data.genres || [];
+        } catch (err) {
+            console.error("METAFORGE: Taxonomy fetch failed:", err);
+        }
+
+        if (!genres.length) return null;
+
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.id = "it-genre-gate-modal";
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-labelledby', 'it-genre-gate-title');
+            modal.style = "position:fixed; top:25%; left:35%; width:30%; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
+            modal.innerHTML = `
+                <h3 id="it-genre-gate-title" style="color:var(--mf-gold); margin-top:0;">Confirm Album Genre</h3>
+                <p style="color:var(--text-output); font-size:0.8rem; margin-bottom:8px;">
+                    This album is filed under "Various Artists." Individual track
+                    artists are often obscure enough that AI genre classification
+                    drifts wildly per track. Confirm a Parent Genre to keep every
+                    track consistent, or let the AI decide freely per track.
+                </p>
+                <select id="it-genre-gate-select" class="it-input-text" style="color:#000!important; margin-bottom:15px;">
+                    ${genres.map(g => `<option value="${g}">${g}</option>`).join('')}
+                </select>
+                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                    <button type="button" class="mf-button-gold-fixed" id="it-genre-gate-confirm">Confirm</button>
+                    <button type="button" class="mf-button-gold-fixed" id="it-genre-gate-skip">Skip / Let AI Decide</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const select = document.getElementById('it-genre-gate-select');
+            select.focus();
+
+            document.getElementById('it-genre-gate-confirm').addEventListener('click', () => {
+                const chosen = select.value;
+                modal.remove();
+                resolve(chosen);
+            });
+            document.getElementById('it-genre-gate-skip').addEventListener('click', () => {
+                modal.remove();
+                resolve(null);
+            });
+        });
+    },
+
+    /**
      * Orchestration: Run Phase 1-7 Batch
      */
     run: async function() {
         if (this.state.isProcessing) return;
+
+        const artistVal = (document.getElementById('it-artist').value || '').trim().toLowerCase();
+        let forcedParentGenre = null;
+
+        if (artistVal === "various artists") {
+            forcedParentGenre = await this.promptForcedGenre();
+        }
 
         const consoleBox = document.getElementById('it-console');
         const progressFill = document.getElementById('it-progress-fill');
@@ -198,7 +268,8 @@ window.metaforge.intelli_tagger = {
             release_year: this.state.releaseYear,
             mb_release_group_first_date: this.state.releaseGroupFirstDate,
             mb_release_group_secondary_types: this.state.releaseGroupSecondaryTypes,
-            db_write: this.state.dbWriteEnabled
+            db_write: this.state.dbWriteEnabled,
+            forced_parent_genre: forcedParentGenre
         };
 
         try {

@@ -43,7 +43,7 @@ client = genai.Client(api_key=GEMINI_KEY)
 # =========================================================
 
 
-def map_track_taxonomy(artist, title, acoustic_data):
+def map_track_taxonomy(artist, title, acoustic_data, forced_parent_genre=None):
 
     # -------------------------------
     # LOAD TAXONOMY SOURCES
@@ -72,6 +72,32 @@ def map_track_taxonomy(artist, title, acoustic_data):
     valid_flavors = set(moods_data.get("modifiers", {}).get("Emotional_Flavor", []))
 
     # -------------------------------
+    # FORCED PARENT GENRE (Various Artists compilations)
+    # -------------------------------
+    # A per-track artist on a VA compilation is often an obscure individual
+    # performer Gemini has weak or no training knowledge of, unlike a
+    # recognizable album artist -- confirmed live 2026-07-17 on a Gospel
+    # compilation, where per-track genre drifted as far as "Rock" / "Punk &
+    # Post-Punk". The user already knows the real genre (it's why the album
+    # is filed where it is) and can confirm it once per album via an
+    # interstitial (see intelli-tagger.js). When present, this narrows the
+    # prompt to just that genre's own sub-genre list.
+    genre_locked = bool(forced_parent_genre) and forced_parent_genre in taxonomy_data
+
+    if genre_locked:
+        genre_section = f"""
+This track's Parent Genre is already confirmed: "{forced_parent_genre}". Do NOT
+choose a different Parent Genre -- return "parent" as exactly "{forced_parent_genre}".
+For "sub", choose ONLY the single best-fitting Sub-Genre from this list:
+{json.dumps(taxonomy_data[forced_parent_genre])}
+"""
+    else:
+        genre_section = f"""
+Taxonomy Reference:
+{taxonomy}
+"""
+
+    # -------------------------------
     # PROMPT
     # -------------------------------
     prompt = f"""
@@ -92,10 +118,7 @@ Title: {title}
 
 Acoustic Data:
 {json.dumps(acoustic_data)}
-
-Taxonomy Reference:
-{taxonomy}
-
+{genre_section}
 Mood Reference:
 {moods_taxonomy}
 
@@ -152,6 +175,15 @@ release or distribution territory of this specific recording.
             raise ValueError(f"Missing field from AI response: {k}")
         if not isinstance(data[k], str) or not data[k].strip():
             raise ValueError(f"Invalid field '{k}' from AI response")
+
+    # Same lesson as the closed-vocabulary check below: a prompt instruction
+    # is not enforcement. Hard-override "parent" to the confirmed value
+    # regardless of what the model actually returned, rather than trusting
+    # it echoed the locked genre back correctly -- the sub-genre validation
+    # right after this then naturally checks against the REAL locked
+    # parent, not whatever the model may have drifted to.
+    if genre_locked:
+        data["parent"] = forced_parent_genre
 
     # Closed-vocabulary enforcement -- an off-list value here must fail
     # loudly, not get silently written to the database. The caller
