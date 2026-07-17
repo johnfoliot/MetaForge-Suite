@@ -58,6 +58,8 @@ def handle(action):
     if action == "search_album": return _search_album()
     if action == "get_album_details": return _get_album_details()
     if action == "save_album": return _save_album()
+    if action == "get_track_detail": return _get_track_detail()
+    if action == "save_track_detail": return _save_track_detail()
     return jsonify({"status": "error", "message": "Action unknown"}), 404
 
 def _search_album():
@@ -342,6 +344,115 @@ def _save_album():
         remainder = db_engine.execute_query("SELECT 1 FROM edges WHERE target_id=? LIMIT 1", (r_id,))
         if not remainder:
             db_engine.execute_query("DELETE FROM library_artist WHERE mf_artist_id=?", (r_id,), commit=True)
+
+    return jsonify({"status": "success"})
+
+
+# =========================================================
+# TRACK-LEVEL DETAIL (fine-grained edit modal, 2026-07-17)
+# =========================================================
+# Everything the Album Editor's own track table couldn't expose (Title/
+# Artist/Original Year already have their own inline fields) -- Genre/
+# Sub-Genre/Mood/Sonic Texture/Emotional Flavor, the measured BPM/Key/
+# Intensity trio, and the forensic MB/AcoustID identifiers. Deliberately
+# excludes Personnel (has its own tool, Personnel Scout) and internal
+# bookkeeping columns (file_path, is_remediated, last_updated, leak_flag,
+# length) that aren't user data.
+
+def _get_track_detail():
+    file_path = (request.args.get('file_path') or '').strip()
+    if not file_path:
+        return jsonify({"status": "error", "message": "Missing file_path"}), 400
+
+    res = db_engine.execute_query("SELECT * FROM tracks WHERE file_path = ?", (file_path,))
+    if not res:
+        return jsonify({"status": "error", "message": "Track not found."}), 404
+
+    return jsonify({"status": "success", "track": dict(res[0])})
+
+
+def _save_track_detail():
+    data = request.json
+    file_path = (data.get('file_path') or '').strip()
+    if not file_path:
+        return jsonify({"status": "error", "message": "Missing file_path"}), 400
+
+    # Closed-vocabulary enforcement -- same lesson already applied in
+    # ai_engine.py: a dropdown in the UI is not enforcement on its own,
+    # since this is a real write path a stale client could bypass. Checked
+    # server-side against the same taxonomy.json/moods.json files
+    # map_track_taxonomy() validates against.
+    taxonomy_path = config_handler.DATA_DIR / "taxonomy.json"
+    moods_path = config_handler.DATA_DIR / "moods.json"
+    taxonomy_data = json.loads(taxonomy_path.read_text(encoding='utf-8')) if taxonomy_path.exists() else {}
+    moods_data = json.loads(moods_path.read_text(encoding='utf-8')) if moods_path.exists() else {}
+
+    valid_moods = set(moods_data.get("anchors", []))
+    valid_textures = set(moods_data.get("modifiers", {}).get("Sonic_Texture", []))
+    valid_flavors = set(moods_data.get("modifiers", {}).get("Emotional_Flavor", []))
+
+    genre = (data.get('genre') or '').strip()
+    sub_genre = (data.get('sub_genre') or '').strip()
+    mood = (data.get('mood') or '').strip()
+    sonic_texture = (data.get('sonic_texture') or '').strip()
+    emotional_flavor = (data.get('emotional_flavor') or '').strip()
+
+    if genre and taxonomy_data and genre not in taxonomy_data:
+        return jsonify({"status": "error", "message": f"Genre {genre!r} not in taxonomy."}), 400
+    if genre and sub_genre and sub_genre not in taxonomy_data.get(genre, []):
+        return jsonify({"status": "error", "message": f"Sub-Genre {sub_genre!r} not valid under {genre!r}."}), 400
+    if mood and valid_moods and mood not in valid_moods:
+        return jsonify({"status": "error", "message": f"Mood {mood!r} outside the fixed anchor list."}), 400
+    if sonic_texture and valid_textures and sonic_texture not in valid_textures:
+        return jsonify({"status": "error", "message": f"Sonic Texture {sonic_texture!r} outside the fixed list."}), 400
+    if emotional_flavor and valid_flavors and emotional_flavor not in valid_flavors:
+        return jsonify({"status": "error", "message": f"Emotional Flavor {emotional_flavor!r} outside the fixed list."}), 400
+
+    try:
+        bpm = int(float(data.get('bpm') or 0))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "BPM must be numeric."}), 400
+
+    try:
+        intensity = int(float(data.get('intensity') or 0))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "message": "Intensity must be numeric."}), 400
+
+    key_val = (data.get('key') or '').strip()
+    mb_track_id = (data.get('mb_track_id') or '').strip()
+    mb_recording_id = (data.get('mb_recording_id') or '').strip()
+    mb_work_id = (data.get('mb_work_id') or '').strip()
+    mb_artist_id = (data.get('mb_artist_id') or '').strip()
+    acoustid = (data.get('acoustid') or '').strip()
+
+    db_engine.execute_query(
+        """UPDATE tracks SET
+            genre=?, sub_genre=?, mood=?, sonic_texture=?, emotional_flavor=?,
+            bpm=?, key_val=?, intensity=?,
+            mb_track_id=?, mb_recording_id=?, mb_work_id=?, mb_artist_id=?, acoustid=?,
+            last_updated=CURRENT_TIMESTAMP
+        WHERE file_path=?""",
+        (
+            genre, sub_genre, mood, sonic_texture, emotional_flavor,
+            bpm, key_val, intensity,
+            mb_track_id, mb_recording_id, mb_work_id, mb_artist_id, acoustid,
+            file_path
+        ),
+        commit=True
+    )
+
+    p_file = Path(file_path)
+    if p_file.exists():
+        try:
+            tag_engine.update_tags(str(p_file), {
+                "genre": genre, "sub_genre": sub_genre, "mood": mood,
+                "sonic_texture": sonic_texture, "emotional_flavor": emotional_flavor,
+                "bpm": bpm, "key": key_val, "intensity": intensity,
+                "mb_track_id": mb_track_id, "mb_recording_id": mb_recording_id,
+                "mb_artist_id": mb_artist_id, "acoustid": acoustid,
+            })
+        except Exception as ex:
+            print(f"⚠️ Track-detail tag write failed for {p_file.name}: {ex}")
 
     return jsonify({"status": "success"})
 

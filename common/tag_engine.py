@@ -6,7 +6,7 @@
 # ======================================================================
 import sys
 from pathlib import Path
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TORY, TRCK, TCON, TXXX, APIC, ID3NoHeaderError
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TORY, TRCK, TCON, TXXX, TBPM, TKEY, UFID, APIC, ID3NoHeaderError
 
 # --- [ PATH BOOTSTRAP ] ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -44,7 +44,24 @@ def update_tags(file_path, metadata):
             'year': (TYER, 'TYER'),
             'original_year': (TORY, 'TORY'),
             'genre': (TCON, 'TCON'),
-            'track': (TRCK, 'TRCK')
+            'track': (TRCK, 'TRCK'),
+            'bpm': (TBPM, 'TBPM'),
+            'key': (TKEY, 'TKEY'),
+        }
+
+        # Non-standard fields with no dedicated ID3v2.3 frame -- same TXXX
+        # desc names commit_engine.py's canonical writer uses (_write_
+        # physical_tags), so a track edited here and a track written by the
+        # normal Intelli-Tagger pipeline end up with identical tag shape.
+        TXXX_MAPPING = {
+            'sub_genre': 'Sub-Genre',
+            'mood': 'Mood',
+            'sonic_texture': 'Sonic Texture',
+            'emotional_flavor': 'Emotional Flavor',
+            'intensity': 'Intensity',
+            'mb_artist_id': 'MusicBrainz Artist Id',
+            'mb_track_id': 'MusicBrainz Release Track Id',
+            'acoustid': 'Acoustid Id',
         }
 
         for key, value in metadata.items():
@@ -52,7 +69,19 @@ def update_tags(file_path, metadata):
                 frame_class, _ = mapping[key]
                 # Enforcing encoding=1 (UTF-16 BOM) per requirements
                 tags.add(frame_class(encoding=1, text=[str(value)]))
-            
+
+            elif key in TXXX_MAPPING:
+                desc = TXXX_MAPPING[key]
+                tags.delall(f"TXXX:{desc}")
+                tags.add(TXXX(encoding=1, desc=desc, text=[str(value)]))
+
+            # Recording ID uses UFID (Picard convention), not TXXX -- same
+            # as commit_engine.py/musicbrainz_id.py's writers, the true
+            # cross-release identity anchor.
+            elif key == 'mb_recording_id':
+                tags.delall("UFID:http://musicbrainz.org")
+                tags.add(UFID(owner="http://musicbrainz.org", data=str(value).encode("utf-8")))
+
             # Handle custom MetaForge Forensic IDs (TXXX)
             elif key.startswith('mf_'):
                 tags.add(TXXX(encoding=1, desc=key.upper(), text=[str(value)]))

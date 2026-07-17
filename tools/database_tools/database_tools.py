@@ -41,7 +41,8 @@ def run_logic(action, tools_dir, env_path):
             return identity_engine.handle(action)
         if action in ["personnel_get", "personnel_add", "personnel_delete"]:
             return personnel_engine.handle(action)
-        if action in ["search_album", "get_album_details", "save_album", "master_get", "master_save"]:
+        if action in ["search_album", "get_album_details", "save_album", "master_get", "master_save",
+                      "get_track_detail", "save_track_detail"]:
             return album_engine.handle(action)
         if action in ["audit_run", "audit_maintenance"]:
             return audit_engine.handle(action)

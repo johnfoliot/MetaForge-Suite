@@ -22,7 +22,7 @@ if str(ENGINES_DIR) not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from common import config_handler
+from common import config_handler, db_engine, tag_engine
 import it_context_engine
 
 
@@ -55,6 +55,9 @@ def run_logic(action, tools_dir, env_path):
 
     if action == "get_taxonomy":
         return _handle_get_taxonomy()
+
+    if action == "reanalyze_track":
+        return _handle_reanalyze_track()
 
     if action == "run_batch":
         data = request.json
@@ -109,6 +112,47 @@ def _handle_get_taxonomy():
         return jsonify({"status": "success", "genres": sorted(taxonomy.keys())})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
+
+
+def _handle_reanalyze_track():
+    # Narrow, single-track re-measurement -- deliberately does NOT go
+    # through _orchestrate_tagger_batch (health check, scrub, AI taxonomy,
+    # year resolution, personnel pre-seed, full commit). John's own
+    # motivating case: a 5-disc box set shouldn't need a full album re-run
+    # to fix one track's BPM. acoustic_engine.analyze_file() already
+    # operates on a single file under the hood -- this just exposes that
+    # as its own action instead of only reaching it via the full batch.
+    import acoustic_engine
+
+    data = request.json
+    file_path = (data.get('file_path') or '').strip()
+    if not file_path:
+        return jsonify({"status": "error", "message": "Missing file_path"}), 400
+
+    f_path = Path(file_path)
+    if not f_path.exists():
+        return jsonify({"status": "error", "message": "File not found on disk."}), 404
+
+    acoustic_data = acoustic_engine.analyze_file(f_path)
+    if not isinstance(acoustic_data, dict):
+        acoustic_data = dict(acoustic_data)
+
+    bpm = acoustic_data.get('bpm', 0)
+    key_val = acoustic_data.get('key', '??')
+    intensity = acoustic_data.get('intensity', 1)
+
+    db_engine.execute_query(
+        "UPDATE tracks SET bpm=?, key_val=?, intensity=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
+        (bpm, key_val, intensity, file_path),
+        commit=True
+    )
+
+    try:
+        tag_engine.update_tags(str(f_path), {"bpm": bpm, "key": key_val, "intensity": intensity})
+    except Exception as ex:
+        print(f"⚠️ Re-analyze tag write failed for {f_path.name}: {ex}")
+
+    return jsonify({"status": "success", "bpm": bpm, "key": key_val, "intensity": intensity})
 
 
 def _recover_legacy_mb_seeds(target_path):

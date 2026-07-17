@@ -9,6 +9,23 @@ window.metaforge.database_tools = window.metaforge.database_tools || {};
 
 window.metaforge.database_tools.album = {
     taxonomyData: null,
+    moodsData: null,
+
+    // 24 keys (12 notes x Major/Minor), sharps only -- matches
+    // acoustic_engine.py's own note-name convention exactly. The
+    // algorithm itself only ever detects Major ("Simplified for Major
+    // only as per legacy" per its own code comment), so Minor is only
+    // ever reachable via this manual dropdown -- a real, known blind
+    // spot in the automated detection (relative major/minor share a key
+    // signature, a classic source of algorithmic confusion), not a
+    // vocabulary gap in this list.
+    KEY_OPTIONS: (() => {
+        const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const out = [];
+        notes.forEach(n => out.push(`${n}Maj`));
+        notes.forEach(n => out.push(`${n}Min`));
+        return out;
+    })(),
 
     escapeHTML: function(str) {
         if (!str) return '';
@@ -20,14 +37,23 @@ window.metaforge.database_tools.album = {
             .replace(/'/g, "&#039;");
     },
 
+    // Shared by initTaxonomy (album-level) and openTrackModal (track-level)
+    // -- one fetch, cached, both dropdowns' data comes from the exact same
+    // taxonomy.json/moods.json the server-side validation checks against.
+    loadTaxonomyAndMoods: async function() {
+        if (this.taxonomyData) return;
+        try {
+            const res = await fetch('/run_tool_logic/database_tools/get_taxonomy');
+            const data = await res.json();
+            if (data.status === "success") {
+                this.taxonomyData = data.taxonomy;
+                this.moodsData = data.moods || null;
+            }
+        } catch (e) { console.error("Taxonomy error:", e); }
+    },
+
     initTaxonomy: async function(selectedGenre, selectedSubGenre) {
-        if (!this.taxonomyData) {
-            try {
-                const res = await fetch('/run_tool_logic/database_tools/get_taxonomy');
-                const data = await res.json();
-                if (data.status === "success") this.taxonomyData = data.taxonomy;
-            } catch (e) { console.error("Taxonomy error:", e); return; }
-        }
+        await this.loadTaxonomyAndMoods();
 
         const genreSelect = document.getElementById('alb-genre');
         if (!genreSelect) return;
@@ -123,9 +149,12 @@ window.metaforge.database_tools.album = {
                         <td style="border-bottom:1px solid #ccc; padding: 4px; width: 28%;">
                             <input type="text" class="mb-input-text track-artist" value="${t.artist || ''}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; Border:0">
                        </td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 110px;">
+                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 100px;">
                             <input type="text" class="mb-input-text track-year" value="${t.original_year || ''}" aria-label="Original year, track ${idx + 1}: ${this.escapeHTML(t.title || '')}" aria-describedby="${confId}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; border: 0; border-left: 3px solid ${flagColor};">
                             <span id="${confId}" style="display:block; font-size: 0.6rem; margin-top: 2px; color: ${flagColor === 'transparent' ? 'var(--input-foreground2)' : flagColor};">${confText}</span>
+                        </td>
+                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 60px; text-align:center;">
+                            <button type="button" class="mf-button-gold-fixed" style="padding: 4px 8px; font-size: 0.7rem;" onclick="window.metaforge.database_tools.album.openTrackModal('${(t.file_path || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" aria-label="Edit detailed track data for ${this.escapeHTML(t.title || 'track ' + (idx + 1))}">Edit</button>
                         </td>
 						`;
                     trackBody.appendChild(tr);
@@ -250,6 +279,225 @@ window.metaforge.database_tools.album = {
             data.forEach(entry => this.appendPersonnelRow(entry.role, entry.name));
             document.getElementById('p-json-modal').remove();
         } catch (e) { alert("Error: " + e.message); }
+    },
+
+    // =========================================================
+    // TRACK-LEVEL DETAIL MODAL (2026-07-17)
+    // =========================================================
+    // Fields the main track table can't expose (Title/Artist/Original Year
+    // already have their own inline inputs there): Genre/Sub-Genre/Mood/
+    // Sonic Texture/Emotional Flavor, the measured BPM/Key/Intensity trio
+    // (plus a per-track "Re-analyze from Audio" action -- deliberately NOT
+    // a full album re-run, so a 5-disc box set doesn't need reprocessing
+    // to fix one track's BPM), and forensic MB/AcoustID IDs tucked into a
+    // collapsed Advanced section. Personnel is out of scope -- has its own
+    // tool (Personnel Scout).
+    openTrackModal: async function(filePath) {
+        if (document.getElementById("track-detail-modal")) return;
+
+        await this.loadTaxonomyAndMoods();
+
+        let track = null;
+        try {
+            const res = await fetch(`/run_tool_logic/database_tools/get_track_detail?file_path=${encodeURIComponent(filePath)}`);
+            const data = await res.json();
+            if (data.status !== "success") { alert(data.message || "Track not found."); return; }
+            track = data.track;
+        } catch (e) {
+            console.error("Track detail fetch error:", e);
+            alert("Failed to load track detail.");
+            return;
+        }
+
+        const genres = this.taxonomyData ? Object.keys(this.taxonomyData).sort() : [];
+        const moods = this.moodsData ? (this.moodsData.anchors || []) : [];
+        const textures = this.moodsData ? ((this.moodsData.modifiers || {}).Sonic_Texture || []) : [];
+        const flavors = this.moodsData ? ((this.moodsData.modifiers || {}).Emotional_Flavor || []) : [];
+
+        const buildOptions = (list, current) => ['<option value="">-- Unset --</option>'].concat(
+            list.map(v => `<option value="${this.escapeHTML(v)}" ${v === current ? 'selected' : ''}>${this.escapeHTML(v)}</option>`)
+        ).join('');
+
+        const modal = document.createElement('div');
+        modal.id = "track-detail-modal";
+        modal.setAttribute('role', 'dialog');
+        modal.setAttribute('aria-modal', 'true');
+        modal.setAttribute('aria-labelledby', 'track-detail-title');
+        modal.dataset.filePath = filePath;
+        modal.style = "position:fixed; top:6%; left:26%; width:48%; max-height:88vh; overflow-y:auto; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
+        modal.innerHTML = `
+            <h3 id="track-detail-title" style="color:var(--mf-gold); margin-top:0;">Track Detail: ${this.escapeHTML(track.title || filePath.split('/').pop())}</h3>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
+                <div><label class="mf-card-label" style="color:var(--mf-gold);">Genre</label>
+                    <select id="tm-genre" class="mb-input-text" style="width:100%; background:white; color:black;">
+                        <option value="">-- Unset --</option>
+                        ${genres.map(g => `<option value="${this.escapeHTML(g)}" ${g === track.genre ? 'selected' : ''}>${this.escapeHTML(g)}</option>`).join('')}
+                    </select>
+                </div>
+                <div><label class="mf-card-label" style="color:var(--mf-gold);">Sub-Genre</label>
+                    <select id="tm-subgenre" class="mb-input-text" style="width:100%; background:white; color:black;"></select>
+                </div>
+                <div><label class="mf-card-label" style="color:var(--mf-gold);">Mood</label>
+                    <select id="tm-mood" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(moods, track.mood)}</select>
+                </div>
+                <div><label class="mf-card-label" style="color:var(--mf-gold);">Sonic Texture</label>
+                    <select id="tm-texture" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(textures, track.sonic_texture)}</select>
+                </div>
+                <div><label class="mf-card-label" style="color:var(--mf-gold);">Emotional Flavor</label>
+                    <select id="tm-flavor" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(flavors, track.emotional_flavor)}</select>
+                </div>
+            </div>
+
+            <div style="border-top:1px solid var(--bg-accent); padding-top:12px; margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:var(--mf-gold); font-size:0.8rem;">Measured</strong>
+                    <button type="button" class="mf-button-gold-fixed" id="tm-reanalyze-btn" style="font-size:0.7rem; padding:4px 8px;">Re-analyze from Audio</button>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">BPM</label>
+                        <input type="number" id="tm-bpm" class="mb-input-text" value="${track.bpm != null ? track.bpm : ''}" style="width:100%; background:white; color:black;">
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">Key</label>
+                        <select id="tm-key" class="mb-input-text" style="width:100%; background:white; color:black;">
+                            <option value="">-- Unset --</option>
+                            ${this.KEY_OPTIONS.map(k => `<option value="${k}" ${k === track.key_val ? 'selected' : ''}>${k}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">Intensity (1-10)</label>
+                        <input type="number" id="tm-intensity" min="1" max="10" class="mb-input-text" value="${track.intensity != null ? track.intensity : ''}" style="width:100%; background:white; color:black;">
+                    </div>
+                </div>
+                <div id="tm-reanalyze-status" role="status" aria-live="polite" style="font-size:0.7rem; color:var(--text-message); margin-top:6px;"></div>
+            </div>
+
+            <details style="margin-bottom:16px;">
+                <summary style="color:var(--mf-gold); cursor:pointer; font-size:0.8rem;">Advanced / Forensic IDs</summary>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Track ID</label>
+                        <input type="text" id="tm-mbtrack" class="mb-input-text" value="${this.escapeHTML(track.mb_track_id || '')}" style="width:100%; background:white; color:black;">
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Recording ID</label>
+                        <input type="text" id="tm-mbrecording" class="mb-input-text" value="${this.escapeHTML(track.mb_recording_id || '')}" style="width:100%; background:white; color:black;">
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Work ID</label>
+                        <input type="text" id="tm-mbwork" class="mb-input-text" value="${this.escapeHTML(track.mb_work_id || '')}" style="width:100%; background:white; color:black;">
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Artist ID</label>
+                        <input type="text" id="tm-mbartist" class="mb-input-text" value="${this.escapeHTML(track.mb_artist_id || '')}" style="width:100%; background:white; color:black;">
+                    </div>
+                    <div><label class="mf-card-label" style="color:var(--mf-gold);">AcoustID</label>
+                        <input type="text" id="tm-acoustid" class="mb-input-text" value="${this.escapeHTML(track.acoustid || '')}" style="width:100%; background:white; color:black;">
+                    </div>
+                </div>
+            </details>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button type="button" class="mf-button-gold-fixed" id="tm-save-btn">Save</button>
+                <button type="button" class="mf-button-gold-fixed" id="tm-cancel-btn">Cancel</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        this.populateTrackSubGenres(track.genre, track.sub_genre);
+        document.getElementById('tm-genre').addEventListener('change', (e) => this.populateTrackSubGenres(e.target.value, null));
+        document.getElementById('tm-reanalyze-btn').addEventListener('click', () => this.reanalyzeTrackDetail());
+        document.getElementById('tm-save-btn').addEventListener('click', () => this.saveTrackDetail());
+        document.getElementById('tm-cancel-btn').addEventListener('click', () => this.closeTrackModal());
+        document.getElementById('tm-genre').focus();
+    },
+
+    populateTrackSubGenres: function(parentGenre, activeSubGenre) {
+        const subSelect = document.getElementById('tm-subgenre');
+        if (!subSelect) return;
+        subSelect.innerHTML = '<option value="">-- Unset --</option>';
+        if (this.taxonomyData && parentGenre && this.taxonomyData[parentGenre]) {
+            this.taxonomyData[parentGenre].sort().forEach(sg => {
+                const opt = document.createElement('option');
+                opt.value = sg; opt.textContent = sg;
+                subSelect.appendChild(opt);
+            });
+        }
+        if (activeSubGenre) subSelect.value = activeSubGenre;
+    },
+
+    closeTrackModal: function() {
+        const modal = document.getElementById('track-detail-modal');
+        if (modal) modal.remove();
+    },
+
+    // Deliberately its own atomic action, independent of the modal's main
+    // Save button: writes straight to the DB + tags server-side (see
+    // intelli-tagger.py's reanalyze_track action) the moment it succeeds,
+    // rather than waiting for the user to also click Save.
+    reanalyzeTrackDetail: async function() {
+        const modal = document.getElementById('track-detail-modal');
+        if (!modal) return;
+        const statusEl = document.getElementById('tm-reanalyze-status');
+        const btn = document.getElementById('tm-reanalyze-btn');
+        if (statusEl) statusEl.textContent = "Re-analyzing from audio...";
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/run_tool_logic/intelli-tagger/reanalyze_track', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ file_path: modal.dataset.filePath })
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                document.getElementById('tm-bpm').value = data.bpm;
+                document.getElementById('tm-key').value = data.key;
+                document.getElementById('tm-intensity').value = data.intensity;
+                if (statusEl) statusEl.textContent = "Re-analysis complete -- values updated and saved.";
+            } else if (statusEl) {
+                statusEl.textContent = "Re-analysis failed: " + (data.message || "unknown error");
+            }
+        } catch (e) {
+            console.error("Re-analyze error:", e);
+            if (statusEl) statusEl.textContent = "Re-analysis failed.";
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    },
+
+    saveTrackDetail: async function() {
+        const modal = document.getElementById('track-detail-modal');
+        if (!modal) return;
+
+        const payload = {
+            file_path: modal.dataset.filePath,
+            genre: document.getElementById('tm-genre').value,
+            sub_genre: document.getElementById('tm-subgenre').value,
+            mood: document.getElementById('tm-mood').value,
+            sonic_texture: document.getElementById('tm-texture').value,
+            emotional_flavor: document.getElementById('tm-flavor').value,
+            bpm: document.getElementById('tm-bpm').value,
+            key: document.getElementById('tm-key').value,
+            intensity: document.getElementById('tm-intensity').value,
+            mb_track_id: document.getElementById('tm-mbtrack').value.trim(),
+            mb_recording_id: document.getElementById('tm-mbrecording').value.trim(),
+            mb_work_id: document.getElementById('tm-mbwork').value.trim(),
+            mb_artist_id: document.getElementById('tm-mbartist').value.trim(),
+            acoustid: document.getElementById('tm-acoustid').value.trim()
+        };
+
+        try {
+            const res = await fetch('/run_tool_logic/database_tools/save_track_detail', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.status === "success") {
+                this.closeTrackModal();
+            } else {
+                alert(data.message || "Save failed.");
+            }
+        } catch (e) {
+            console.error("Save track detail error:", e);
+            alert("Save failed.");
+        }
     }
 };
 

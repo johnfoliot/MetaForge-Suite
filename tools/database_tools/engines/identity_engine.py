@@ -25,9 +25,23 @@ def handle(action):
 
 def _get_taxonomy():
     path = config_handler.DATA_DIR / "taxonomy.json"
-    if path.exists():
-        return jsonify({"status": "success", "taxonomy": json.loads(path.read_text(encoding='utf-8'))})
-    return jsonify({"status": "error", "message": "Taxonomy missing"}), 404
+    if not path.exists():
+        return jsonify({"status": "error", "message": "Taxonomy missing"}), 404
+
+    response = {
+        "status": "success",
+        "taxonomy": json.loads(path.read_text(encoding='utf-8'))
+    }
+
+    # Feeds the track-edit modal's Mood/Sonic Texture/Emotional Flavor
+    # dropdowns -- same closed-vocabulary source ai_engine.py validates
+    # against, added here rather than a new endpoint since this action
+    # already exists and is already just "hand back a config JSON file".
+    moods_path = config_handler.DATA_DIR / "moods.json"
+    if moods_path.exists():
+        response["moods"] = json.loads(moods_path.read_text(encoding='utf-8'))
+
+    return jsonify(response)
 
 def _search_artist_logic(query_str):
     res = db_engine.execute_query(
