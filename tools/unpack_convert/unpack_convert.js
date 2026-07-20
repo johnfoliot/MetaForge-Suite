@@ -359,8 +359,21 @@ window.metaforge.unpack_convert = {
                 buffer += chunk;
 
                 // 1. Process Metadata / Non-DOM updates
-                const progMatch = buffer.match(/<!-- PROGRESS:(\d+):(\d+):(\d+) -->/);
-                if (progMatch) this.updateProgress(progMatch[1], progMatch[2], progMatch[3]);
+                // Real bug, found live 2026-07-20: String.match() without
+                // the /g flag always returns the FIRST match in a string --
+                // since buffer only ever grows (never trimmed, for the
+                // split-marker reason noted above), this permanently
+                // latched onto the very first PROGRESS marker of the whole
+                // run (Step 1, track 1) and never advanced again, even
+                // though the console kept scrolling through every later
+                // step correctly. matchAll + taking the last result finds
+                // every marker in the accumulated buffer and always
+                // reflects the most recent one.
+                const progMatches = [...buffer.matchAll(/<!-- PROGRESS:(\d+):(\d+):(\d+) -->/g)];
+                if (progMatches.length > 0) {
+                    const latest = progMatches[progMatches.length - 1];
+                    this.updateProgress(latest[1], latest[2], latest[3]);
+                }
 
                 // 2. Commit chunk to DOM (This must happen first to ensure correct vertical ordering)
                 if (consoleBox) {
