@@ -56,8 +56,22 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
         report_data['failed_targets'] = []
 
     # 1. PRE-FLIGHT DISCOVERY
-    all_files = [f for f in root.iterdir() if f.is_file() and (f.suffix.lower() in EXTENSIONS_TO_CONVERT or f.suffix.lower() == '.mp3')]
-    
+    # Real bug, found live 2026-07-20: a monolithic CUE+audio source that
+    # cue_engine.py deliberately preserved after an incomplete/failed split
+    # (registered into failed_targets specifically so it wouldn't be
+    # touched again) was still picked up here as a plain, unsplit target --
+    # silently converting the WHOLE album into one undifferentiated track
+    # instead of leaving it alone for the user to retry the actual split.
+    # failed_targets is the same shared preserve-list janitor_engine.py's
+    # cleanup pass already respects; this closes the gap on the conversion
+    # side too.
+    already_flagged = set(report_data['failed_targets'])
+    all_files = [
+        f for f in root.iterdir()
+        if f.is_file() and (f.suffix.lower() in EXTENSIONS_TO_CONVERT or f.suffix.lower() == '.mp3')
+        and f.name not in already_flagged
+    ]
+
     if not all_files:
         yield "<!-- PROGRESS:2:1:1 -->"
         return
