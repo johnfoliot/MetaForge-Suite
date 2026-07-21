@@ -43,7 +43,7 @@ def extract_zip(root, report_data):
         try:
             # 1. Step 1 Header Control
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><img src="/ui/images/zip.png" alt="" aria-hidden="true" style="margin-left:3px; height:14px; width:auto;"> Step 1: Unzipping Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {zip_path.name}</span></div>'
+                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/zip.png" alt="" aria-hidden="true" style="margin-left:3px; height:14px; width:auto;"> Step 1: Unzipping Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {zip_path.name}</span></div>'
                 report_data['extraction_occurred'] = True
             else:
                 yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Unzipping {zip_path.name}</div>'

@@ -20,7 +20,7 @@ def execute_cleanup(root, report_data):
     2. Deletes non-standard files (preserving failed conversions). 
     3. Performs a final discovery of the /art folder to signal Step 4.
     """
-    yield '<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><img src="/ui/images/cleanup.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 3: Cleaning Album Folder...</div>'
+    yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cleanup.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 3: Cleaning Album Folder...</div>'
 
     if 'artwork' not in report_data:
         report_data['artwork'] = []

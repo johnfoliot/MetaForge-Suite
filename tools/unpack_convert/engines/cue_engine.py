@@ -31,7 +31,7 @@ def split_cue(root, artist, report_data):
 
     if discrete_count >= 2:
         if not report_data.get('extraction_occurred', False):
-            yield f'<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Discrete tracks detected ({discrete_count}). Unpacking not required.</div>'
+            yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Discrete tracks detected ({discrete_count}). Unpacking not required.</div>'
             yield "<!-- PROGRESS:1:1:1 -->"
             report_data['extraction_occurred'] = True
         return
@@ -64,7 +64,7 @@ def split_cue(root, artist, report_data):
 
             # Header Control with Accessibility Guard
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:14px; width:auto;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {source_audio.name}</span></div>'
+                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:14px; width:auto;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {source_audio.name}</span></div>'
                 report_data['extraction_occurred'] = True
             else:
                 yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Splitting {source_audio.name}</div>'

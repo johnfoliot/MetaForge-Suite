@@ -50,21 +50,12 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
     """
     Identifies audio targets and executes conversion or normalization.
     """
-    yield f'<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
+    yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
 
     if 'failed_targets' not in report_data:
         report_data['failed_targets'] = []
 
-    # 1. PRE-FLIGHT DISCOVERY
-    # Real bug, found live 2026-07-20: a monolithic CUE+audio source that
-    # cue_engine.py deliberately preserved after an incomplete/failed split
-    # (registered into failed_targets specifically so it wouldn't be
-    # touched again) was still picked up here as a plain, unsplit target --
-    # silently converting the WHOLE album into one undifferentiated track
-    # instead of leaving it alone for the user to retry the actual split.
-    # failed_targets is the same shared preserve-list janitor_engine.py's
-    # cleanup pass already respects; this closes the gap on the conversion
-    # side too.
+
     already_flagged = set(report_data['failed_targets'])
     all_files = [
         f for f in root.iterdir()
@@ -144,9 +135,17 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
 
         # 5. METADATA ENFORCEMENT
         if mp3_path:
-            metadata_track = str(int(filing_id) % 100 if int(filing_id) >= 100 else filing_id)
+            # Physical filename keeps the 3-digit disc+track enumerator
+            # (filing_id, e.g. "205") so files sort correctly on disk.
+            # The ID3 TRCK tag, however, should be the album-wide running
+            # count across all discs (offset is the cumulative track count
+            # of every prior disc, computed once by unpack_convert.py) --
+            # per-disc-only numbering here would make disc 2+ restart at 1
+            # in the tags even though the files are correctly enumerated.
+            per_disc_track = int(filing_id) % 100 if int(filing_id) >= 100 else int(filing_id)
+            metadata_track = str(offset + per_disc_track) if is_multidisc else str(per_disc_track)
             _enforce_metadata_truth(mp3_path, artist, album, extracted_title, metadata_track, category, disc_num, total_discs, is_multidisc)
-            
+
             status_suffix = f"(Disc {disc_num}, Track {metadata_track})" if is_multidisc else f"(Track {metadata_track})"
             yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px; margin-bottom:10px;"><span aria-hidden="true">🧼</span> Metadata Cleaned: {mp3_path.name} {status_suffix}</div>'
             

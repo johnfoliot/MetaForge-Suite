@@ -32,7 +32,7 @@
         flex: 0 0 calc(50% - 7.5px);
         display: flex;
         flex-direction: column;
-        background: var(--bg-stage);
+        background: var(--bg-main);
         border: 3px solid var(--bg-accent);
         box-sizing: border-box;
         overflow: hidden;
@@ -67,9 +67,8 @@
 
     /* --- PERSISTENT PROGRESS ENGINE (Sticky) --- */
     #upk-progress-container {
-        background: var(--bg-stage);
+        background: var(--bg-main);
         height: 20px;
-        border-bottom: 2px solid var(--bg-accent);
         position: sticky;
         top: 0;
         z-index: 10;
@@ -231,7 +230,7 @@
         color: var(--mf-gold); 
         font-weight: bold; 
         display: block; 
-        border-bottom: 1px solid var(--bg-accent); 
+        border-bottom: 1px solid var(--bg-main); 
         margin-bottom: 5px; 
         padding-bottom: 2px; 
     }
@@ -371,7 +370,7 @@
                         </div>
                     </div>
 
-                    <div style="text-align: right; border-top: 1px solid var(--bg-accent); padding-top: 10px; margin-top: auto;">
+                    <div style="text-align: right; border-top: 1px solid var(--bg-main); padding-top: 10px; margin-top: auto;">
                         <button type="button" id="upk-start-btn" class="mf-button-gold-fixed" onclick="metaforge.unpack_convert.run()" disabled>
                             Unpack / Convert
                         </button>
@@ -384,11 +383,11 @@
         <!-- RIGHT: THE OUTPUT WORKFLOW -->
         <div class="unpacker-console-side">
             <div id="upk-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-                <div id="upk-progress-fill" class="progress-fill"></div>
-                <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem;">Standing By</h2>
+                <div id="upk-progress-fill" class="progress-fill" style="margin-bottom:5px;"></div>
+                <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem; border-bottom: 1px solid var(--mf-gold);background-color:var(--bg-main); margin-top:-5px;padding-top:-30px;">Standing By</h2>
 			</div>
-            <div id="unpacker-console" class="unpacker-console" aria-live="polite">
-                <div class="data-text">Provide album details and select a source directory to begin.</div>
+            <div id="unpacker-console" class="unpacker-console" aria-live="polite" style="padding:10px;">
+                <div class="data-text" >Provide album details and select a source directory to begin.</div>
             </div>
         </div>
 

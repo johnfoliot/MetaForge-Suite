@@ -94,35 +94,13 @@ def _orchestrate_workflow(data, env_path):
 
     yield f'<div class="status-api" style="font-size:1rem;"><span aria-hidden="true">🔓</span> Starting Processing: <span style="color:var(--text-output);">{album_name}</span></div>'
 
-    # 2. STEP 1: EXTRACTION & DISCOVERY
-    # Root-level archives first -- a single monolithic ZIP/RAR for the whole
-    # box set gets extracted and hoisted here (zip_engine/rar_engine already
-    # preserve any Disc N subfolders found inside it).
     for msg in zip_engine.extract_zip(root, report_data): yield msg
     for msg in rar_engine.extract_rar(root, report_data): yield msg
 
-    # Disc detection -- computed ONCE, here, after root-level extraction (so
-    # it sees Disc N folders whether they arrived pre-split on disk or were
-    # just hoisted out of a root-level archive). Step 2 below reuses this
-    # same disc_dirs list rather than recomputing it, so the two steps can
-    # never disagree about what counts as a disc.
-    # [\s\-_]* between the keyword and the number (not \s*) -- the naming
-    # convention is immaterial (John, 2026-07-08): "CD 1", "CD1", "CD-1",
-    # "CD_1", "Disc_2", "Vol-3" all need to resolve to the same disc
-    # number. Verified: the space/no-separator forms already matched,
-    # but hyphen/underscore variants ("CD-1", "Disc_1") did not.
     disc_pattern = re.compile(r'(?:^|[\s\-_])(disc|cd|v\.|vol|volume|part)[\s\-_]*(\d+)', re.I)
     sub_dirs = sorted([d for d in root.iterdir() if d.is_dir() and d.name.lower() != 'art'], key=lambda x: _natural_sort_key(x.name))
     disc_dirs = [d for d in sub_dirs if disc_pattern.search(d.name)]
 
-    # Real bug, found live 2026-07-20 (John's multi-disc box set report):
-    # this step used to glob only root for .zip/.cue/.rar, so a box set
-    # whose per-disc CUE/archive files live inside "Disc 1"/"Disc 2"
-    # subfolders was invisible here -- it printed "No archive bundles
-    # found" and skipped splitting entirely for BOTH discs, while Step 2
-    # (disc-aware) ran anyway and converted each disc's one unsplit source
-    # file as if it were a single track. Now each disc directory is
-    # checked in its own right for nested archives/CUEs.
     if disc_dirs:
         for d_path in disc_dirs:
             for msg in zip_engine.extract_zip(d_path, report_data): yield msg
@@ -132,7 +110,7 @@ def _orchestrate_workflow(data, env_path):
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     if not report_data.get('extraction_occurred', False):
-        yield '<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:25px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
+        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:25px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
         yield "<!-- PROGRESS:1:1:1 -->"
 
     # 3. STEP 2: BITSTREAM & METADATA
@@ -169,7 +147,7 @@ def _orchestrate_workflow(data, env_path):
         # JS picks this up and shows the gallery
         yield "<!-- ART_READY -->"
     else:
-        yield f'<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:10px;"><span aria-hidden="true">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
+        yield f'<div class="status-api" style="margin-top:5px; padding-top:10px;"><span aria-hidden="true">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
         yield f'<div class="status-message" style="color:var(--text-output); margin-left:1rem; margin-left:15px;"><img src="/ui/images/cloud.png" style="height:14px; width:auto;" alt=""> Querying Discogs Archive for {album_name}...</div>'
         
         cloud_res = art_engine.trigger_discogs_fetch(root, artist, album_name)

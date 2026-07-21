@@ -255,7 +255,7 @@ window.metaforge.unpack_convert = {
         // variable, not text embedded into an onclick attribute string.
         const gate = document.createElement('div');
         gate.id = 'upk-handoff-gate';
-        gate.style.cssText = 'margin-top: 20px; text-align: right; border-top: 1px solid var(--bg-accent); padding-top: 15px;';
+        gate.style.cssText = 'margin-top: 20px; text-align: right; padding-top: 15px;';
         const btn = document.createElement('button');
         btn.className = 'mf-button-gold-fixed';
         btn.textContent = 'Continue to: MusicBrainzIDs';
