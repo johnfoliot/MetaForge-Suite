@@ -17,7 +17,7 @@
                     <input type="text" id="alb-artist" class="mb-input-text" style="background: white; color: black;">
                 </div>
                 <div style="grid-column: 2;">
-                    <label class="mf-card-label" style="color: var(--mf-gold);">Orig. Year:</label>
+                    <label class="mf-card-label" style="color: var(--mf-gold);">Release Year:</label>
                     <input type="text" id="alb-year" class="mb-input-text" style="text-align: center; background: white; color: black;">
                 </div>
                 <div style="grid-column: 3; display: flex; flex-direction: column; align-items: center; gap: 4px;">

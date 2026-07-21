@@ -110,7 +110,6 @@ line-height: 1.2;
 
 /* --- PROGRESS & CONSOLE --- */
 #it-progress-container {
-background: var(--bg-main);
 height: 30px;
 padding:8px;
 margin:5px;
@@ -290,7 +289,7 @@ display: none;
     <main class="it-output-silo">
         <div id="it-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
             <div id="it-progress-fill" class="it-progress-fill"></div>
-            <br><br><h3 id="it-progress-label" class="it-progress-text" style-"padding:4px!important; width:300px!important;">Standing By</h3>
+            <br><br><h3 id="it-progress-label" class="it-progress-text" style="padding:6px!important;border-bottom: 1px solid var(--mf-gold); z-index:200; background-color: var(--bg-main); margin-left:10px; margin-right:15px; max-width:97%;">Standing By</h3>
         </div>
 
         <div id="it-console" class="it-console" aria-live="polite">

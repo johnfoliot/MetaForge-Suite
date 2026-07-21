@@ -250,9 +250,9 @@
         
         <!-- SILO 1: DISCOVERY -->
         <div class="mb-discovery-silo">
-            <div class="status-api" style="font-size:1rem; color:var(--mf-gold); padding:5px 0;">
+            <!-- div class="status-api" style="font-size:1rem; color:var(--mf-gold); padding:5px 0;">
                 <img src="/ui/images/musicbrainz.svg" style="height:16px; vertical-align:middle;" alt=""> Getting MusicBrainz Ids
-            </div>
+            </div -->
             <div class="mb-input-panel">
                 <div class="mb-field-row">
                     <label for="mb-local-path" class="mb-label">Local Source</label>

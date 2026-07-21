@@ -107,7 +107,7 @@ window.metaforge.personnel = {
         // search may happen inside it). The single backend call can't
         // report its own sub-stage progress, so the message says what's
         // POSSIBLE, not a false promise of exactly what's running.
-        this.toggleLoading(true, "Checking MusicBrainz + Discogs, falling back to an AI web search if thin -- this can take a little while...");
+        this.toggleLoading(true, "Checking MusicBrainz + Discogs, falling back to an AI web search if thin. Please stand-by, this can take a little while...");
         this.updateStatus("Resolving personnel via MusicBrainz + Discogs...", "success");
 
         try {

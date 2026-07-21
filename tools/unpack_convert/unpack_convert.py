@@ -95,19 +95,17 @@ def _orchestrate_workflow(data, env_path):
     yield f'<div class="status-api" style="font-size:1rem;"><span aria-hidden="true">🔓</span> Starting Processing: <span style="color:var(--text-output);">{album_name}</span></div>'
 
     # 2. STEP 1: EXTRACTION & DISCOVERY
-    raw_zips = list(root.glob("*.zip"))
-    raw_cues = list(root.glob("*.cue"))
-    raw_rars = [r for r in root.glob("*.rar") if not re.search(r'\.part([2-9]|\d{2,})\.rar$', r.name, re.I)]
-    
-    if not (raw_zips or raw_cues or raw_rars):
-        yield '<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:25px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
-        yield "<!-- PROGRESS:1:1:1 -->"
-    else:
-        for msg in zip_engine.extract_zip(root, report_data): yield msg
-        for msg in rar_engine.extract_rar(root, report_data): yield msg
-        for msg in cue_engine.split_cue(root, artist, report_data): yield msg
+    # Root-level archives first -- a single monolithic ZIP/RAR for the whole
+    # box set gets extracted and hoisted here (zip_engine/rar_engine already
+    # preserve any Disc N subfolders found inside it).
+    for msg in zip_engine.extract_zip(root, report_data): yield msg
+    for msg in rar_engine.extract_rar(root, report_data): yield msg
 
-    # 3. STEP 2: BITSTREAM & METADATA
+    # Disc detection -- computed ONCE, here, after root-level extraction (so
+    # it sees Disc N folders whether they arrived pre-split on disk or were
+    # just hoisted out of a root-level archive). Step 2 below reuses this
+    # same disc_dirs list rather than recomputing it, so the two steps can
+    # never disagree about what counts as a disc.
     # [\s\-_]* between the keyword and the number (not \s*) -- the naming
     # convention is immaterial (John, 2026-07-08): "CD 1", "CD1", "CD-1",
     # "CD_1", "Disc_2", "Vol-3" all need to resolve to the same disc
@@ -116,7 +114,28 @@ def _orchestrate_workflow(data, env_path):
     disc_pattern = re.compile(r'(?:^|[\s\-_])(disc|cd|v\.|vol|volume|part)[\s\-_]*(\d+)', re.I)
     sub_dirs = sorted([d for d in root.iterdir() if d.is_dir() and d.name.lower() != 'art'], key=lambda x: _natural_sort_key(x.name))
     disc_dirs = [d for d in sub_dirs if disc_pattern.search(d.name)]
-    
+
+    # Real bug, found live 2026-07-20 (John's multi-disc box set report):
+    # this step used to glob only root for .zip/.cue/.rar, so a box set
+    # whose per-disc CUE/archive files live inside "Disc 1"/"Disc 2"
+    # subfolders was invisible here -- it printed "No archive bundles
+    # found" and skipped splitting entirely for BOTH discs, while Step 2
+    # (disc-aware) ran anyway and converted each disc's one unsplit source
+    # file as if it were a single track. Now each disc directory is
+    # checked in its own right for nested archives/CUEs.
+    if disc_dirs:
+        for d_path in disc_dirs:
+            for msg in zip_engine.extract_zip(d_path, report_data): yield msg
+            for msg in rar_engine.extract_rar(d_path, report_data): yield msg
+            for msg in cue_engine.split_cue(d_path, artist, report_data): yield msg
+    else:
+        for msg in cue_engine.split_cue(root, artist, report_data): yield msg
+
+    if not report_data.get('extraction_occurred', False):
+        yield '<div class="status-api" style="margin-top:5px; border-top:1px solid #333; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:25px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
+        yield "<!-- PROGRESS:1:1:1 -->"
+
+    # 3. STEP 2: BITSTREAM & METADATA
     if disc_dirs:
         total_discs = len(disc_dirs)
         linear_offset = 0

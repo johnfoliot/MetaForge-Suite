@@ -320,7 +320,7 @@ window.metaforge.unpack_convert = {
         
         if (fill) fill.style.width = '0%';
         if (label) label.innerText = 'Starting Unpack & Convert...';
-        if (consoleBox) consoleBox.innerHTML = '<div class="status-api">Initializing...</div>';
+        if (consoleBox) consoleBox.innerHTML = '<div class="status-api"></div>';
         
         const step4Wrapper = document.getElementById('upk-step4-wrapper');
         if (step4Wrapper) step4Wrapper.remove();
