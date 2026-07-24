@@ -123,6 +123,19 @@ def execute_commit(
     # =========================================================
     for idx, (f_path, data) in enumerate(track_results, 1):
 
+        # Real bug, found live 2026-07-21 (John's Matt Bianco box set
+        # report): a file present when the per-track loop scanned it can
+        # still vanish before commit runs (that loop takes minutes for a
+        # full album). This used to surface only as a bare "[Errno 2] No
+        # such file or directory" from _write_physical_tags's ID3() call,
+        # caught by the generic except below and indistinguishable from
+        # any other write failure. Calling it out explicitly here makes
+        # the actual failure mode -- the file disappearing, not a tagging
+        # error -- obvious in the log.
+        if not f_path.exists():
+            yield f'<div class="it-log-entry it-val-red">🔥 MISSING AT COMMIT: {f_path.name} was present during tagging but is gone from disk now. Not counted as committed -- investigate immediately.</div>'
+            continue
+
         try:
             title = data.get('title', f_path.stem)
             verified_length_seconds = int(data.get('duration', 0))

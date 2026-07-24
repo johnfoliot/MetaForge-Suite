@@ -6,6 +6,12 @@
       "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
       "runtimeArgs": ["ui/app.py"],
       "port": 5000
+    },
+    {
+      "name": "survey-tool",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8934", "--directory", "D:\\Survey Tool"],
+      "port": 8934
     }
   ]
 }

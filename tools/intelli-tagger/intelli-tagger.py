@@ -342,6 +342,20 @@ def _orchestrate_tagger_batch(data, env_path):
         progress = int(40 + ((idx / total_files) * 45))
         track_prefix = f'Processing Track {idx}/{total_files}'
 
+        # Real bug, found live 2026-07-21 (John's Matt Bianco box set
+        # report): a batch runs for minutes once MB/Discogs/AI calls per
+        # track are involved, and a file that vanishes mid-batch used to go
+        # completely unnoticed here -- it would only surface as a generic
+        # "No such file or directory" deep in commit_engine's exception
+        # handler at the very end, with no indication of when it actually
+        # disappeared. Checking here, right before this track is touched,
+        # narrows that window and fails loud immediately instead of
+        # quietly excluding the track from track_results and only finding
+        # out at commit time.
+        if not f_path.exists():
+            yield f'<div class="it-log-entry it-val-red">🔥 MISSING: {f_path.name} was found by the initial scan but is gone from disk. Skipping this track -- investigate immediately, do not re-run this album until the cause is known.</div>'
+            continue
+
         # Per-track processing routinely takes ~20s once MB/Discogs/Wikipedia/
         # AI calls are involved -- without an interim label for each phase,
         # neither the progress bar nor the console log changes for that whole

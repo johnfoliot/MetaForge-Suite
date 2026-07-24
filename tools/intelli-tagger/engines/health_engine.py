@@ -35,12 +35,43 @@ def check_health(root_path):
 
     repair_count = 0
     queued_count = 0
+    vanished_count = 0
     for f in target_files:
+        # Real bug, found live 2026-07-21 (John's Matt Bianco box set report):
+        # a file that vanished between the initial glob (above) and this
+        # loop reaching it used to go straight into mp3val with no existence
+        # check -- whatever mp3val or the surrounding subprocess call did
+        # with a target that no longer existed was never observed, only its
+        # aftermath (empty disc folders). This is the earliest point
+        # anything in Intelli-Tagger touches the physical files, so it's
+        # the first place that must fail loud instead of silently
+        # continuing into a missing target.
+        if not f.exists():
+            vanished_count += 1
+            yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 MISSING BEFORE HEALTH CHECK: {f.name} was found by the initial scan but is gone from disk. Skipped -- investigate immediately, do not re-run this album until the cause is known.</div>'
+            continue
+
         try:
             # Attempt a container/header-level fix
             fix_res = subprocess.run([str(MP3VAL_EXE), "-f", str(f)], capture_output=True, text=True)
             # Verify the fix actually resolved the issue
             verify_res = subprocess.run([str(MP3VAL_EXE), str(f)], capture_output=True, text=True)
+
+            # Defense-in-depth around mp3val's own in-place rewrite: if the
+            # "fixed" file is gone or has collapsed to (near-)zero bytes,
+            # that's worse than the original corruption it was trying to
+            # repair. mp3val writes an original.mp3.bak backup by default
+            # (no -nb flag is passed) -- restore it rather than leaving an
+            # empty/missing file behind.
+            if not f.exists() or f.stat().st_size == 0:
+                bak = f.with_name(f.name + ".bak")
+                if bak.exists() and bak.stat().st_size > 0:
+                    bak.replace(f)
+                    yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 mp3val fix produced an empty/missing file for {f.name} -- restored from its .bak backup. Investigate before trusting this album further.</div>'
+                else:
+                    vanished_count += 1
+                    yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 CRITICAL: mp3val fix destroyed {f.name} and no .bak backup was found to restore. This file may be unrecoverable from this run.</div>'
+                continue
 
             if verify_res.returncode != 0:
                 _log_to_remediation_queue(f, "Bitstream Data Corruption (Intelli-Tagger)")
@@ -50,6 +81,9 @@ def check_health(root_path):
 
         except Exception as e:
             yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 Health Engine Exception on {f.name}: {str(e)}</div>'
+
+    if vanished_count > 0:
+        yield f'<div class="it-log-entry it-val-red" style="margin-top:5px; margin-left:1rem;">⚠️ SAFETY ALERT: {vanished_count} file(s) went missing during the health check pass. Batch continuing for the remaining files, but this album needs manual investigation.</div>'
 
     if queued_count > 0:
         yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🩹 {queued_count} file(s) could not be structurally repaired and were queued for the Repair tool.</div>'

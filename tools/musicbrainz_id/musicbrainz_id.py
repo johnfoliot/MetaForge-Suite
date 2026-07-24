@@ -365,13 +365,23 @@ def commit_ids_to_files(env_path):
             audio.update_to_v23()
             audio.save(str(old_path), v2_version=3)
 
-            # No zero-padding -- matches Unpack/Convert's own convention
-            # (bitstream_engine.py's filing_id is a plain str(int), never
-            # padded). This used to disagree with Stage 1's own naming,
-            # so a file born "1 - ..." in Unpack/Convert would get
-            # silently renamed to "01 - ..." here in Stage 2 -- the
-            # actual source of the inconsistency John flagged 2026-07-08.
-            t_num = str(item["track_num"])
+            # Real bug, found live 2026-07-21 (John's Matt Bianco box set
+            # report, watched live on a second run): this used to rename
+            # the physical file to item["track_num"] -- the album-wide
+            # linear position (1, 2, 3... continuing across every disc,
+            # matching MB's own tracklist position and what the TRCK tag
+            # above correctly carries). That collapsed Unpack & Convert's
+            # disc-aware "101"/"102"/"201"/"202" filing convention (disc N
+            # * 100 + per-disc track, see bitstream_engine.py's filing_id)
+            # down to a flat "1"/"2"/"3", discarding which disc a track
+            # belongs to. The TAG should be the album-wide position; the
+            # FILENAME's numeric prefix is Unpack & Convert's concern, not
+            # this tool's -- so it's preserved as-is from whatever the file
+            # is already named, not recomputed from track_num.
+            existing_prefix_match = re.match(r'^(\d+)', old_path.stem)
+            filing_prefix = existing_prefix_match.group(1) if existing_prefix_match else str(item["track_num"])
+            item["_filing_prefix"] = filing_prefix
+
             # Real per-track performer (e.g. from MB's own recording-level
             # artist-credit on a Various Artists compilation) takes priority
             # over the blanket release-level artist_seed -- see track_artist
@@ -381,7 +391,7 @@ def commit_ids_to_files(env_path):
             safe_artist = sanitize_filename(item.get("track_artist") or artist_seed)
             safe_title = sanitize_filename(item["target_title"])
 
-            new_name = f"{t_num} - {safe_artist} - {safe_title}.mp3"
+            new_name = f"{filing_prefix} - {safe_artist} - {safe_title}.mp3"
             new_path = old_path.parent / new_name
 
             if old_path != new_path:
@@ -430,9 +440,15 @@ def _update_manifest(
         # what's actually on disk, and surfaces the real per-track performer
         # ("artist") for Intelli-Tagger's identity resolution downstream.
         track_artist = item.get("track_artist") or artist_seed
+        # _filing_prefix is the disc-aware number the file was actually
+        # renamed to above (falls back to track_num only for an item whose
+        # rename never happened -- e.g. it was already counted under
+        # stats["failed"] -- so the manifest still records its best guess
+        # rather than crashing on a missing key).
+        filing_prefix = item.get("_filing_prefix") or str(item["track_num"])
         m["mb_track_map"].append({
             "position": item["track_num"],
-            "filename": f"{item['track_num']} - "
+            "filename": f"{filing_prefix} - "
                         f"{sanitize_filename(track_artist)} - "
                         f"{sanitize_filename(item['target_title'])}.mp3",
             "title": item["target_title"],

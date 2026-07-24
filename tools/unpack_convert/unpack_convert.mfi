@@ -15,7 +15,7 @@
     }
 
     .unpacker-interview-side {
-        flex: 0 0 calc(50% - 7.5px);
+        flex: 0 0 calc(35% - 7.5px);
         display: flex;
         flex-direction: column;
         box-sizing: border-box;
@@ -29,7 +29,7 @@
     }
 
     .unpacker-console-side {
-        flex: 0 0 calc(50% - 7.5px);
+        flex: 0 0 calc(65% - 7.5px);
         display: flex;
         flex-direction: column;
         background: var(--bg-main);

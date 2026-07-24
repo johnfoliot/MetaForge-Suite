@@ -51,12 +51,28 @@ def scrub_tags(root_path):
     yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;">🧼 Cleaning metadata...</div>'
 
     scrub_count = 0
+    vanished_count = 0
     for f in files:
+        # Same existence guard as health_engine.py's pass just before this
+        # one (John's Matt Bianco box set report, 2026-07-21) -- a file
+        # that disappeared between the initial glob and reaching it here
+        # needs to be surfaced immediately, not silently skipped by
+        # tag_engine.sanitize_file's own "File not found" return.
+        if not f.exists():
+            vanished_count += 1
+            yield f'<div class="it-log-entry it-val-red" style="margin-left:15px;">🔥 MISSING BEFORE SCRUB: {f.name} was found by the initial scan but is gone from disk.</div>'
+            continue
+
         # tag_engine.sanitize_file logic protects frames starting with whitelist entries.
         success, message = tag_engine.sanitize_file(f, WHITELIST)
-        
+
         if success:
             scrub_count += 1
             if scrub_count % 5 == 0 or scrub_count == len(files):
                 yield f'<div class="it-log-entry" style="margin-left:15px;">✅ Cleaned {scrub_count}/{len(files)} files.</div>'
+        else:
+            yield f'<div class="it-log-entry it-val-red" style="margin-left:15px;">🔥 Scrub failed on {f.name}: {message}</div>'
+
+    if vanished_count > 0:
+        yield f'<div class="it-log-entry it-val-red" style="margin-top:5px; margin-left:15px;">⚠️ SAFETY ALERT: {vanished_count} file(s) went missing during the scrub pass.</div>'
 # --- END OF FILE scrub_engine.py ---
