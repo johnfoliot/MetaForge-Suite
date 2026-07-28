@@ -5,25 +5,42 @@
 # Build 2.1.1: Forensic Loop Verification (Physical APIC Embedding).
 # Physical Location: \tools\unpack_convert\engines\art_engine.py
 # ======================================================================
+import io
 import os
 import base64
 from pathlib import Path
+from PIL import Image
 from common import io_bridge, tag_engine, discogs_engine, image_processor
+
+# Gallery cards render in a 4-column grid (unpack_convert.mfi's
+# .art-selection-grid) -- realistically never wider than ~300px even on a
+# large display. 320px longest-side is generous headroom for that (incl.
+# high-DPI) while keeping each preview a few tens of KB instead of the
+# multi-MB original -- a box set's booklet scans especially.
+GALLERY_THUMB_MAX = 320
+GALLERY_THUMB_QUALITY = 78
 
 def scan_art_folder(album_path):
     """
     Scans the directory for candidate images for the UI Gallery.
-    Returns a list of Base64-encoded previews.
+    Returns cheap preview thumbnails, not the full-size originals --
+    real bug, found live 2026-07-28 (John's report): this used to
+    base64-encode and ship every candidate at its FULL original size in
+    one blocking request, so a box set with several multi-MB booklet
+    scans meant the gallery showed nothing at all until every one of
+    those had been read, encoded, and downloaded. finalize_cover() below
+    still re-reads the actual selected file from disk for the real
+    archival-quality resize -- this only ever affects the picker preview.
     """
     album_path = Path(album_path)
     image_extensions = {'.jpg', '.jpeg', '.png'}
     candidates = []
-    
+
     # Priority 1: Check root
     for item in album_path.iterdir():
         if item.is_file() and item.suffix.lower() in image_extensions:
             candidates.append(item)
-            
+
     # Priority 2: Check \art\ subfolder
     art_sub = album_path / "art"
     if art_sub.exists() and art_sub.is_dir():
@@ -34,17 +51,31 @@ def scan_art_folder(album_path):
     gallery = []
     for img_path in candidates:
         try:
-            with open(img_path, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            with Image.open(img_path) as img:
+                # Real (not placeholder) dimensions -- the old hardcoded
+                # "500x500" label was never actually measured and was
+                # simply wrong for every image that wasn't already 500x500.
+                orig_width, orig_height = img.size
+
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+
+                thumb = img.copy()
+                thumb.thumbnail((GALLERY_THUMB_MAX, GALLERY_THUMB_MAX), Image.Resampling.LANCZOS)
+
+                buf = io.BytesIO()
+                thumb.save(buf, "JPEG", quality=GALLERY_THUMB_QUALITY)
+                encoded_string = base64.b64encode(buf.getvalue()).decode('utf-8')
+
                 gallery.append({
                     "filename": img_path.name,
                     "data": f"data:image/jpeg;base64,{encoded_string}",
-                    "width": 500,
-                    "height": 500
+                    "width": orig_width,
+                    "height": orig_height
                 })
-        except:
+        except Exception:
             continue
-            
+
     return gallery
 
 def finalize_cover(album_path, selected_filename):

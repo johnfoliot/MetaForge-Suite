@@ -45,12 +45,13 @@
             <!-- STUDIO PROGRESS BAR -->
             <div id="sharing-progress-wrapper" style="width: 100%; margin-top: 10px; display: none;">
                 <div class="mf-progress-track" style="width: 100%; height: 24px; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; overflow: hidden; position: relative;">
-                    <div id="sharing-progress-bar" 
-                         role="progressbar" 
-                         aria-valuemin="0" 
-                         aria-valuemax="100" 
+                    <div id="sharing-progress-bar"
+                         class="mf-progress-shimmer"
+                         role="progressbar"
+                         aria-valuemin="0"
+                         aria-valuemax="100"
                          aria-valuenow="0"
-                         style="width: 0%; height: 100%; background: var(--mf-gold); transition: width 0.3s ease;"></div>
+                         style="width: 0%; height: 100%; transition: width 0.3s ease;"></div>
                 </div>
                 <div id="sharing-status-msg" class="data-text" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold;"></div>
             </div>
@@ -137,8 +138,8 @@
     }
 	.mf-input {
 	padding:5px;
-	color:var(input-foreground2)!important; 
-	background-color:var(input-background2)!important;
+	color:var(--input-foreground2)!important;
+	background-color:var(--input-background2)!important;
 	}
     #sharing-status-msg.status-success { color: var(--status-success); }
     #sharing-status-msg.status-error { color: var(--status-error); }

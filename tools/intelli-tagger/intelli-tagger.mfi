@@ -264,6 +264,11 @@ display: none;
             <label for="it-album">Album Title (Required)</label>
             <input type="text" id="it-album" class="it-input-text" style="color:#000000!important;" placeholder="e.g. The Wall">
         </div>
+		
+		<div class="it-group" style="margin-bottom:1rem;">
+                <label for="it-mb-country">Artist Native Country (Recommended)</label>
+                <input type="text" id="it-mb-country" class="it-input-text" style="color:#000000;" placeholder="e.g. US, GB, XW">
+            </div>
 
         <div id="it-mb-fields" style="display: flex; flex-direction: column; gap: 12px;">
             <div class="it-group">
@@ -278,17 +283,14 @@ display: none;
                 <label for="it-mb-group-id"><abbr title="MusicBrainz">MB</abbr> Release Group Id (Recommended)</label>
                 <input type="text" id="it-mb-group-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
             </div>
-            <div class="it-group" style="margin-bottom:1rem;">
-                <label for="it-mb-country"><abbr title="MusicBrainz">MB</abbr> Release Country (Recommended)</label>
-                <input type="text" id="it-mb-country" class="it-input-text" style="color:#000000;" placeholder="e.g. US, GB, XW">
-            </div>
+            
         </div>
 
     </aside>
 
     <main class="it-output-silo">
         <div id="it-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-            <div id="it-progress-fill" class="it-progress-fill"></div>
+            <div id="it-progress-fill" class="it-progress-fill mf-progress-shimmer"></div>
             <br><br><h3 id="it-progress-label" class="it-progress-text" style="padding:6px!important;border-bottom: 1px solid var(--mf-gold); z-index:200; background-color: var(--bg-main); margin-left:10px; margin-right:15px; max-width:97%;">Standing By</h3>
         </div>
 

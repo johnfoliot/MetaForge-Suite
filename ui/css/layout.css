@@ -222,6 +222,48 @@ input, textarea {
         width: 100%;
     }
 
+/* 9. PROGRESS BAR SHIMMER (shared across every tool's progress-fill element) */
+/* A progress fill only actually moves when new data arrives from its
+   backend stream -- during any lull (startup, a slow phase) it used to
+   just sit static, reading as "hung" rather than "working" (John,
+   2026-07-28, Music Sharing report). This shimmer runs continuously and
+   independently of when data arrives, so there's always visible motion
+   the instant a render/batch starts. Add this class to any tool's
+   progress-fill element alongside its own fill class -- background-image
+   carries !important because each tool's own fill class sets the full
+   `background` shorthand (which resets background-image to none), and
+   that rule can load AFTER this one since tool <style> blocks are
+   injected dynamically, after layout.css. Disabled under
+   prefers-reduced-motion -- it's decorative on top of the status text /
+   aria-live region, which already carry the same information without
+   motion. */
+.mf-progress-shimmer {
+    background-color: var(--mf-gold);
+    background-image: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0) 100%
+    ) !important;
+    /* !important here too, not just background-image -- the `background`
+       shorthand a tool's own fill class sets (e.g. .it-progress-fill's
+       `background: var(--mf-gold)`) resets EVERY background sub-property
+       it doesn't mention, including background-size, not just
+       background-image. Without an oversized canvas to slide across, the
+       gradient renders but sliding its position produces no visible
+       sweep -- animating, but looking static (John, 2026-07-28,
+       Intelli-Tagger report: confirmed live, animation-play-state was
+       "running" the whole time, just invisible). */
+    background-size: 200% 100% !important;
+    animation: mf-progress-shimmer-sweep 1.4s linear infinite;
+}
+@keyframes mf-progress-shimmer-sweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .mf-progress-shimmer { animation: none; }
+}
 
 
 /* --- END OF FILE layout.css --- */

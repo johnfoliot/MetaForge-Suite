@@ -285,7 +285,7 @@ def _orchestrate_tagger_batch(data, env_path):
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:15px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines performing per-track tagging...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:15px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines writing metadata values...</div>'
 
     # A real progress marker for this window -- previously nothing yielded
     # here carried a PROGRESS comment at all, so the bar sat frozen on
@@ -307,18 +307,7 @@ def _orchestrate_tagger_batch(data, env_path):
     # job is just to explain why track 1's own log row takes a moment to
     # appear -- not to claim work is underway that isn't yet.
     # =========================================================
-    yield '''<style>
-@keyframes mf-wait-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
-}
-#it-acoustic-wait {
-    animation: mf-wait-pulse 1.8s ease-in-out infinite;
-    color: var(--mf-gold);
-    padding: 6px 0;
-    font-size: 0.7rem;
-}
-</style>
+    yield '''
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
     <img src="/ui/images/acoustic_analysis.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px; margin-bottom:5px;margin-top:5px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
 </div>'''
@@ -367,7 +356,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if not isinstance(acoustic_data, dict):
             acoustic_data = dict(acoustic_data)
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Fingerprinting -->'
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Determining Genre / Sub Genre, Fingerprinting Track -->'
 
         fingerprint_data = fingerprint_engine.generate_acoustid(f_path)
         acoustid_value = _extract_acoustid(fingerprint_data)
@@ -424,7 +413,7 @@ def _orchestrate_tagger_batch(data, env_path):
 
         title = identity_data.get("title", f_path.stem)
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Calculating BPM, Intensity, Starting Key, and Genre/Mood -->'
+        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Calculating BPM, Intensity, and Starting Key -->'
 
         try:
             ai_results = ai_engine.map_track_taxonomy(

@@ -383,7 +383,7 @@
         <!-- RIGHT: THE OUTPUT WORKFLOW -->
         <div class="unpacker-console-side">
             <div id="upk-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-                <div id="upk-progress-fill" class="progress-fill" style="margin-bottom:5px;"></div>
+                <div id="upk-progress-fill" class="progress-fill mf-progress-shimmer" style="margin-bottom:5px;"></div>
                 <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem; border-bottom: 1px solid var(--mf-gold);background-color:var(--bg-main); margin-top:-5px;padding-top:-30px;">Standing By</h2>
 			</div>
             <div id="unpacker-console" class="unpacker-console" aria-live="polite" style="padding:10px;">
