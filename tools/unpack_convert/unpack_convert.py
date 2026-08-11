@@ -65,6 +65,7 @@ def _orchestrate_workflow(data, env_path):
     import cue_engine
     import zip_engine
     import rar_engine
+    import sacd_engine
     import bitstream_engine
     import janitor_engine
     import art_engine
@@ -105,8 +106,10 @@ def _orchestrate_workflow(data, env_path):
         for d_path in disc_dirs:
             for msg in zip_engine.extract_zip(d_path, report_data): yield msg
             for msg in rar_engine.extract_rar(d_path, report_data): yield msg
+            for msg in sacd_engine.process_sacd(d_path, artist, report_data): yield msg
             for msg in cue_engine.split_cue(d_path, artist, report_data): yield msg
     else:
+        for msg in sacd_engine.process_sacd(root, artist, report_data): yield msg
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     if not report_data.get('extraction_occurred', False):

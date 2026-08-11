@@ -82,7 +82,16 @@ window.metaforge.intelli_tagger = {
                 this.setFieldValue('it-mb-artist-id', m.mb_artist_id);
                 this.setFieldValue('it-mb-album-id', m.mb_album_id);
                 this.setFieldValue('it-mb-group-id', m.mb_release_group_id);
-                this.setFieldValue('it-mb-country', m.mb_release_country);
+                // Pre-fill with the ARTIST's own home country (MB artist
+                // entity's "country", e.g. where a band formed) -- what
+                // Personnel Bridge/IPM actually needs -- not this specific
+                // release's distribution country. Falls back to the release
+                // country only when MB had no artist-level country on file
+                // (e.g. an obscure/incomplete MB artist entry), so the field
+                // is never left blank. Still just a starting point: John
+                // edits this by hand whenever MB's data is wrong, same as
+                // always -- whatever's here when Run is clicked wins.
+                this.setFieldValue('it-mb-country', m.mb_artist_country || m.mb_release_country);
                 
                 // Persist Year for reporting fallback
                 this.state.releaseYear = m.release_year || "Unknown";
@@ -282,6 +291,11 @@ window.metaforge.intelli_tagger = {
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            // One-shot guard -- buffer only ever grows (see the marker-
+            // detection note below), so an unguarded includes() check would
+            // fire the chime again on every remaining read() after
+            // BATCH_COMPLETE first appears.
+            let chimePlayed = false;
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -319,6 +333,15 @@ window.metaforge.intelli_tagger = {
                     if (handoff) handoff.style.display = 'block';
                 }
 
+                // Audible completion cue (John's request, 2026-08-08) --
+                // BATCH_COMPLETE was already yielded by the backend at the
+                // very end of every run (intelli-tagger.py) but nothing on
+                // this side ever looked for it before now.
+                if (!chimePlayed && buffer.includes('BATCH_COMPLETE')) {
+                    chimePlayed = true;
+                    this.playCompletionChime();
+                }
+
                 consoleBox.insertAdjacentHTML('beforeend', chunk);
 
                 // Remove acoustic wait indicator on first track result
@@ -334,6 +357,33 @@ window.metaforge.intelli_tagger = {
         } finally {
             this.state.isProcessing = false;
             this.validate();
+        }
+    },
+
+    // Short two-tone chime, synthesized directly via Web Audio -- no sound
+    // asset file to bundle/maintain. Wrapped in try/catch since autoplay-
+    // policy or an unsupported browser must never break the actual tagging
+    // result over a missed notification sound.
+    playCompletionChime: function() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+            const notes = [659.25, 440.00]; // E5 -> A4
+            notes.forEach((freq, i) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                const start = now + i * 0.12;
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.5);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(start);
+                osc.stop(start + 0.5);
+            });
+        } catch (e) {
+            console.warn('Completion chime failed:', e);
         }
     },
 

@@ -15,13 +15,19 @@ MP3VAL_EXE = config_handler.MP3VAL_EXE
 REPAIR_DIR = config_handler.DATA_DIR / "repair"
 QUEUE_LOG  = REPAIR_DIR / "remediation_queue.log"
 
-def check_health(root_path):
+def check_health(root_path, health_summary=None):
     """
     Scans and repairs .mp3 files. Runs mp3val in fix mode, then verifies;
     anything still corrupt after the fix attempt is queued to
     remediation_queue.log for the Repair tool. Never halts the batch --
     every file is checked and tagging continues regardless of findings.
     Yields HTML log entries for the streaming console.
+
+    health_summary, if given a dict, is populated in place with this
+    run's counts (vanished/queued/repaired) -- lets the caller fold the
+    outcome into MetaForge.log's own "Intelli-Tagger" audit block later
+    (John's request, 2026-08-08) without this generator's own console-
+    only yields being the only record of what happened.
     """
     # Ensure remediation directory exists
     REPAIR_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,6 +97,11 @@ def check_health(root_path):
         yield f'<div class="it-log-entry it-val-success" style="margin-left:1rem;">✅ Health Check complete. {repair_count} file(s) structurally aligned.</div>'
     if queued_count == 0 and repair_count == 0:
         yield '<div class="it-log-entry" style="margin-left:1rem;">✅ No structural header repairs required.</div>'
+
+    if health_summary is not None:
+        health_summary["vanished"] = vanished_count
+        health_summary["queued"] = queued_count
+        health_summary["repaired"] = repair_count
 
 def _log_to_remediation_queue(file_path, reason="Bitstream Data Corruption"):
     """

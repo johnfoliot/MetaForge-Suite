@@ -18,6 +18,7 @@ from mutagen.id3 import (
 
 from common import config_handler
 from year_resolution_engine import SRC_DISCOGS, SRC_DISCOGS_MASTER, SRC_WIKIPEDIA, SRC_AI_WEB
+from tools.personnel.edge_normalizer import hash_artist_identity, hash_album_identity
 
 DB_PATH = config_handler.DB_PATH
 SIGNATURE = "Metadata by MetaForge Studio - the music management tool for Serious Collectors."
@@ -78,7 +79,7 @@ def execute_commit(
     if manifest_seeds is None:
         manifest_seeds = {}
 
-    yield '<div class="it-log-entry it-val-gold"><img src="ui/images/database.png" alt="" style="height:16px; width:auto;"> Writing to MetaForge database...</div>'
+    yield '<div class="it-log-entry it-val-gold">✏️ Finalizing MP3 tags... <br><img src="ui/images/database.png" alt="" style="height:16px; width:auto;margin-bottom:-2px"> Writing to MetaForge database...</div>'
 
     artist_name = manifest_seeds.get('artist')
     album_title = manifest_seeds.get('album')
@@ -268,7 +269,7 @@ def execute_commit(
     except Exception as e:
         yield f'<div class="it-log-entry it-val-red">Audit warning: {str(e)}</div>'
 
-    yield f'<div class="it-log-entry" style="margin-left:16px;">✅ {success_count} tracks committed.</div>'
+    yield f'<div class="it-log-entry" style="margin-left:16px;">✅ {success_count} tracks finalized.</div>'
 
 
 # =========================================================
@@ -385,21 +386,19 @@ def _normalize(value):
 # HASHING
 # =========================================================
 def _generate_mf_hashes(artist, album):
-    a = str(artist).strip().lower()
-    b = str(album).strip().lower()
-
     return (
-        hashlib.sha256(f"{a}|{b}".encode("utf-8")).hexdigest(),
-        _hash_artist(a)
+        hash_album_identity(artist, album),
+        _hash_artist(artist)
     )
 
 
 def _hash_artist(name):
     # Same identity key edges.target_id/library_artist.mf_artist_id already
-    # use elsewhere (sha256 of the lowercased credited name) -- Personnel
-    # Bridge depends on this being computed identically everywhere an
-    # artist identity gets hashed, not just here.
-    return hashlib.sha256(str(name).strip().lower().encode("utf-8")).hexdigest()
+    # use elsewhere -- Personnel Bridge depends on this being computed
+    # identically everywhere an artist identity gets hashed, not just here,
+    # so this delegates to the one shared derivation rather than keeping
+    # its own copy of the hashing logic.
+    return hash_artist_identity(str(name))
 
 
 # =========================================================

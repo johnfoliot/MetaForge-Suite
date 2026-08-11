@@ -55,7 +55,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db", required=True, help="Path to the metaforge.db to operate on (use a COPY first)")
     parser.add_argument("--dry-run", action="store_true", help="Report what would change without writing")
+    parser.add_argument(
+        "--exclude-ids", default="",
+        help="Comma-separated edges.id values to skip even if they match the junk-role filter -- "
+             "for known false-positive substring collisions (e.g. 'stylist' matching 'Performer "
+             "[The Stylistics]'), confirmed by hand from a prior --dry-run before excluding."
+    )
     args = parser.parse_args()
+    exclude_ids = {int(x) for x in args.exclude_ids.split(",") if x.strip()}
 
     # edge_store.upsert_edge() (reused below for the partial-junk repair
     # path) goes through db_engine.execute_query(), which opens its own
@@ -79,8 +86,10 @@ def main():
     """)
     rows = cur.fetchall()
 
-    junk_rows = [r for r in rows if is_junk_role(r["role"], config)]
-    print(f"Scanned {len(rows)} edges rows with a role. Found {len(junk_rows)} whole/partial junk-role matches.\n")
+    junk_rows = [r for r in rows if is_junk_role(r["role"], config) and r["id"] not in exclude_ids]
+    excluded_count = sum(1 for r in rows if is_junk_role(r["role"], config) and r["id"] in exclude_ids)
+    print(f"Scanned {len(rows)} edges rows with a role. Found {len(junk_rows)} whole/partial junk-role matches"
+          + (f" ({excluded_count} excluded via --exclude-ids).\n" if excluded_count else ".\n"))
 
     if not junk_rows:
         print("Nothing to purge.")

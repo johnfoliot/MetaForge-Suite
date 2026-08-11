@@ -29,7 +29,7 @@ def run_logic(action, tools_dir, env_path):
     if action == "search":
         query = request.args.get('q', '').strip()
         results = db_engine.execute_query(
-            "SELECT mf_artist_id, artist_name, biography, photo_path FROM library_artist WHERE artist_name LIKE ?",
+            "SELECT mf_artist_id, artist_name, country, biography, photo_path FROM library_artist WHERE artist_name LIKE ?",
             (f"%{query}%",)
         )
         for r in results:

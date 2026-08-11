@@ -253,6 +253,29 @@ def get_release_details():
                     "artist": track_artist
                 })
 
+        # The ARTIST's own home country (where a band formed / a solo
+        # artist's nationality) -- a distinct concept from this release's
+        # own "country" above (just wherever this particular pressing was
+        # issued). John's report, 2026-08-01: Personnel Bridge/IPM needs
+        # the artist's home country, not per-release distribution data --
+        # he was manually overriding the release-country field for this
+        # every time. One extra call, made once per album match (not per
+        # track); missing/failed lookup is not fatal, just leaves this
+        # blank and the caller falls back to release-country/AI guess.
+        mb_artist_id = release.get("artist-credit", [{}])[0].get("artist", {}).get("id", "")
+        mb_artist_country = ""
+        if mb_artist_id:
+            try:
+                time.sleep(MB_DELAY)
+                artist_res = session.get(
+                    f"{BASE_URL}/artist/{mb_artist_id}",
+                    params={"fmt": "json"}
+                )
+                artist_res.raise_for_status()
+                mb_artist_country = (artist_res.json().get("country") or "").upper()
+            except Exception:
+                pass
+
         local_tracks = []
         targets = io_bridge.get_audio_targets(local_path, recursive=True)
         targets.sort(key=lambda x: natural_sort_key(str(x.name)))
@@ -283,6 +306,19 @@ def get_release_details():
             # crash .upper()/[:4] on None and silently strand the UI on
             # "Retrieving MusicBrainz data..." forever (see except below).
             "country_code": (release.get("country") or "??").upper(),
+            "artist_country": mb_artist_country,
+            # For the MetaForge.log "MusicBrainz ID" audit block (John's
+            # request, 2026-08-08) -- "Version Selected"/"Format" are the
+            # exact fields already shown per-row in the search-results
+            # table (see search_musicbrainz()'s own "format" computation
+            # below), just re-derived here since the release-details
+            # response is what actually reaches commit time, not the
+            # search results the user clicked days/weeks earlier.
+            "release_title": release.get("title", ""),
+            "format": "+".join(
+                ["Digital" if (m.get("format") or "Unknown") == "Digital Media" else (m.get("format") or "Unknown")
+                 for m in (release.get("media") or [])]
+            ) or "Unknown",
             "release_year": (release.get("date") or "Unknown")[:4],
             "release_group_first_date": rg_first_release_date,
             "release_group_secondary_types": rg_secondary_types,
@@ -297,6 +333,44 @@ def get_release_details():
 
 
 # =========================================================
+# FORENSIC AUDIT LOG
+# =========================================================
+def _write_mb_id_audit_log(root, release_title, artist_seed, fmt, track_count, mb_album_id):
+    """
+    Appends a "MusicBrainz ID" block to MetaForge.log, same header/footer
+    convention as Unpack & Convert's own block (context_engine.write_audit_
+    log) and Intelli-Tagger's AUDIT RUN block (it_context_engine.update_
+    audit_trail) -- three different tools, three separate writers (matching
+    the precedent those two already set: each tool owns its own block's
+    content, only the visual format is shared), but this is genuinely new:
+    until now, this tool never wrote to MetaForge.log at all, only
+    manifest.json (John's report, 2026-08-08 -- the log didn't lay out
+    what this tool had actually done, because it never tried to).
+    """
+    log_path = root / "MetaForge.log"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    log_content = [
+        f"\n{'='*60}",
+        f"METAFORGE AUDIT LOG | {timestamp}",
+        "MetaForge Process: MusicBrainz ID",
+        f"{'-'*60}",
+        f"Version Selected: {release_title}",
+        f"Artist: {artist_seed}",
+        f"Format: {fmt}",
+        f"Track Count: {track_count}",
+        f'mb_album_id: "{mb_album_id}"',
+        f"{'='*60}\n",
+    ]
+
+    try:
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write("\n".join(log_content))
+    except Exception:
+        pass
+
+
+# =========================================================
 # COMMIT (UNCHANGED CONTRACT)
 # =========================================================
 def commit_ids_to_files(env_path):
@@ -308,6 +382,8 @@ def commit_ids_to_files(env_path):
     artist_seed = data.get("artist_seed", "Unknown Artist")
     album_seed = data.get("album_seed", local_path.name)
     release_year = data.get("release_year", "Unknown")
+    release_title = data.get("release_title", album_seed)
+    fmt = data.get("format", "Unknown")
     release_group_first_date = data.get("release_group_first_date", "")
     release_group_secondary_types = data.get("release_group_secondary_types", [])
     mb_label_name = data.get("mb_label_name", "")
@@ -409,6 +485,10 @@ def commit_ids_to_files(env_path):
             release_group_first_date, release_group_secondary_types,
             mb_label_name, mb_catalog_number
         )
+        _write_mb_id_audit_log(
+            local_path, release_title, artist_seed, fmt,
+            stats["success"], mapping[0].get("album_id", "") if mapping else ""
+        )
 
     return jsonify({"status": "success", "summary": stats})
 
@@ -465,6 +545,7 @@ def _update_manifest(
         "mb_album_id": sample["album_id"],
         "mb_release_group_id": sample["release_group_id"],
         "mb_release_country": sample["country_code"],
+        "mb_artist_country": sample.get("artist_country", ""),
         "release_year": year,
         "mb_release_group_first_date": release_group_first_date,
         "mb_release_group_secondary_types": release_group_secondary_types or [],

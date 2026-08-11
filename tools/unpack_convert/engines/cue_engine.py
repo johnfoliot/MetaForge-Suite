@@ -86,12 +86,19 @@ def split_cue(root, artist, report_data):
                 out_name = f"{track_id} - {artist} - {safe_title}.wav"
                 out_path = cue_path.parent / out_name
 
+                # Raw BIN/ISO CD-DA dumps have no container header for
+                # ffmpeg to auto-detect -- has to be told explicitly it's
+                # Red Book audio (16-bit little-endian PCM, 44.1kHz,
+                # stereo) or the split fails immediately on every track.
+                # FLAC/APE/WAV/WV all still auto-detect fine as before.
+                raw_pcm_flags = ["-f", "s16le", "-ar", "44100", "-ac", "2"] if source_audio.suffix.lower() in RAW_PCM_EXT else []
+
                 # capture_output so a real failure reason is visible instead
                 # of silently discarded -- -loglevel panic already suppresses
                 # ffmpeg's own console spam, but previously nothing captured
                 # stderr at all, so a failed split left zero trace of why.
                 res = subprocess.run([
-                    str(FFMPEG_EXE), "-i", str(source_audio),
+                    str(FFMPEG_EXE)] + raw_pcm_flags + ["-i", str(source_audio),
                     "-ss", t_start] + t_dur +
                     [str(out_path), "-y", "-loglevel", "panic"],
                     capture_output=True, text=True
@@ -162,10 +169,18 @@ def split_cue(root, artist, report_data):
             yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> CUE processing error on {cue_path.name}: {e}</div>'
             continue
 
+# Raw, headerless CD-DA PCM dumps -- the standard "BIN/CUE" or "ISO/CUE"
+# rip convention (EAC, dBpoweramp, etc all support this alongside FLAC).
+# Not a filesystem image and not the same thing as an SACD ISO (see
+# sacd_engine.py) -- just uncompressed Red Book audio with no container
+# header, which is exactly why ffmpeg needs to be told the format
+# explicitly in _run_split() below rather than auto-detecting it.
+RAW_PCM_EXT = {'.iso', '.bin'}
+
 def _find_audio_source(directory, filename):
     if (directory / filename).exists(): return directory / filename
     stem = Path(filename).stem
-    for ext in ['.flac', '.ape', '.wav', '.wv']:
+    for ext in ['.flac', '.ape', '.wav', '.wv'] + sorted(RAW_PCM_EXT):
         if (directory / f"{stem}{ext}").exists(): return directory / f"{stem}{ext}"
     return None
 

@@ -32,7 +32,8 @@ window.metaforge.biography = {
         if (artistIn) artistIn.value = "";
         if (bioEd) bioEd.value = "";
         if (img) img.src = '/ui/images/no-photo.png';
-        
+        this.hideCandidates();
+
         const toggle = document.getElementById('bio-profile-toggle');
         if (toggle) {
             toggle.setAttribute('aria-checked', 'false');
@@ -78,15 +79,66 @@ window.metaforge.biography = {
 
     performSearch: async function(query) {
         if (!query) return;
+        this.hideCandidates();
         try {
             const res = await fetch(`/run_tool_logic/biography/search?q=${encodeURIComponent(query)}&t=${Date.now()}`);
             const result = await res.json();
-            if (result.status === 'success' && result.data.length > 0) {
-                this.loadArtist(result.data[0].mf_artist_id);
-            } else {
+            const matches = (result.status === 'success') ? result.data : [];
+
+            if (matches.length === 0) {
                 alert("Artist not found.");
+                return;
             }
+
+            if (matches.length === 1) {
+                this.loadArtist(matches[0].mf_artist_id);
+                return;
+            }
+
+            // Real bug, found live 2026-07-29 (John's "Ace" report): the
+            // search is a substring match ("LIKE %query%"), so a short
+            // name like "Ace" can match many unrelated artists (Ace-rno,
+            // Johnny Ace, Wall-ace, Hor-ace, Gr-ace, ...) -- this used to
+            // just take matches[0], whichever the database happened to
+            // return first, with ZERO on-screen indication of which
+            // artist actually got loaded. A real biography got generated
+            // and saved onto the wrong artist's record as a direct
+            // result. An exact (case-insensitive) name match is still
+            // auto-loaded with no extra click -- only a genuine ambiguity
+            // (no exact match, or more than one) requires the user to
+            // actually pick.
+            const exact = matches.filter(m => m.artist_name.toLowerCase() === query.trim().toLowerCase());
+            if (exact.length === 1) {
+                this.loadArtist(exact[0].mf_artist_id);
+                return;
+            }
+
+            this.showCandidates(matches);
         } catch (e) { console.error("Search Error:", e); }
+    },
+
+    showCandidates: function(matches) {
+        const list = document.getElementById('bio-search-candidates');
+        if (!list) return;
+        list.innerHTML = '';
+        matches.forEach(m => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'bio-candidate-item';
+            btn.setAttribute('role', 'option');
+            btn.innerHTML = `${m.artist_name}` + (m.country ? ` <span class="bio-candidate-country">(${m.country})</span>` : '');
+            btn.onclick = () => {
+                this.hideCandidates();
+                this.loadArtist(m.mf_artist_id);
+            };
+            list.appendChild(btn);
+        });
+        list.style.display = 'block';
+    },
+
+    hideCandidates: function() {
+        const list = document.getElementById('bio-search-candidates');
+        if (list) { list.style.display = 'none'; list.innerHTML = ''; }
     },
 
     loadArtist: async function(mf_id) {

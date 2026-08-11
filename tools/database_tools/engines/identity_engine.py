@@ -5,16 +5,15 @@
 # Build 2.8.1: Added commit enforcement and explicit HTTP status responses.
 # ======================================================================
 import json
+import re
 from flask import jsonify, request
 from common import db_engine, config_handler
 
 def handle(action):
     if action == "get_taxonomy": return _get_taxonomy()
     
-    if action == "search_artist": 
+    if action == "search_artist":
         artist = request.args.get('artist', '').strip()
-        album = request.args.get('album', '').strip()
-        if album: return _search_album_logic(album)
         return _search_artist_logic(artist)
         
     if action == "get_artist_details": 
@@ -44,12 +43,28 @@ def _get_taxonomy():
     return jsonify(response)
 
 def _search_artist_logic(query_str):
+    # ORDER BY added 2026-07-29 (John's report): candidates used to come
+    # back in whatever order SQLite happened to return them in (no ORDER
+    # BY = effectively rowid/insertion order, i.e. "whenever the artist
+    # was first added to the database") -- confusing when disambiguating
+    # a short/common substring against a large library.
     res = db_engine.execute_query(
-        "SELECT * FROM library_artist WHERE artist_name LIKE ?", (f"%{query_str}%",)
+        "SELECT * FROM library_artist WHERE artist_name LIKE ? ORDER BY artist_name COLLATE NOCASE",
+        (f"%{query_str}%",)
     )
     if not res:
         return jsonify({"status": "error", "message": f"No records found matching name: {query_str}"})
-    
+
+    # Same fix as album_engine.py's _search_album (2026-07-29, John's
+    # report): SQL LIKE '%query%' matches anywhere, including mid-word --
+    # "Ace" was matching "Ac-ERN-o", "Wall-ACE", "Hor-ACE", "Gr-ACE",
+    # "M-ACE-o" purely by substring coincidence. The SQL LIKE stays as a
+    # cheap pre-filter; this narrows to genuine whole-word matches only.
+    word_pattern = re.compile(r'\b' + re.escape(query_str) + r'\b', re.IGNORECASE)
+    res = [row for row in res if word_pattern.search(row['artist_name'] or '')]
+    if not res:
+        return jsonify({"status": "error", "message": f"No records found matching name: {query_str}"})
+
     if len(res) > 1:
         candidates = []
         for row in res:
@@ -62,22 +77,6 @@ def _search_artist_logic(query_str):
     
     # Single match identified
     return _get_artist_details_logic(res[0]['mf_artist_id'])
-
-def _search_album_logic(query_str):
-    res = db_engine.execute_query(
-        "SELECT * FROM library_master WHERE album_title LIKE ?", (f"%{query_str}%",)
-    )
-    if not res:
-        return jsonify({"status": "error", "message": f"No albums found matching title: {query_str}"})
-    
-    candidates = []
-    for row in res:
-        candidates.append({
-            "mf_id": row['mf_id'],
-            "album_title": row['album_title'],
-            "artist_name": row['artist_name']
-        })
-    return jsonify({"status": "albums", "candidates": candidates})
 
 def _get_artist_details_logic(aid):
     res = db_engine.execute_query(

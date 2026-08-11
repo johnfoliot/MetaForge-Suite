@@ -9,6 +9,7 @@ import os
 import sys
 import re
 import json
+import functools
 from pathlib import Path
 from flask import Response, stream_with_context, request, jsonify
 
@@ -279,13 +280,19 @@ def _orchestrate_tagger_batch(data, env_path):
 
     yield from it_context_engine.initialize_audit_pair(root_path, data)
 
+    # Carried forward to the MetaForge.log audit block written at the end
+    # of this run (see the audit_fn binding below) -- health check happens
+    # here, at the START of the batch, but the log entry it feeds into is
+    # only written once the whole run (including tagging) has finished.
+    health_summary = {}
+
     yield '<!-- PROGRESS:15:Health Check -->'
-    yield from health_engine.check_health(root_path)
+    yield from health_engine.check_health(root_path, health_summary=health_summary)
 
     yield '<!-- PROGRESS:25:Scrubbing -->'
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:15px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines writing metadata values...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:15px; width:auto; margin-bottom:-2px;" alt=""> Intelli-Tagger AI engines determining metadata values...</div>'
 
     # A real progress marker for this window -- previously nothing yielded
     # here carried a PROGRESS comment at all, so the bar sat frozen on
@@ -309,7 +316,7 @@ def _orchestrate_tagger_batch(data, env_path):
     # =========================================================
     yield '''
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:14px;margin-bottom:-10px; color:var(--text-output)">
-    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px; margin-bottom:5px;margin-top:5px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
+    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:36px; width:auto; float:left; margin-right:16px; margin-bottom:5px;margin-top:5px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
     # Recursive -- a box set's tracks live inside "CD 1"/"CD 2" subfolders
@@ -438,6 +445,18 @@ def _orchestrate_tagger_batch(data, env_path):
         combined.update(identity_data)
         combined.update(ai_results)
 
+        # Whatever's in the left panel's Country field at commit time --
+        # pre-filled from the MB artist's own home country, or corrected by
+        # hand -- is the artist's actual origin and always wins over
+        # ai_results["country"] (a pure AI nationality guess, only ever a
+        # fallback). Real bug, John's report 2026-08-01: this field was
+        # captured into mb_ids but never read again, so nothing the user
+        # entered here ever reached library_artist.country -- see
+        # commit_engine.py's country_val / _sync_library_artist, which is
+        # what actually persists this per artist.
+        if mb_ids.get("country"):
+            combined["country"] = mb_ids["country"]
+
         yield f'<!-- PROGRESS:{progress}:{track_prefix} - Resolving Original Year -->'
 
         year_result = year_resolution_engine.resolve_original_year(
@@ -482,7 +501,13 @@ def _orchestrate_tagger_batch(data, env_path):
 
         yield _render_deep_view_line(idx, total_files, f_path.name, combined)
 
-    audit_fn = getattr(it_context_engine, "update_audit_trail", None)
+    # health_summary bound in here (functools.partial) rather than
+    # threaded through execute_commit's own signature -- that function's
+    # audit_callback contract is already fixed elsewhere (commit_engine.py
+    # calls it with root_path/manifest_seeds/track_results/label/personnel/
+    # db_write/release_year as kwargs); partial just adds one more fixed
+    # kwarg on top without touching that contract.
+    audit_fn = functools.partial(it_context_engine.update_audit_trail, health_summary=health_summary) if hasattr(it_context_engine, "update_audit_trail") else None
 
     yield from commit_engine.execute_commit(
         root_path=root_path,

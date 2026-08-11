@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import jsonify, request
 from common import db_engine, config_handler
-from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, is_junk_role, classify_role, load_config
+from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, is_junk_role, classify_role, load_config, hash_artist_identity
 from tools.personnel import edge_store
 from tools.personnel import mb_personnel_engine
 from tools.personnel import discogs_personnel_engine
@@ -608,11 +608,22 @@ def _extract_allmusic_credits(content):
     2026-07-08 against a real captured AllMusic credits table (21/21
     entries parsed correctly) -- the regex itself was never the problem,
     see _parse_allmusic_html's docstring for what actually was.
+
+    [^>]* added after both class attributes -- real bug, John's report
+    2026-08-07: pasting from Vivaldi produced zero matches while the
+    identical paste from Firefox worked fine. Diagnosed against the
+    actual failed-paste debug dump (data/personnel/debug/): Vivaldi's
+    clipboard HTML serialization injects an inline style="..." attribute
+    onto these spans (e.g. `<span class="artist" style="display:
+    block;">`), which the old pattern's literal `class="artist">` could
+    never match since it required the tag to close immediately after the
+    class attribute. Firefox's clipboard HTML doesn't add that extra
+    attribute, which is why only Firefox worked before this fix.
     """
     if not content:
         return []
 
-    pattern = r'<span class="artist">\s*<a[^>]*>(.*?)</a>\s*</span>\s*<span class="artistCredits">(.*?)</span>'
+    pattern = r'<span class="artist"[^>]*>\s*<a[^>]*>(.*?)</a>\s*</span>\s*<span class="artistCredits"[^>]*>(.*?)</span>'
     matches = re.findall(pattern, content, re.DOTALL)
 
     candidates = []
@@ -799,7 +810,7 @@ def _commit():
         name = (p.get('name') or '').strip()
         if not name: continue
 
-        tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
+        tid = hash_artist_identity(name)
         # Real gap found live 2026-07-16: mb_target_mbid was already being
         # read off every candidate here (see _maybe_log_candidate below) and
         # forwarded to the MB-Submit JSONL log, but never reached

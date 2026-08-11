@@ -69,6 +69,10 @@ FPCALC_EXE = BIN_DIR / "fpcalc.exe"
 SQLITE_EXE = BIN_DIR / "sqlite3.exe"
 MP3VAL_EXE = BIN_DIR / "mp3val.exe"
 YT_DLP_EXE = BIN_DIR / "yt-dlp.exe"
+# Not bundled -- user-supplied (SACD extraction is a specialized external
+# dependency, not something safe to auto-fetch). sacd_engine.py checks for
+# its existence before use and fails loud, never silently, if missing.
+SACD_EXTRACT_EXE = BIN_DIR / "sacd_extract.exe"
 
 
 def check_system():

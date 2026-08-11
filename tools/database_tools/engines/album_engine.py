@@ -5,6 +5,7 @@
 # Build 1.3.5: relation_type derived from ROLE_MAP (aligned with commit_engine.py)
 # ======================================================================
 import json
+import re
 import sys
 import hashlib
 from datetime import datetime
@@ -12,7 +13,7 @@ from flask import jsonify, request
 from pathlib import Path
 from PIL import Image
 from common import db_engine, tag_engine, config_handler
-from tools.personnel.edge_normalizer import load_config, classify_role
+from tools.personnel.edge_normalizer import load_config, classify_role, hash_artist_identity, is_junk_role, is_junk_name, apply_role_alias
 from tools.personnel import edge_store
 
 # Same evidence-collection log commit_engine.py's automatic waterfall
@@ -63,13 +64,46 @@ def handle(action):
     return jsonify({"status": "error", "message": "Action unknown"}), 404
 
 def _search_album():
+    # Real bug, found live 2026-07-29 (John's report): this used to jump
+    # straight into whichever album SQLite returned first for a substring
+    # match (no ORDER BY = effectively insertion order) -- silently wrong
+    # whenever a title/keyword matched more than one album, with no
+    # indication anything had been guessed at all. Now mirrors
+    # identity_engine.py's _search_artist_logic pattern: a single
+    # unambiguous match still loads directly, but more than one match
+    # returns a "multiple" candidate list (alphabetical, both title and
+    # artist so same-titled albums by different artists are distinguishable)
+    # instead of guessing.
     query = request.args.get('album', '').strip()
     res = db_engine.execute_query(
-        "SELECT * FROM library_master WHERE album_title LIKE ?",
+        "SELECT * FROM library_master WHERE album_title LIKE ? ORDER BY album_title COLLATE NOCASE",
         (f"%{query}%",)
     )
     if not res:
         return jsonify({"status": "error", "message": "Album not found."}), 404
+
+    # Real bug, found live 2026-07-29 (John's report): SQL LIKE '%query%'
+    # matches ANYWHERE in the title, including mid-word -- searching "In"
+    # matched "Before The Ra-IN", "S-IN-ging", etc. Trailing-space
+    # workarounds ("In ") didn't help either since query is already
+    # .strip()'d above before it ever reaches the LIKE clause. Re-filtering
+    # here with a case-insensitive whole-word regex keeps the cheap SQL
+    # LIKE as a fast pre-filter (still needed so this doesn't scan every
+    # row in Python) while only keeping rows where the query is actually
+    # its own word -- "In" now matches "In Concert" / "Living In America"
+    # but not "Rain" or "Singing".
+    word_pattern = re.compile(r'\b' + re.escape(query) + r'\b', re.IGNORECASE)
+    res = [row for row in res if word_pattern.search(row['album_title'] or '')]
+    if not res:
+        return jsonify({"status": "error", "message": "Album not found."}), 404
+
+    if len(res) > 1:
+        candidates = [
+            {"mf_id": row['mf_id'], "album_title": row['album_title'], "artist_name": row['artist_name']}
+            for row in res
+        ]
+        return jsonify({"status": "multiple", "candidates": candidates})
+
     return _get_album_details_by_id(res[0]['mf_id'])
 
 def _get_album_details():
@@ -157,24 +191,24 @@ def _get_album_details_by_id(mf_id):
     if 'genre' not in album: album['genre'] = ''
     if 'sub_genre' not in album: album['sub_genre'] = ''
 
+    # The ARTIST's home country (library_artist.country), not any one
+    # release's distribution country -- this used to read mb_release_
+    # country live off the album folder's manifest.json, which is a
+    # different concept entirely (see edge_normalizer/intelli-tagger's
+    # 2026-08-01 country pipeline) and had no write path at all in
+    # _save_album below, so editing this field here silently did
+    # nothing. John's report, 2026-08-05.
     country_code = ""
-    if album['tracks']:
-        for t in album['tracks']:
-            if t.get('file_path'):
-                try:
-                    track_dir = Path(t['file_path']).parent
-                    manifest_path = track_dir / "manifest.json"
-                    if manifest_path.exists():
-                        m_data = json.loads(manifest_path.read_text(encoding='utf-8'))
-                        country_code = m_data.get('mb_release_country', '').strip()
-                        if country_code:
-                            break
-                except Exception:
-                    pass
+    if album.get('mf_artist_id'):
+        artist_row = db_engine.execute_query(
+            "SELECT country FROM library_artist WHERE mf_artist_id = ?", (album['mf_artist_id'],)
+        )
+        if artist_row and artist_row[0]['country']:
+            country_code = artist_row[0]['country']
     album['country'] = country_code
 
     edges = db_engine.execute_query(
-        "SELECT e.id, e.role, a.artist_name as name FROM edges e "
+        "SELECT e.id, e.role, e.evidence_detail, a.artist_name as name FROM edges e "
         "JOIN library_artist a ON e.target_id = a.mf_artist_id "
         "WHERE LOWER(TRIM(e.source_id)) = LOWER(TRIM(?)) AND e.source_type = 'album'",
         (clean_mf_id,)
@@ -195,6 +229,24 @@ def _save_album():
         "SELECT file_path, title, original_year, mb_recording_id FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
         (clean_mf_id,)
     )
+
+    # Not a Various Artists compilation? Then there's exactly one real
+    # artist for this album, and it's whatever the user just typed/
+    # confirmed in the album-level Artist field -- that's authoritative
+    # over every track, full stop. Per-track independence (below) exists
+    # only for compilations, where each track genuinely has its own
+    # performer (real bug, fixed 2026-07-17: every compilation track used
+    # to get force-set to the album's own artist_name). Without this
+    # gate, a single-artist album silently re-fragments on every save --
+    # John's report, 2026-08-01: "Green Onions" kept saving tracks under
+    # a second identity ("Booker T. & the MG's", curly apostrophe, from
+    # MusicBrainz's per-recording credit) because the per-track field is
+    # pre-filled from whatever's already in the DB and nothing ever
+    # reconciled it back to the album's own artist field.
+    compilation_row = db_engine.execute_query(
+        "SELECT is_compilation FROM library_master WHERE mf_id = ?", (mf_id,)
+    )
+    is_compilation = bool(compilation_row and compilation_row[0]['is_compilation'])
     old_titles_map = {t['file_path']: t['title'] for t in old_tracks} if old_tracks else {}
     old_years_map = {t['file_path']: t['original_year'] for t in old_tracks} if old_tracks else {}
     old_recording_ids_map = {t['file_path']: t['mb_recording_id'] for t in old_tracks} if old_tracks else {}
@@ -217,6 +269,21 @@ def _save_album():
         commit=True
     )
 
+    # Country here means the ARTIST's home country (see the read side
+    # above) -- targeted by hashing data['artist'] fresh rather than
+    # trusting library_master's existing mf_artist_id, so a corrected
+    # artist name and a corrected country save correctly together in one
+    # pass. Only written when non-blank -- an empty field means "wasn't
+    # reviewed this save," not "clear the existing value."
+    country_val = (data.get('country') or '').strip()
+    if country_val:
+        artist_tid = hash_artist_identity(data['artist'])
+        db_engine.execute_query(
+            "UPDATE library_artist SET country=?, last_updated=CURRENT_TIMESTAMP WHERE mf_artist_id=?",
+            (country_val, artist_tid),
+            commit=True
+        )
+
     for t in tracks:
         f_path_str = t.get('file_path')
         if not f_path_str: continue
@@ -229,9 +296,11 @@ def _save_album():
         # so editing a track's artist silently did nothing. Same identity
         # hash convention as commit_engine.py's _hash_artist() and this
         # file's own personnel-edge sync just below. Falls back to the
-        # album's own artist when a track's field was left blank.
-        track_artist_name = (t.get('artist') or data['artist']).strip()
-        track_mf_artist_id = hashlib.sha256(track_artist_name.lower().encode('utf-8')).hexdigest()
+        # album's own artist when a track's field was left blank -- but
+        # only matters for a compilation; a normal album ignores the
+        # per-track field entirely (see is_compilation gate above).
+        track_artist_name = data['artist'].strip() if not is_compilation else (t.get('artist') or data['artist']).strip()
+        track_mf_artist_id = hash_artist_identity(track_artist_name)
 
         db_engine.execute_query(
             "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
@@ -288,7 +357,7 @@ def _save_album():
     # removed in the UI are touched now; everything else (e.g. MB/Discogs-
     # sourced edges the user never looked at) is left completely alone.
     existing_edges = db_engine.execute_query(
-        "SELECT id, target_id, role FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",
+        "SELECT id, target_id, role, evidence_detail FROM edges WHERE LOWER(TRIM(source_id))=LOWER(TRIM(?)) AND source_type='album'",
         (clean_mf_id,)
     )
     existing_by_id = {e['id']: e for e in existing_edges} if existing_edges else {}
@@ -300,7 +369,44 @@ def _save_album():
         if not p.get('name') or not p.get('role'): continue
         role = p['role'].strip()
         edge_id = p.get('id')
-        tid = hashlib.sha256(p['name'].lower().encode('utf-8')).hexdigest()
+
+        # Same alias rewrite normalize_personnel() applies for every
+        # automated source -- "Executive Producer" typed straight into
+        # this panel becomes "Producer" here too, not just when it comes
+        # in via MB/Discogs/Wikipedia.
+        role = apply_role_alias(role, role_config)
+
+        # Real gap, John's report 2026-08-08: this manual-entry path was
+        # the ONLY personnel ingestion route in the whole app that never
+        # checked the junk-role/junk-name denylist (performance.json) --
+        # every automated source (MB/Discogs/Wikipedia/AllMusic) already
+        # filters through is_junk_role/is_junk_name via normalize_personnel()
+        # or a direct call, but typing "Engineer" or "Photography" straight
+        # into the Album Editor's Personnel panel sailed right through.
+        # `continue` here does double duty: a NEW junk row is never
+        # created, and an EXISTING edge that's junk under today's denylist
+        # (e.g. saved before a term was added) is naturally cleaned up too,
+        # since skipping it means it's never added to kept_edge_ids below --
+        # the existing removed-edge cleanup deletes it, same as if the user
+        # had clicked the row's own "x" button.
+        if is_junk_role(role, role_config) or is_junk_name(p['name'], role_config):
+            continue
+
+        tid = hash_artist_identity(p['name'])
+
+        # Dedicated Track(s) field -- real bug, John's report 2026-08-01:
+        # the only way to scope a manual credit to specific tracks used to
+        # be typing "(1, 2, 3)" into the Name field itself, which the
+        # manual-entry path never parsed (unlike normalize_personnel()'s
+        # automated path) -- it just became part of the artist's name,
+        # splintering "Emory Smith" into a bogus separate identity
+        # "Emory Smith (1, 2, 3, 4, 6, 7, 9)". This field is the real
+        # mechanism: track_scope stays out of the name entirely and maps
+        # straight to evidence_scope/evidence_detail, same as an automated
+        # import's parenthetical qualifier already does.
+        track_scope = (p.get('track_scope') or '').strip()
+        evidence_scope = 'track' if track_scope else None
+        evidence_detail = track_scope if track_scope else None
 
         db_engine.execute_query(
             "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
@@ -313,13 +419,14 @@ def _save_album():
         if existing:
             kept_edge_ids.add(edge_id)
             # Unchanged row -- leave it, and its original provenance/
-            # confidence/evidence_scope, completely untouched.
-            if existing['target_id'] == tid and existing['role'] == role:
+            # confidence, completely untouched.
+            if existing['target_id'] == tid and existing['role'] == role and (existing['evidence_detail'] or None) == evidence_detail:
                 continue
             relation_type, confidence = classify_role(role, role_config)
             edge_store.update_edge_by_id(
                 edge_id, target_id=tid, relation_type=relation_type,
-                role=role, confidence=confidence, provenance="MetaForge (Manual)"
+                role=role, confidence=confidence, provenance="MetaForge (Manual)",
+                evidence_scope=evidence_scope, evidence_detail=evidence_detail
             )
         else:
             # New row added in the UI -- upsert (not a blind insert), so a
@@ -329,7 +436,8 @@ def _save_album():
             edge_store.upsert_edge(
                 source_type="album", source_id=mf_id, target_type="artist", target_id=tid,
                 relation_type=relation_type, role=role,
-                confidence=confidence, provenance="MetaForge (Manual)"
+                confidence=confidence, provenance="MetaForge (Manual)",
+                evidence_scope=evidence_scope, evidence_detail=evidence_detail
             )
 
     # Rows that existed before but weren't in this submission were removed
@@ -341,8 +449,22 @@ def _save_album():
         edge_store.delete_edge(eid)
 
     for r_id in removed_artist_ids:
-        remainder = db_engine.execute_query("SELECT 1 FROM edges WHERE target_id=? LIMIT 1", (r_id,))
-        if not remainder:
+        # Real bug, John's report 2026-08-07 (the "Barbra Streisand"
+        # case): this used to check only edges before deleting the
+        # identity outright, so removing someone's PERSONNEL credit (the
+        # "x" button) could silently delete their library_artist row even
+        # while a track's own per-track artist field (tracks.mf_artist_id)
+        # still pointed at that exact same identity -- orphaning the
+        # track and making the artist unsearchable, with no error or
+        # warning anywhere. An identity is only truly unused, and safe to
+        # delete, when nothing in edges OR tracks OR library_master
+        # references it anymore.
+        still_used = (
+            db_engine.execute_query("SELECT 1 FROM edges WHERE target_id=? LIMIT 1", (r_id,))
+            or db_engine.execute_query("SELECT 1 FROM tracks WHERE mf_artist_id=? LIMIT 1", (r_id,))
+            or db_engine.execute_query("SELECT 1 FROM library_master WHERE mf_artist_id=? LIMIT 1", (r_id,))
+        )
+        if not still_used:
             db_engine.execute_query("DELETE FROM library_artist WHERE mf_artist_id=?", (r_id,), commit=True)
 
     return jsonify({"status": "success"})

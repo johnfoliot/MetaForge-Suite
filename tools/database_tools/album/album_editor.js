@@ -91,12 +91,42 @@ window.metaforge.database_tools.album = {
     search: async function() {
         const query = document.getElementById('search-album').value.trim();
         if (!query) return;
+
+        document.getElementById('album-workspace').style.display = 'none';
+        document.getElementById('album-multiple-matches-container').style.display = 'none';
+
         try {
             const res = await fetch(`/run_tool_logic/database_tools/search_album?album=${encodeURIComponent(query)}`);
             const data = await res.json();
-            if (data.status === "success") this.render(data.album);
+            if (data.status === "multiple") this.renderDisambiguation(data.candidates);
+            else if (data.status === "success") this.render(data.album);
             else alert(data.message || "Album not found.");
         } catch (e) { console.error(e); }
+    },
+
+    // Real bug, found live 2026-07-29 (John's report): search_album used
+    // to jump straight into whichever album the database returned first
+    // for a substring match, with no indication more than one album
+    // matched. This mirrors artist_editor.js's renderDisambiguation --
+    // same pattern, album-specific IDs -- and shows the artist name
+    // alongside each title since two different artists can share one.
+    renderDisambiguation: function(candidates) {
+        const container = document.getElementById('album-multiple-matches-container');
+        const list = document.getElementById('album-matches-list');
+        if (!container || !list) return;
+
+        container.style.display = 'block';
+        list.innerHTML = candidates.map(c => `
+            <div style="border: 1px solid var(--mf-gold); padding: 8px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-accent);">
+                <span style="color:var(--text-output); font-family: 'Cascadia Mono', monospace;">${this.escapeHTML(c.album_title)} <span style="color:var(--mf-gold);">&mdash; ${this.escapeHTML(c.artist_name || 'Unknown Artist')}</span></span>
+                <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.selectMatch('${c.mf_id}')">Select</button>
+            </div>
+        `).join('');
+    },
+
+    selectMatch: function(mfId) {
+        document.getElementById('album-multiple-matches-container').style.display = 'none';
+        this.load(mfId);
     },
 
     load: async function(mfId) {
@@ -165,7 +195,7 @@ window.metaforge.database_tools.album = {
         const pContainer = document.getElementById('personnel-rows-container');
         if (pContainer) {
             pContainer.innerHTML = '';
-            if (data.personnel) data.personnel.forEach(p => this.appendPersonnelRow(p.role, p.name, p.id));
+            if (data.personnel) data.personnel.forEach(p => this.appendPersonnelRow(p.role, p.name, p.id, p.evidence_detail));
         }
     },
 
@@ -187,9 +217,9 @@ window.metaforge.database_tools.album = {
         }
     },
 
-    addBlankPersonnel: function() { this.appendPersonnelRow('', '', null); },
+    addBlankPersonnel: function() { this.appendPersonnelRow('', '', null, ''); },
 
-    appendPersonnelRow: function(role, name, id) {
+    appendPersonnelRow: function(role, name, id, trackScope) {
         const pContainer = document.getElementById('personnel-rows-container');
         if (!pContainer) return;
         const div = document.createElement('div');
@@ -210,9 +240,19 @@ window.metaforge.database_tools.album = {
         // exists in this file (used elsewhere for track titles) and
         // already handles quotes correctly -- it just was never called
         // here.
+        //
+        // Dedicated Track(s) field -- real bug, John's report 2026-08-01:
+        // the only way to scope a manual credit to specific tracks used to
+        // be typing "(1, 2, 3)" straight into the Name field, which was
+        // never parsed back out -- it just became part of the artist's
+        // name, splintering a real person into a bogus separate identity
+        // ("Emory Smith (1, 2, 3, 4, 6, 7, 9)"). This field keeps that data
+        // out of the name entirely; save() sends it as track_scope, which
+        // the backend maps straight to evidence_scope/evidence_detail.
         div.innerHTML = `
 			<input type="text" class="mb-input-text p-name" placeholder="Name" value="${this.escapeHTML(name || '')}" style="flex: 1.5; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Mono', monospace; padding: 4px;">
             <input type="text" class="mb-input-text p-role" placeholder="Role" value="${this.escapeHTML(role || '')}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
+            <input type="text" class="mb-input-text p-track-scope" placeholder="Track(s), e.g. 1, 3, 5" title="Leave blank for the whole album. Comma-separated track numbers to scope this credit to specific tracks only." value="${this.escapeHTML(trackScope || '')}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
 			<button class="mf-button-gold-fixed" style="background: var(--status-error) !important; width: 30px; min-width: 30px; height: 28px; padding: 0;" onclick="this.parentElement.remove()" aria-label="Remove Row" title="Remove Row">&times;</button>`;
         pContainer.appendChild(div);
     },
@@ -229,6 +269,7 @@ window.metaforge.database_tools.album = {
         const personnel = Array.from(pRows).map(row => ({
             role: row.querySelector('.p-role').value.trim(),
             name: row.querySelector('.p-name').value.trim(),
+            track_scope: row.querySelector('.p-track-scope').value.trim(),
             id: row.dataset.edgeId ? parseInt(row.dataset.edgeId, 10) : null
         })).filter(p => p.name && p.role);
 
@@ -276,7 +317,7 @@ window.metaforge.database_tools.album = {
             const raw = document.getElementById('p-json-input').value;
             const data = JSON.parse(raw);
             if (!Array.isArray(data)) throw new Error("Expected an array.");
-            data.forEach(entry => this.appendPersonnelRow(entry.role, entry.name));
+            data.forEach(entry => this.appendPersonnelRow(entry.role, entry.name, null, entry.track_scope));
             document.getElementById('p-json-modal').remove();
         } catch (e) { alert("Error: " + e.message); }
     },

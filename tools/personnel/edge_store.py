@@ -102,7 +102,7 @@ def upsert_edge(source_type, source_id, target_type, target_id, relation_type, r
     return "updated", existing["id"]
 
 
-def update_edge_by_id(edge_id, target_id, relation_type, role, confidence, provenance):
+def update_edge_by_id(edge_id, target_id, relation_type, role, confidence, provenance, evidence_scope=None, evidence_detail=None):
     """
     Direct update for a KNOWN edge id -- used when the caller (Album
     Editor) already knows exactly which existing row the user edited,
@@ -111,8 +111,8 @@ def update_edge_by_id(edge_id, target_id, relation_type, role, confidence, prove
     untouched.
     """
     db_engine.execute_query(
-        "UPDATE edges SET target_id=?, relation_type=?, role=?, confidence=?, provenance=? WHERE id=?",
-        (target_id, relation_type, role, confidence, provenance, edge_id),
+        "UPDATE edges SET target_id=?, relation_type=?, role=?, confidence=?, provenance=?, evidence_scope=?, evidence_detail=? WHERE id=?",
+        (target_id, relation_type, role, confidence, provenance, evidence_scope, evidence_detail, edge_id),
         commit=True
     )
 

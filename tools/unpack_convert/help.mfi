@@ -18,7 +18,7 @@
 <p class="help">The tool executes a multi-stage automated workflow to ensure your library remains consistent and free of data errors:</p>
 
 <ol style="padding-left: 20px; margin-top: 5px; font-size: 0.75rem;">
-    <li class="help"><strong>Extraction:</strong> If the Unpacker initially detects CUE, ZIP, or RAR archives (including multi-part sets), it will first Extract the audio files to the Album folder. It uses heuristic logic (<abbr title="Atomic Content Root">ACR</abbr>) to move the audio files out of unnecessary sub-folders and into the main album directory.</li>
+    <li class="help"><strong>Extraction:</strong> If the Unpacker initially detects CUE, ZIP, RAR (including multi-part sets), or ISO sources, it will first Extract the audio files to the Album folder. Supported ISO types are SACD (via an external <code>sacd_extract</code> tool, downsampled to FLAC) and raw Audio-CD images paired with a CUE sheet; a data-disc ISO containing an existing folder of files is not yet supported. It uses heuristic logic (<abbr title="Atomic Content Root">ACR</abbr>) to move the audio files out of unnecessary sub-folders and into the main album directory.</li>
 	
     <li class="help"><strong>Conversion:</strong> All incoming audio is converted to high-quality <b>MP3 VBR (V0)</b>. It optionally applies professional EBU R128 Loudness Normalization to ensure a consistent volume floor across the library. This ensures that every track in your collection adheres to a single, high-fidelity bitstream standard for maximum hardware and software compatibility. <br><span style="font-size:80%">(<a href="#footnote1">Why we chose to do this.</a>)</span></li>
 	

@@ -146,6 +146,9 @@ window.metaforge.musicbrainz_id = {
                 this.state.currentArtistId = data.artist_id;
                 this.state.currentReleaseGroupId = data.release_group_id;
                 this.state.currentCountryCode = data.country_code;
+                this.state.currentArtistCountry = data.artist_country;
+                this.state.currentReleaseTitle = data.release_title;
+                this.state.currentFormat = data.format;
                 this.state.currentReleaseYear = data.release_year;
                 this.state.releaseGroupFirstDate = data.release_group_first_date;
                 this.state.releaseGroupSecondaryTypes = data.release_group_secondary_types;
@@ -250,7 +253,8 @@ window.metaforge.musicbrainz_id = {
                 artist_id: this.state.currentArtistId,
                 album_id: this.state.currentReleaseId,
                 release_group_id: this.state.currentReleaseGroupId,
-                country_code: this.state.currentCountryCode
+                country_code: this.state.currentCountryCode,
+                artist_country: this.state.currentArtistCountry
             };
         });
 
@@ -258,7 +262,7 @@ window.metaforge.musicbrainz_id = {
             const response = await fetch('/run_tool_logic/musicbrainz_id/commit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     local_path: this.state.localPath,
                     artist_seed: artistSeed,
                     release_year: this.state.currentReleaseYear,
@@ -266,6 +270,8 @@ window.metaforge.musicbrainz_id = {
                     release_group_secondary_types: this.state.releaseGroupSecondaryTypes,
                     mb_label_name: this.state.mbLabelName,
                     mb_catalog_number: this.state.mbCatalogNumber,
+                    release_title: this.state.currentReleaseTitle,
+                    format: this.state.currentFormat,
                     mapping: mapping
                 })
             });

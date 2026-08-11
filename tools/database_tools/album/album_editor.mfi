@@ -1,10 +1,15 @@
 
-<div id="panel-album" class="database-panel" style="display:none; flex-direction:column; padding: 0 20px; flex:1; height: 100%; min-height: 0;">
+<div id="panel-album" class="database-panel" style="display:none; flex-direction:column; padding: 0 20px; flex:1; height: 100%; min-height: 0; overflow-y: auto;">
     
     <div style="padding: 0.5rem 0; border-bottom: 1px solid var(--mf-gold); display: flex; align-items: center; justify-content: flex-start; gap: 15px; margin-bottom: 10px;">
         <label for="search-album" class="mf-card-label" style="font-size: 1.1rem; color: var(--mf-gold);">Search by Album&nbsp;</label>
         <input type="text" id="search-album" class="mb-input-text" style="width: 250px; background:white; color: black;">
         <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.search()">Search</button>
+    </div>
+
+    <div id="album-multiple-matches-container" style="display: none; padding: 5px 0; color: var(--mf-gold);">
+        <h2 style="font-size: 1.1rem; margin-bottom: 10px;">Matches identified. Select target album:</h2>
+        <div id="album-matches-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
     </div>
 
     <div id="album-workspace" style="display: none; flex: 1; gap: 15px; min-height: 0; padding-top: 10px; height: calc(100% - 60px);">

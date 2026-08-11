@@ -294,7 +294,7 @@
 <section class="unpack_convert-description" aria-labelledby="unpack_convert-info-label">
     <h2 id="unpack_convert-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-		<p class="data-text tool_notes">Unpack &amp; Convert unboxes .cue, .wv, .zip, and .rar files, and converts them to the high-quality .mp3 VBR (V0) format.<br>It then applies an intelligent 'clean-up', leaving your album folders in pristine shape and ready for continued tagging.</p>
+		<p class="data-text tool_notes">Unpack &amp; Convert unboxes .cue, .wv, .zip, .rar, and .iso (SACD or raw Audio-CD image) files, and converts them to the high-quality .mp3 VBR (V0) format.<br>It then applies an intelligent 'clean-up', leaving your album folders in pristine shape and ready for continued tagging.</p>
         <button class="mf-button-gold-fixed" 
                 style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
                 onclick="metaforge.unpack_convert.openHelp()" 

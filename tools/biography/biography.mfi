@@ -21,6 +21,14 @@
                     <input type="text" id="bio-artist" class="bio-input-field" placeholder="Artist Name">
                     <button type="button" id="btn-search-artist" class="bio-btn-amber">Search</button>
                 </div>
+                <!-- Populated only when a search matches more than one artist
+                     and none of them is an exact name match -- see
+                     performSearch()'s "Real bug" comment in biography.js for
+                     why this exists: silently picking the first substring
+                     match (e.g. "Ace" matching "John Ac-ERN-o") used to
+                     attach a generated biography to the wrong artist with
+                     zero on-screen indication anything had gone wrong. -->
+                <div id="bio-search-candidates" class="bio-candidate-list" style="display:none;" role="listbox" aria-label="Multiple artists matched, choose one"></div>
             </div>
             
             <div class="bio-action-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
@@ -81,6 +89,11 @@ div[aria-checked="true"]#bio-profile-toggle .mf-toggle-knob { transform: transla
 .bio-textarea-field { flex: 1; width: 100%; height: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
 .bio-btn-amber { height: 34px; padding: 0 20px; background-color: var(--mf-gold); color: #000000; border: 1px solid var(--mf-gold); font-family: inherit; font-weight: bold; cursor: pointer; }
 .bio-btn-amber:disabled { background-color: #555555; color: #888888; border-color: #444444; cursor: not-allowed; }
+.bio-candidate-list { margin-top: 8px; border: 1px solid #444444; background-color: var(--bg-main); max-height: 180px; overflow-y: auto; }
+.bio-candidate-item { display: block; width: 100%; text-align: left; padding: 8px 10px; background: none; border: none; border-bottom: 1px solid #333333; color: var(--text-output); font-family: inherit; font-size: 0.85rem; cursor: pointer; }
+.bio-candidate-item:last-child { border-bottom: none; }
+.bio-candidate-item:hover, .bio-candidate-item:focus { background-color: rgba(204, 153, 0, 0.15); outline: none; }
+.bio-candidate-item .bio-candidate-country { color: var(--text-message); font-size: 0.75rem; }
 .bio-photo-region { width: 220px; height: 220px; margin-left: 95px; border: 1px solid #3d3d3d; background-color: #111111; }
 .photo-box-container img { width: 100%; height: 100%; object-fit: cover; }
 .bio-overlay { 

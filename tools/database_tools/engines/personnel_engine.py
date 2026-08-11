@@ -7,7 +7,7 @@
 import hashlib
 from flask import jsonify, request
 from common import db_engine
-from tools.personnel.edge_normalizer import normalize_personnel
+from tools.personnel.edge_normalizer import normalize_personnel, hash_artist_identity
 from tools.personnel import edge_store
 
 def handle(action):
@@ -43,7 +43,7 @@ def _add_personnel():
     name = data['name'].strip()
     role = data['role']
     provenance = data.get('provenance', 'MetaForge')
-    tid = hashlib.sha256(name.lower().encode('utf-8')).hexdigest()
+    tid = hash_artist_identity(name)
 
     db_engine.execute_query("INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name) VALUES (?, ?)", (tid, name), commit=True)
 

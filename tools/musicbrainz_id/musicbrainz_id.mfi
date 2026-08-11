@@ -131,7 +131,7 @@
     /* --- THE VISUAL HANDSHAKE GRID (Sync Scroll) --- */
     .mb-alignment-headers {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 3fr 2fr;
         gap: 10px;
         margin-bottom: 5px;
     }
@@ -159,7 +159,7 @@
     .mb-handshake-row {
         height: 32px;
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 3fr 2fr;
         gap: 10px;
         border-bottom: 1px solid #222;
         align-items: center;

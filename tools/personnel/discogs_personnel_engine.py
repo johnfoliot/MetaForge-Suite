@@ -7,11 +7,28 @@
 # captures for free when available, falls back to a live Discogs fetch
 # otherwise (same fast-path-or-fallback shape as mb_personnel_engine.py).
 # ======================================================================
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, load_config
+
+# Discogs disambiguates two different real people who share an identical
+# name with a trailing incrementing number -- "Richard Jones", "Richard
+# Jones (2)", "Richard Jones (3)", etc, numbered in whatever order
+# Discogs itself registered them. Meaningful inside Discogs' own
+# database, meaningless as a fragment of the actual name -- left in
+# place, "Carl Smith (2)" hashes to a totally different mf_artist_id
+# than "Carl Smith", the exact same identity-fragmentation failure mode
+# as every other bug fixed this session, just baked into every Discogs
+# import by design rather than a one-off typo. John's report, 2026-08-07
+# (confirmed 145 already-polluted library_artist rows).
+_DISCOGS_DISAMBIGUATION_SUFFIX = re.compile(r'\s*\(\d+\)\s*$')
+
+
+def _strip_discogs_disambiguation(name: str) -> str:
+    return _DISCOGS_DISAMBIGUATION_SUFFIX.sub('', name).strip()
 
 _JUNK_CONFIG = load_config()
 
@@ -41,6 +58,9 @@ def _extraartist_to_edges(entry: Dict[str, Any], evidence_scope: Optional[str],
     name = entry.get("name")
     role_text = entry.get("role")
     if not name or not role_text:
+        return []
+    name = _strip_discogs_disambiguation(name)
+    if not name:
         return []
     if is_junk_name(name, _JUNK_CONFIG):
         return []
