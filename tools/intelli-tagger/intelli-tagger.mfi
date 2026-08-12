@@ -111,7 +111,15 @@ line-height: 1.2;
 /* --- PROGRESS & CONSOLE --- */
 #it-progress-container {
 height: 30px;
-padding:8px;
+/* John's report, 2026-08-11: only ~14px of this 30px container used to
+   be actual fill, the rest eaten by padding -- reduced so the bar reads
+   as taller/more substantial. A background+border track was tried here
+   too but caused a mismatched "ghost" box artifact against the
+   absolutely-positioned label below it (John's follow-up report,
+   2026-08-11) and had worse contrast anyway -- reverted; height +
+   the shimmer tuning (see layout.css) turned out to be sufficient on
+   their own. */
+padding: 3px 10px 2px 10px;
 margin:5px;
 margin-top:-10px;
 

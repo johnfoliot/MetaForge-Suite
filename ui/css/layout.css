@@ -239,10 +239,22 @@ input, textarea {
    motion. */
 .mf-progress-shimmer {
     background-color: var(--mf-gold);
+    /* John's report, 2026-08-11: the width only jumps when a per-track
+       PROGRESS marker actually arrives (see intelli-tagger.js), so
+       between jumps -- sometimes a minute+ for a slow track, e.g. a
+       compilation working through the full original-year waterfall --
+       this shimmer is the ONLY visible sign anything is still happening.
+       The original single soft highlight point (0.45 peak alpha, a
+       single 50% stop) wasn't assertive enough to hold attention over
+       that long a wait. Widened to a bright plateau instead of a single
+       point, and pushed opacity up, so the sweep reads as a deliberate,
+       hard-to-miss "still working" signal rather than a faint polish
+       effect easy to stop noticing. */
     background-image: linear-gradient(
         90deg,
         rgba(255, 255, 255, 0) 0%,
-        rgba(255, 255, 255, 0.45) 50%,
+        rgba(255, 255, 255, 0.8) 45%,
+        rgba(255, 255, 255, 0.8) 55%,
         rgba(255, 255, 255, 0) 100%
     ) !important;
     /* !important here too, not just background-image -- the `background`
@@ -255,7 +267,12 @@ input, textarea {
        Intelli-Tagger report: confirmed live, animation-play-state was
        "running" the whole time, just invisible). */
     background-size: 200% 100% !important;
-    animation: mf-progress-shimmer-sweep 1.4s linear infinite;
+    /* ease-in-out instead of linear -- a constant mechanical speed reads
+       as a metronome tick over a long wait; easing in/out per pass feels
+       more like a deliberate "still here" pulse. Slightly slower (1.8s
+       vs 1.4s) to match -- a wider/brighter band (above) moving at the
+       old fast linear pace would have felt frantic, not reassuring. */
+    animation: mf-progress-shimmer-sweep 1.8s ease-in-out infinite;
 }
 @keyframes mf-progress-shimmer-sweep {
     0% { background-position: 200% 0; }

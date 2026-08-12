@@ -67,7 +67,14 @@
 
     /* --- PERSISTENT PROGRESS ENGINE (Sticky) --- */
     #upk-progress-container {
-        background: var(--bg-main);
+        /* Same "no visible track" gap as Intelli-Tagger's progress bar
+           (John, 2026-08-11) -- var(--bg-main) is just the page
+           background, so the unfilled portion had no fixed-length
+           reference to judge the fill against. var(--bg-accent) + a
+           border give it a real, bounded track. */
+        background: var(--bg-accent);
+        border: 1px solid #000;
+        border-radius: 2px;
         height: 20px;
         position: sticky;
         top: 0;
@@ -80,6 +87,7 @@
         background: var(--mf-gold);
         height: 100%;
         width: 0%;
+        border-radius: 1px;
         transition: width 0.4s ease;
     }
 
@@ -103,6 +111,64 @@
         overflow-y: auto;
         flex: 1;
         line-height: 1.4;
+    }
+    .unpacker-console::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* CUSTOM SCROLLBAR for #unpacker-console -- same pattern/reasoning as
+       Personnel Scout's .p-custom-scrollbar (see that file's comment for
+       the full history of why native ::-webkit-scrollbar-button was
+       abandoned). Sized to John's 2.5:1 height:width spec -- 16px wide,
+       so 40px tall buttons. */
+    .upk-custom-scrollbar {
+        width: 16px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-accent);
+        border: 1px solid #000;
+    }
+    .upk-scroll-btn {
+        width: 100%;
+        height: 40px;
+        flex-shrink: 0;
+        background: none;
+        border: none;
+        /* !important needed -- layout.css's global `button { color:
+           var(--input-foreground) !important; }` (meant for the app's
+           normal gold-background action buttons) otherwise silently wins
+           over this. Same fix as Personnel Scout's .p-scroll-btn. */
+        color: var(--mf-gold) !important;
+        font-size: 11px;
+        line-height: 40px;
+        text-align: center;
+        padding: 0;
+        cursor: pointer;
+    }
+    .upk-scroll-btn:hover {
+        color: var(--text-output) !important;
+    }
+    .upk-scroll-track {
+        flex: 1;
+        position: relative;
+        cursor: pointer;
+    }
+    .upk-scroll-thumb {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        background: var(--mf-gold);
+        border: 1px solid #000;
+        border-radius: 3px;
+        min-height: 20px;
+        cursor: grab;
+    }
+    .upk-scroll-thumb:hover {
+        background: var(--text-output);
+    }
+    .upk-scroll-thumb.dragging {
+        cursor: grabbing;
     }
 
     /* --- ART GALLERY ARCHITECTURE --- */
@@ -287,6 +353,91 @@
         font-size: 0.8rem;
         width: 100%;
     }
+
+    /* --- Filing Category lock toggle ---
+       Lets John pin the Category select across multiple albums by the
+       same artist instead of re-picking it every time. Locked = read-only
+       (matches the padlock metaphor -- unlock to change it), and the
+       locked value/state is remembered at the JS-module level (see
+       toggleCategoryLock in unpack_convert.js) so it survives navigating
+       away to another tool and back, which fully rebuilds this DOM. */
+    .upk-field-wrap { position: relative; }
+
+    .upk-lockable-select {
+        appearance: none;
+        -webkit-appearance: none;
+        padding-right: 34px !important;
+    }
+    .upk-lockable-select:disabled {
+        /* John's report, 2026-08-11: locking should only change the
+           button's appearance, not the field itself -- removed the
+           background swap that used to make the whole input go grey. */
+        opacity: 1; /* stay fully legible while locked, not greyed out */
+        cursor: default;
+    }
+
+    .upk-lock-btn {
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 24px;
+        height: 24px;
+        display: grid;
+        place-content: center;
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        /* John's report, 2026-08-11: the icon vanished after choosing a
+           category. Root cause -- layout.css's global :focus-visible rule
+           forces z-index:999 !important onto whatever's currently
+           focused, and the select regains focus the instant its native
+           dropdown closes. Since this button sits INSIDE the select's own
+           reserved right-padding area by design, the now-elevated select
+           painted its opaque white background right over it. Needs to
+           beat that 999, not just have "a" z-index. */
+        z-index: 1000;
+    }
+    .upk-lock-icon {
+        width: 15px;
+        height: 15px;
+        display: inline-block;
+        /* --input-foreground is theme-flipped (black in dark theme,
+           WHITE in light theme -- it's meant for text ON an accent-
+           colored button, not an icon sitting on the always-white input
+           field). Using it here was invisible in light theme (1:1).
+           --input-foreground2 is the correct one -- fixed black in both
+           themes, same variable the sibling text inputs already use. */
+        background-color: var(--input-foreground2);
+        -webkit-mask-image: url('/ui/images/un-lock.svg');
+        mask-image: url('/ui/images/un-lock.svg');
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        mask-repeat: no-repeat;
+        mask-position: center;
+    }
+    .upk-lock-btn:hover .upk-lock-icon,
+    .upk-lock-btn:focus-visible .upk-lock-icon {
+        background-color: var(--mf-gold);
+    }
+    .upk-lock-btn.locked {
+        /* John's report, 2026-08-11: gold-on-white was only 2.58:1,
+           below the 3:1 non-text minimum -- verified via the real WCAG
+           relative-luminance formula, not eyeballed. bg-stage behind the
+           icon fixes that (5.18:1 dark theme). The border is needed too:
+           bg-stage vs the white field is only 1.50:1 in light theme --
+           without it the button barely reads as a distinct control
+           there, even though the icon-on-button contrast itself is fine. */
+        background: var(--bg-stage);
+        border: 1px solid #000;
+        border-radius: 4px;
+    }
+    .upk-lock-btn.locked .upk-lock-icon {
+        background-color: var(--mf-gold);
+        -webkit-mask-image: url('/ui/images/lock.svg');
+        mask-image: url('/ui/images/lock.svg');
+    }
 </style>
 
 <h1 id="unpack-header" class="main" tabindex="-1">Unpack &amp; Convert</h1>
@@ -333,9 +484,14 @@
 
                     <div id="enhanced-section" class="interview-group" style="display: none;">
                         <label for="upk-category">Filing Category (Required)</label>
-                        <select id="upk-category" class="mb-input-text" style="color:var(--input-foreground2)">
-                            <option value="">-- Loading Categories --</option>
-                        </select>
+                        <div class="upk-field-wrap">
+                            <select id="upk-category" class="mb-input-text upk-lockable-select" style="color:var(--input-foreground2)">
+                                <option value="">-- Loading Categories --</option>
+                            </select>
+                            <button type="button" id="upk-category-lock" class="upk-lock-btn" aria-pressed="false" aria-label="Lock Filing Category so it stays set for the next album" title="Lock Filing Category" onclick="metaforge.unpack_convert.toggleCategoryLock()">
+                                <span class="upk-lock-icon" aria-hidden="true"></span>
+                            </button>
+                        </div>
                     </div>
 
                     <div class="consent-box" style="background: rgba(204, 153, 0, 0.05); border: 1px solid var(--mf-gold);">
@@ -386,8 +542,25 @@
                 <div id="upk-progress-fill" class="progress-fill mf-progress-shimmer" style="margin-bottom:5px;"></div>
                 <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem; border-bottom: 1px solid var(--mf-gold);background-color:var(--bg-main); margin-top:-5px;padding-top:-30px;">Standing By</h2>
 			</div>
-            <div id="unpacker-console" class="unpacker-console" aria-live="polite" style="padding:10px;">
-                <div class="data-text" >Provide album details and select a source directory to begin.</div>
+            <div id="upk-console-outer" style="flex: 1; display: flex; min-height: 0;">
+                <div id="unpacker-console" class="unpacker-console" aria-live="polite" style="padding:10px;">
+                    <div class="data-text" >Provide album details and select a source directory to begin.</div>
+                </div>
+                <!-- Custom scrollbar (John's report, 2026-08-11): same
+                     pattern built for Personnel Scout's #p-mapping-viewport
+                     -- real DOM, not native ::-webkit-scrollbar-button
+                     (which proved unreliable across four separate attempts
+                     there). Wired in unpack_convert.js's
+                     initCustomScrollbar()/syncScrollbar(). Tool-scoped
+                     `upk-` class names, not reused from personnel.mfi's
+                     `p-` classes, to avoid any cross-tool CSS collision. -->
+                <div class="upk-custom-scrollbar" id="upk-custom-scrollbar" role="scrollbar" aria-controls="unpacker-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="upk-scroll-btn" id="upk-scroll-up" aria-label="Scroll up" tabindex="-1" onclick="metaforge.unpack_convert.nudgeScroll(-1)">▲</button>
+                    <div class="upk-scroll-track" id="upk-scroll-track" onclick="metaforge.unpack_convert.trackClick(event)">
+                        <div class="upk-scroll-thumb" id="upk-scroll-thumb"></div>
+                    </div>
+                    <button type="button" class="upk-scroll-btn" id="upk-scroll-down" aria-label="Scroll down" tabindex="-1" onclick="metaforge.unpack_convert.nudgeScroll(1)">▼</button>
+                </div>
             </div>
         </div>
 

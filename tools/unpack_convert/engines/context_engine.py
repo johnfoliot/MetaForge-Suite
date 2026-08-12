@@ -70,11 +70,20 @@ def handle_interview_fetch(env_path):
             except Exception:
                 pass
 
+    # 4. Locked Filing Category (John's report, 2026-08-11: the in-memory-
+    #    only version reset on every full app restart, which read as "the
+    #    locks are gone" -- persisted the same way Consent already is.)
+    locked_category = ""
+    l_match = re.search(r'MF_UNPACKER_LOCKED_CATEGORY\s*=\s*"?([^"\r\n]*)', content)
+    if l_match:
+        locked_category = l_match.group(1).strip().strip('"')
+
     return jsonify({
         "status": "success",
         "policy": policy,
         "categories": sorted(categories),
-        "stored_consent": consent
+        "stored_consent": consent,
+        "locked_category": locked_category
     })
 
 def write_audit_log(root, report_data):
@@ -149,6 +158,33 @@ def update_consent_status(env_path, status_str):
     else:
         new_content = content.rstrip() + f"\n{key}={value}\n"
         
+    target_env.write_text(new_content, encoding='utf-8')
+
+def update_locked_category(env_path, category):
+    """
+    Physically updates the .env file to persist the locked Filing Category
+    (or clear it, when category is empty/None) -- same surgical-regex
+    pattern as update_consent_status, so this key coexists cleanly with
+    every other .env value.
+    """
+    target_env = Path(env_path)
+    if not target_env.exists():
+        target_env = Path(os.getenv('APPDATA')) / "MetaForge" / ".env"
+
+    if not target_env.exists():
+        return
+
+    content = target_env.read_text(encoding='utf-8')
+    key = "MF_UNPACKER_LOCKED_CATEGORY"
+    value = (category or "").strip()
+
+    pattern = re.compile(rf'^{key}\s*=.*$', re.MULTILINE)
+
+    if pattern.search(content):
+        new_content = pattern.sub(f'{key}="{value}"', content)
+    else:
+        new_content = content.rstrip() + f'\n{key}="{value}"\n'
+
     target_env.write_text(new_content, encoding='utf-8')
 
 def generate_manifest(root, artist, album, category, library_type, track_count=0):

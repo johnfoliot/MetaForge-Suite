@@ -128,6 +128,16 @@
         cursor: pointer;
     }
 
+    /* Selected candidate row -- confirms a click actually registered a
+       choice, not just hover. Applied via .selected on the <tr>, kept as
+       its own rule (not folded into a generic :hover) since hover and
+       selected are different states and both need to stay visible even
+       when the mouse moves off the selected row. */
+    .mb-table tbody tr.selected td {
+        background: var(--mf-gold);
+        color: var(--input-foreground);
+    }
+
     /* --- THE VISUAL HANDSHAKE GRID (Sync Scroll) --- */
     .mb-alignment-headers {
         display: grid;

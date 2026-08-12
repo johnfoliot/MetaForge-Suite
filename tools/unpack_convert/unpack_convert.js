@@ -16,6 +16,13 @@ window.metaforge.unpack_convert = {
     selectedArtFile: null,
     observer: null,
 
+    // Filing Category lock: lives here on the module object, NOT on the
+    // DOM, because navigating to another tool and back fully destroys and
+    // recreates this tool's DOM (see setupReentryWatcher/init below) --
+    // only module-level state survives that round trip.
+    categoryLocked: false,
+    lockedCategoryValue: "",
+
     toTitleCase: function(str) {
         if (!str) return "";
         return str.toLowerCase().split(' ').map(word => {
@@ -62,6 +69,18 @@ window.metaforge.unpack_convert = {
                         select.required = true;
                         select.setAttribute('aria-required', 'true');
                     }
+                    // Restore the lock from disk (John's report, 2026-08-11:
+                    // the previous in-memory-only version reset on a full
+                    // app restart) -- only trust a non-empty persisted
+                    // value, an empty string means "not locked."
+                    if (data.locked_category) {
+                        this.categoryLocked = true;
+                        this.lockedCategoryValue = data.locked_category;
+                    } else {
+                        this.categoryLocked = false;
+                        this.lockedCategoryValue = "";
+                    }
+                    this.applyCategoryLockState();
                 } else {
                     if (enhancedPanel) enhancedPanel.style.display = 'none';
                 }
@@ -77,6 +96,7 @@ window.metaforge.unpack_convert = {
                 }
 
                 this.validate();
+                this.initCustomScrollbar();
 
             } catch (e) {
                 console.error("METAFORGE: Sync Failure:", e);
@@ -286,6 +306,81 @@ window.metaforge.unpack_convert = {
         if (container) container.setAttribute('aria-valuenow', Math.round(globalPercent));
     },
 
+    /**
+     * Reapplies persisted lock state to the Filing Category select/button
+     * after they've been freshly rebuilt (either by init()'s re-entry
+     * path, or by populateSelect() rebuilding the option list). Safe to
+     * call even when nothing is locked -- it's a no-op in that case.
+     */
+    applyCategoryLockState: function() {
+        const select = document.getElementById('upk-category');
+        const btn = document.getElementById('upk-category-lock');
+        if (!select || !btn) return;
+
+        if (!this.categoryLocked) {
+            select.disabled = false;
+            btn.classList.remove('locked');
+            btn.setAttribute('aria-pressed', 'false');
+            btn.setAttribute('aria-label', 'Lock Filing Category so it stays set for the next album');
+            btn.title = 'Lock Filing Category';
+            return;
+        }
+
+        select.value = this.lockedCategoryValue;
+        if (select.value !== this.lockedCategoryValue) {
+            // The remembered category no longer exists in the freshly
+            // fetched list (e.g. taxonomy changed) -- don't silently lock
+            // to a value that isn't really selected. Fail open, not
+            // open-but-wrong.
+            this.categoryLocked = false;
+            this.lockedCategoryValue = "";
+            select.disabled = false;
+            btn.classList.remove('locked');
+            btn.setAttribute('aria-pressed', 'false');
+            return;
+        }
+
+        select.disabled = true;
+        btn.classList.add('locked');
+        btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('aria-label', 'Unlock Filing Category');
+        btn.title = 'Unlock Filing Category';
+    },
+
+    toggleCategoryLock: function() {
+        const select = document.getElementById('upk-category');
+        if (!select) return;
+
+        if (this.categoryLocked) {
+            this.categoryLocked = false;
+            this.lockedCategoryValue = "";
+        } else {
+            if (!select.value) {
+                // Nothing to lock yet -- use the select's own native
+                // required-field validation bubble rather than inventing
+                // a new status-toast mechanism this tool doesn't have.
+                select.focus();
+                select.reportValidity();
+                return;
+            }
+            this.categoryLocked = true;
+            this.lockedCategoryValue = select.value;
+        }
+
+        this.applyCategoryLockState();
+        this.validate();
+
+        // Persist to disk (not just this session's memory) -- fire and
+        // forget, same "don't block the UI on a settings write" pattern
+        // the consent checkbox already uses. An empty string clears the
+        // lock server-side too.
+        fetch('/run_tool_logic/unpack_convert/set_locked_category', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: this.lockedCategoryValue })
+        }).catch(err => console.error("METAFORGE: Failed to persist category lock:", err));
+    },
+
     populateSelect: function(select, items) {
         if (!select) return;
         const cur = select.value;
@@ -321,6 +416,7 @@ window.metaforge.unpack_convert = {
         if (fill) fill.style.width = '0%';
         if (label) label.innerText = 'Starting Unpack & Convert...';
         if (consoleBox) consoleBox.innerHTML = '<div class="status-api"></div>';
+        this.syncScrollbar();
         
         const step4Wrapper = document.getElementById('upk-step4-wrapper');
         if (step4Wrapper) step4Wrapper.remove();
@@ -425,6 +521,109 @@ window.metaforge.unpack_convert = {
     closeHelp: function() {
         const panel = document.getElementById('upk-help-panel');
         if (panel) { panel.style.display = 'none'; if (this.lastTrigger) this.lastTrigger.focus(); }
+    },
+
+    /**
+     * Custom scrollbar for #unpacker-console -- same pattern built for
+     * Personnel Scout's #p-mapping-viewport (John's report, 2026-08-11).
+     * The console streams content continuously during run(), which
+     * already force-scrolls to bottom on every chunk
+     * (consoleBox.scrollTop = consoleBox.scrollHeight) -- that already
+     * fires a native 'scroll' event, so the scroll listener below keeps
+     * the thumb in sync during streaming without needing a call on every
+     * single chunk. syncScrollbar() is still called explicitly at the
+     * point the console gets reset (start of run()), so the thumb
+     * doesn't lag showing a stale, tall thumb from the PREVIOUS run's
+     * content until the next scroll event happens to fire.
+     */
+    initCustomScrollbar: function() {
+        const viewport = document.getElementById('unpacker-console');
+        const thumb = document.getElementById('upk-scroll-thumb');
+        if (!viewport || !thumb || viewport.dataset.scrollbarWired) return;
+        viewport.dataset.scrollbarWired = 'true';
+
+        viewport.addEventListener('scroll', () => this.syncScrollbar());
+        window.addEventListener('resize', () => this.syncScrollbar());
+
+        thumb.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const track = document.getElementById('upk-scroll-track');
+            if (!track) return;
+            const startY = e.clientY;
+            const startScrollTop = viewport.scrollTop;
+            const scrollable = viewport.scrollHeight - viewport.clientHeight;
+            const trackSpace = track.clientHeight - thumb.clientHeight;
+            thumb.classList.add('dragging');
+
+            const onMove = (moveEvt) => {
+                if (trackSpace <= 0 || scrollable <= 0) return;
+                const deltaY = moveEvt.clientY - startY;
+                const scrollDelta = (deltaY / trackSpace) * scrollable;
+                viewport.scrollTop = startScrollTop + scrollDelta;
+            };
+            const onUp = () => {
+                thumb.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        this.syncScrollbar();
+    },
+
+    nudgeScroll: function(direction) {
+        const viewport = document.getElementById('unpacker-console');
+        if (!viewport) return;
+        viewport.scrollBy({ top: direction * 40, behavior: 'smooth' });
+    },
+
+    trackClick: function(event) {
+        if (event.target.id !== 'upk-scroll-track') return;
+        const viewport = document.getElementById('unpacker-console');
+        const thumb = document.getElementById('upk-scroll-thumb');
+        if (!viewport || !thumb) return;
+        const track = event.currentTarget;
+        const clickY = event.clientY - track.getBoundingClientRect().top;
+        const thumbTop = thumb.offsetTop;
+        const direction = clickY < thumbTop ? -1 : 1;
+        viewport.scrollBy({ top: direction * viewport.clientHeight, behavior: 'smooth' });
+    },
+
+    syncScrollbar: function() {
+        const viewport = document.getElementById('unpacker-console');
+        const track = document.getElementById('upk-scroll-track');
+        const thumb = document.getElementById('upk-scroll-thumb');
+        const bar = document.getElementById('upk-custom-scrollbar');
+        const upBtn = document.getElementById('upk-scroll-up');
+        const downBtn = document.getElementById('upk-scroll-down');
+        if (!viewport || !track || !thumb) return;
+
+        const scrollable = viewport.scrollHeight - viewport.clientHeight;
+
+        if (scrollable <= 0) {
+            thumb.style.display = 'none';
+            if (upBtn) { upBtn.disabled = true; upBtn.style.opacity = '0.4'; }
+            if (downBtn) { downBtn.disabled = true; downBtn.style.opacity = '0.4'; }
+            return;
+        }
+
+        thumb.style.display = 'block';
+        if (upBtn) { upBtn.disabled = false; upBtn.style.opacity = '1'; }
+        if (downBtn) { downBtn.disabled = false; downBtn.style.opacity = '1'; }
+
+        const trackHeight = track.clientHeight;
+        const visibleRatio = viewport.clientHeight / viewport.scrollHeight;
+        const thumbHeight = Math.max(trackHeight * visibleRatio, 20);
+        const maxThumbTop = trackHeight - thumbHeight;
+        const scrollRatio = viewport.scrollTop / scrollable;
+        const thumbTop = maxThumbTop * scrollRatio;
+
+        thumb.style.height = `${thumbHeight}px`;
+        thumb.style.top = `${thumbTop}px`;
+
+        if (bar) bar.setAttribute('aria-valuenow', Math.round(scrollRatio * 100));
     }
 };
 

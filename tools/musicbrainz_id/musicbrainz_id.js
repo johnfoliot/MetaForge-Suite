@@ -117,7 +117,7 @@ window.metaforge.musicbrainz_id = {
                 : `<span style="font-size: 0.6rem; opacity: 0.5;">[${cc.toUpperCase()}]</span>`;
 
             return `
-                <tr onclick="metaforge.musicbrainz_id.selectRelease('${r.id}')" tabindex="0" role="button" onkeydown="if(event.key==='Enter'||event.key===' ') this.click()">
+                <tr data-release-id="${r.id}" onclick="metaforge.musicbrainz_id.selectRelease('${r.id}')" tabindex="0" role="button" aria-pressed="false" onkeydown="if(event.key==='Enter'||event.key===' ') this.click()">
                     <td>${r.score}%</td>
                     <td><strong>${r.artist}</strong><br>${r.title}</td>
                     <td>${r.format}</td>
@@ -132,6 +132,16 @@ window.metaforge.musicbrainz_id = {
     selectRelease: async function(releaseId) {
         if (this.state.isLocked) return;
         this.state.currentReleaseId = releaseId;
+
+        // Instant feedback that the click registered a choice -- applied
+        // before the fetch below, not after it resolves, so the row
+        // highlights immediately rather than waiting on the network.
+        document.querySelectorAll('#mb-results-body tr').forEach(tr => {
+            const isSelected = tr.dataset.releaseId === releaseId;
+            tr.classList.toggle('selected', isSelected);
+            tr.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        });
+
         const summary = document.getElementById('mb-id-summary');
         summary.innerHTML = "Retrieving MusicBrainz data...";
         

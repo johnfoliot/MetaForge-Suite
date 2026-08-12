@@ -51,6 +51,11 @@ def run_logic(action, tools_dir, env_path):
         result = art_engine.finalize_cover(data.get('path'), data.get('filename'))
         return jsonify(result)
 
+    if action == "set_locked_category":
+        data = request.json or {}
+        context_engine.update_locked_category(env_path, data.get('category', ''))
+        return jsonify({"status": "success"})
+
     return jsonify({"status": "error", "message": f"Action {action} unrecognized."}), 400
 
 def _natural_sort_key(text):

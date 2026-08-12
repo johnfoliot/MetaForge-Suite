@@ -20,6 +20,7 @@ window.metaforge.personnel = {
             const h1 = document.querySelector('h1.main');
             if (h1) h1.focus();
             this.ingestContext();
+            this.initCustomScrollbar();
         }, 50);
     },
 
@@ -325,6 +326,7 @@ window.metaforge.personnel = {
         countLabel.innerText = `${this.state.mapping.length} Rows Staged`;
         commitBtn.disabled = this.state.mapping.length === 0;
         commitBtn.style.opacity = this.state.mapping.length > 0 ? "1" : "0.5";
+        this.syncScrollbar();
     },
 
     updateMappingField: function(idx, field, value) {
@@ -619,6 +621,117 @@ window.metaforge.personnel = {
         if (!el) return;
         el.innerText = msg;
         el.style.color = (type === "success") ? "var(--status-success)" : "var(--status-error)";
+    },
+
+    /**
+     * Custom scrollbar for #p-mapping-viewport (John's report, 2026-08-11
+     * -- see personnel.mfi's .p-custom-scrollbar comment for why native
+     * ::-webkit-scrollbar-button was abandoned entirely). Wires the real
+     * DOM buttons/track/thumb to the viewport's actual scrollTop -- the
+     * viewport itself still does the real scrolling, this UI just
+     * reflects and drives it.
+     */
+    initCustomScrollbar: function() {
+        const viewport = document.getElementById('p-mapping-viewport');
+        const thumb = document.getElementById('p-scroll-thumb');
+        if (!viewport || !thumb || viewport.dataset.scrollbarWired) return;
+        viewport.dataset.scrollbarWired = 'true';
+
+        viewport.addEventListener('scroll', () => this.syncScrollbar());
+        window.addEventListener('resize', () => this.syncScrollbar());
+
+        thumb.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const track = document.getElementById('p-scroll-track');
+            if (!track) return;
+            const startY = e.clientY;
+            const startScrollTop = viewport.scrollTop;
+            const scrollable = viewport.scrollHeight - viewport.clientHeight;
+            const trackSpace = track.clientHeight - thumb.clientHeight;
+            thumb.classList.add('dragging');
+
+            const onMove = (moveEvt) => {
+                if (trackSpace <= 0 || scrollable <= 0) return;
+                const deltaY = moveEvt.clientY - startY;
+                const scrollDelta = (deltaY / trackSpace) * scrollable;
+                viewport.scrollTop = startScrollTop + scrollDelta;
+            };
+            const onUp = () => {
+                thumb.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        this.syncScrollbar();
+    },
+
+    // Up/down button click -- nudges by roughly one row's worth of pixels.
+    nudgeScroll: function(direction) {
+        const viewport = document.getElementById('p-mapping-viewport');
+        if (!viewport) return;
+        viewport.scrollBy({ top: direction * 40, behavior: 'smooth' });
+    },
+
+    // Clicking the bare track (not the thumb itself, which has its own
+    // mousedown-drag handler above and would otherwise double-fire this
+    // via bubbling) pages up/down by one viewport height.
+    trackClick: function(event) {
+        if (event.target.id !== 'p-scroll-track') return;
+        const viewport = document.getElementById('p-mapping-viewport');
+        const thumb = document.getElementById('p-scroll-thumb');
+        if (!viewport || !thumb) return;
+        const track = event.currentTarget;
+        const clickY = event.clientY - track.getBoundingClientRect().top;
+        const thumbTop = thumb.offsetTop;
+        const direction = clickY < thumbTop ? -1 : 1;
+        viewport.scrollBy({ top: direction * viewport.clientHeight, behavior: 'smooth' });
+    },
+
+    // Recomputes thumb size/position from the viewport's real scroll
+    // state. Called on scroll, on window resize, and explicitly at the
+    // end of renderMapping() -- row count changing content height
+    // doesn't fire a scroll event on its own, so that call site can't be
+    // skipped in favor of only listening for scroll/resize.
+    syncScrollbar: function() {
+        const viewport = document.getElementById('p-mapping-viewport');
+        const track = document.getElementById('p-scroll-track');
+        const thumb = document.getElementById('p-scroll-thumb');
+        const bar = document.getElementById('p-custom-scrollbar');
+        const upBtn = document.getElementById('p-scroll-up');
+        const downBtn = document.getElementById('p-scroll-down');
+        if (!viewport || !track || !thumb) return;
+
+        const scrollable = viewport.scrollHeight - viewport.clientHeight;
+
+        if (scrollable <= 0) {
+            // Nothing to scroll -- disable rather than show a thumb that
+            // fills the whole track and does nothing.
+            thumb.style.display = 'none';
+            if (upBtn) upBtn.disabled = true;
+            if (downBtn) downBtn.disabled = true;
+            if (upBtn) upBtn.style.opacity = '0.4';
+            if (downBtn) downBtn.style.opacity = '0.4';
+            return;
+        }
+
+        thumb.style.display = 'block';
+        if (upBtn) { upBtn.disabled = false; upBtn.style.opacity = '1'; }
+        if (downBtn) { downBtn.disabled = false; downBtn.style.opacity = '1'; }
+
+        const trackHeight = track.clientHeight;
+        const visibleRatio = viewport.clientHeight / viewport.scrollHeight;
+        const thumbHeight = Math.max(trackHeight * visibleRatio, 20); // matches CSS min-height
+        const maxThumbTop = trackHeight - thumbHeight;
+        const scrollRatio = viewport.scrollTop / scrollable;
+        const thumbTop = maxThumbTop * scrollRatio;
+
+        thumb.style.height = `${thumbHeight}px`;
+        thumb.style.top = `${thumbTop}px`;
+
+        if (bar) bar.setAttribute('aria-valuenow', Math.round(scrollRatio * 100));
     }
 };
 
