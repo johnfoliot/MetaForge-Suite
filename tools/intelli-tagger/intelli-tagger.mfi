@@ -165,6 +165,15 @@ line-height: 1.6;
 background-color: var(--bg-main);
 margin-top: 1rem;
 }
+/* Custom scrollbar CSS (.mf-custom-scrollbar etc.) now lives shared in
+   layout.css section 10, not duplicated per-tool here. #it-console's own
+   markup carries .mf-hide-native-scrollbar to suppress its real native
+   scrollbar. This one override stays local: keeps the scrollbar aligned
+   with .it-console's own margin-top offset from the progress bar above
+   it, a tool-specific layout detail the shared class doesn't assume. */
+#it-console-outer .mf-custom-scrollbar {
+margin-top: 1rem;
+}
 
 /* --- 2-LINE TRACK LOG STYLING --- */
 .it-log-row {
@@ -302,8 +311,21 @@ display: none;
             <br><br><h3 id="it-progress-label" class="it-progress-text" style="padding:6px!important;border-bottom: 1px solid var(--mf-gold); z-index:200; background-color: var(--bg-main); margin-left:10px; margin-right:15px; max-width:97%;">Standing By</h3>
         </div>
 
-        <div id="it-console" class="it-console" aria-live="polite">
-            <div class="tool_notes">Waiting for files to be loaded...</div>
+        <div id="it-console-outer" style="flex: 1; display: flex; min-height: 0;">
+            <div id="it-console" class="it-console mf-hide-native-scrollbar" aria-live="polite">
+                <div class="tool_notes">Waiting for files to be loaded...</div>
+            </div>
+            <!-- Custom scrollbar, shared implementation (John's report,
+                 2026-08-11) -- see layout.css section 10 and
+                 metaforge_core.js's MFScrollbar for the full history and
+                 the shared CSS/JS. No per-tool JS needed. -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="it-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
+                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
         </div>
 
         <div id="it-handoff-area" class="it-handoff-area">

@@ -285,22 +285,34 @@
                 </div>
             </div>
 
-            <div class="mb-results-viewport">
-                <table class="mb-table">
-                    <thead>
-                        <tr>
-                            <th style="width:40px;">Score</th>
-                            <th>Artist / Album</th>
-                            <th style="width:60px;">Format</th>
-                            <th style="width:40px;">Tracks</th>
-                            <th style="width:40px;">Year</th>
-                            <th style="width:45px; text-align:center;">CC</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mb-results-body">
-                        <tr><td colspan="6" class="tool_notes" style="padding:20px;">Ready for Discovery.</td></tr>
-                    </tbody>
-                </table>
+            <div style="flex: 1; display: flex; min-height: 0;">
+                <div id="mb-results-viewport" class="mb-results-viewport mf-hide-native-scrollbar">
+                    <table class="mb-table">
+                        <thead>
+                            <tr>
+                                <th style="width:40px;">Score</th>
+                                <th>Artist / Album</th>
+                                <th style="width:60px;">Format</th>
+                                <th style="width:40px;">Tracks</th>
+                                <th style="width:40px;">Year</th>
+                                <th style="width:45px; text-align:center;">CC</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mb-results-body">
+                            <tr><td colspan="6" class="tool_notes" style="padding:20px;">Ready for Discovery.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Custom scrollbar, shared implementation -- see
+                     layout.css section 10 / metaforge_core.js's
+                     MFScrollbar. No per-tool JS needed. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mb-results-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track">
+                        <div class="mf-scroll-thumb"></div>
+                    </div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                </div>
             </div>
         </div>
 
@@ -316,8 +328,20 @@
                 <div class="mb-list-header">MusicBrainz Data:</div>
             </div>
 
-            <div id="mb-comparison-viewport" class="mb-comparison-viewport">
-                <!-- Rows injected dynamically by JS bridge -->
+            <div style="flex: 1; display: flex; min-height: 0;">
+                <div id="mb-comparison-viewport" class="mb-comparison-viewport mf-hide-native-scrollbar">
+                    <!-- Rows injected dynamically by JS bridge -->
+                </div>
+                <!-- Custom scrollbar, shared implementation -- see
+                     layout.css section 10 / metaforge_core.js's
+                     MFScrollbar. No per-tool JS needed. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mb-comparison-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track">
+                        <div class="mf-scroll-thumb"></div>
+                    </div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                </div>
             </div>
 
             <div class="mb-confirm-footer">

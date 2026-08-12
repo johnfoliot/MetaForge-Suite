@@ -37,7 +37,19 @@
                 <h2 class="mf-card-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0;">Albums</h2>
                 
             </div>
-            <div id="artist-album-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: flex-start; overflow-y: auto; flex: 1; padding-right: 5px;"></div>
+            <div style="display: flex; flex: 1; min-height: 0;">
+                <div id="artist-album-grid" class="mf-hide-native-scrollbar" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; align-content: flex-start; overflow-y: auto; flex: 1; padding-right: 5px;"></div>
+                <!-- Custom scrollbar, shared implementation -- see
+                     layout.css section 10 / metaforge_core.js's
+                     MFScrollbar. No per-tool JS needed. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="artist-album-grid" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track">
+                        <div class="mf-scroll-thumb"></div>
+                    </div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                </div>
+            </div>
 			<button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.editSelectedAlbum()" style="width:30%;">Edit</button>
         </div>
 

@@ -40,11 +40,22 @@
         </div>
 
         <div class="acoustid-console-container">
-            <div id="acoustid-console" 
-                 role="log" 
-                 aria-live="polite" 
-                 class="mf-console-output">
-                <p class="tool_notes">Awaiting operation...</p>
+            <div style="display: flex; flex: 1; min-height: 0;">
+                <div id="acoustid-console"
+                     role="log"
+                     aria-live="polite"
+                     class="mf-console-output mf-hide-native-scrollbar"
+                     style="border-right: none; border-radius: 4px 0 0 4px;">
+                    <p class="tool_notes">Awaiting operation...</p>
+                </div>
+                <!-- Custom scrollbar, shared implementation -- see
+                     layout.css section 10 / metaforge_core.js's
+                     MFScrollbar. No per-tool JS needed. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="acoustid-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                </div>
             </div>
         </div>
     </section>

@@ -96,7 +96,6 @@ window.metaforge.unpack_convert = {
                 }
 
                 this.validate();
-                this.initCustomScrollbar();
 
             } catch (e) {
                 console.error("METAFORGE: Sync Failure:", e);
@@ -416,8 +415,10 @@ window.metaforge.unpack_convert = {
         if (fill) fill.style.width = '0%';
         if (label) label.innerText = 'Starting Unpack & Convert...';
         if (consoleBox) consoleBox.innerHTML = '<div class="status-api"></div>';
-        this.syncScrollbar();
-        
+        // No explicit scrollbar sync needed here -- MFScrollbar's
+        // MutationObserver (metaforge_core.js) auto-detects this console
+        // reset and resyncs the shared custom scrollbar itself.
+
         const step4Wrapper = document.getElementById('upk-step4-wrapper');
         if (step4Wrapper) step4Wrapper.remove();
 
@@ -521,110 +522,10 @@ window.metaforge.unpack_convert = {
     closeHelp: function() {
         const panel = document.getElementById('upk-help-panel');
         if (panel) { panel.style.display = 'none'; if (this.lastTrigger) this.lastTrigger.focus(); }
-    },
-
-    /**
-     * Custom scrollbar for #unpacker-console -- same pattern built for
-     * Personnel Scout's #p-mapping-viewport (John's report, 2026-08-11).
-     * The console streams content continuously during run(), which
-     * already force-scrolls to bottom on every chunk
-     * (consoleBox.scrollTop = consoleBox.scrollHeight) -- that already
-     * fires a native 'scroll' event, so the scroll listener below keeps
-     * the thumb in sync during streaming without needing a call on every
-     * single chunk. syncScrollbar() is still called explicitly at the
-     * point the console gets reset (start of run()), so the thumb
-     * doesn't lag showing a stale, tall thumb from the PREVIOUS run's
-     * content until the next scroll event happens to fire.
-     */
-    initCustomScrollbar: function() {
-        const viewport = document.getElementById('unpacker-console');
-        const thumb = document.getElementById('upk-scroll-thumb');
-        if (!viewport || !thumb || viewport.dataset.scrollbarWired) return;
-        viewport.dataset.scrollbarWired = 'true';
-
-        viewport.addEventListener('scroll', () => this.syncScrollbar());
-        window.addEventListener('resize', () => this.syncScrollbar());
-
-        thumb.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            const track = document.getElementById('upk-scroll-track');
-            if (!track) return;
-            const startY = e.clientY;
-            const startScrollTop = viewport.scrollTop;
-            const scrollable = viewport.scrollHeight - viewport.clientHeight;
-            const trackSpace = track.clientHeight - thumb.clientHeight;
-            thumb.classList.add('dragging');
-
-            const onMove = (moveEvt) => {
-                if (trackSpace <= 0 || scrollable <= 0) return;
-                const deltaY = moveEvt.clientY - startY;
-                const scrollDelta = (deltaY / trackSpace) * scrollable;
-                viewport.scrollTop = startScrollTop + scrollDelta;
-            };
-            const onUp = () => {
-                thumb.classList.remove('dragging');
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-            };
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
-
-        this.syncScrollbar();
-    },
-
-    nudgeScroll: function(direction) {
-        const viewport = document.getElementById('unpacker-console');
-        if (!viewport) return;
-        viewport.scrollBy({ top: direction * 40, behavior: 'smooth' });
-    },
-
-    trackClick: function(event) {
-        if (event.target.id !== 'upk-scroll-track') return;
-        const viewport = document.getElementById('unpacker-console');
-        const thumb = document.getElementById('upk-scroll-thumb');
-        if (!viewport || !thumb) return;
-        const track = event.currentTarget;
-        const clickY = event.clientY - track.getBoundingClientRect().top;
-        const thumbTop = thumb.offsetTop;
-        const direction = clickY < thumbTop ? -1 : 1;
-        viewport.scrollBy({ top: direction * viewport.clientHeight, behavior: 'smooth' });
-    },
-
-    syncScrollbar: function() {
-        const viewport = document.getElementById('unpacker-console');
-        const track = document.getElementById('upk-scroll-track');
-        const thumb = document.getElementById('upk-scroll-thumb');
-        const bar = document.getElementById('upk-custom-scrollbar');
-        const upBtn = document.getElementById('upk-scroll-up');
-        const downBtn = document.getElementById('upk-scroll-down');
-        if (!viewport || !track || !thumb) return;
-
-        const scrollable = viewport.scrollHeight - viewport.clientHeight;
-
-        if (scrollable <= 0) {
-            thumb.style.display = 'none';
-            if (upBtn) { upBtn.disabled = true; upBtn.style.opacity = '0.4'; }
-            if (downBtn) { downBtn.disabled = true; downBtn.style.opacity = '0.4'; }
-            return;
-        }
-
-        thumb.style.display = 'block';
-        if (upBtn) { upBtn.disabled = false; upBtn.style.opacity = '1'; }
-        if (downBtn) { downBtn.disabled = false; downBtn.style.opacity = '1'; }
-
-        const trackHeight = track.clientHeight;
-        const visibleRatio = viewport.clientHeight / viewport.scrollHeight;
-        const thumbHeight = Math.max(trackHeight * visibleRatio, 20);
-        const maxThumbTop = trackHeight - thumbHeight;
-        const scrollRatio = viewport.scrollTop / scrollable;
-        const thumbTop = maxThumbTop * scrollRatio;
-
-        thumb.style.height = `${thumbHeight}px`;
-        thumb.style.top = `${thumbTop}px`;
-
-        if (bar) bar.setAttribute('aria-valuenow', Math.round(scrollRatio * 100));
     }
+    // Custom scrollbar for #unpacker-console is no longer wired here --
+    // it now uses the shared MFScrollbar utility (metaforge_core.js),
+    // auto-attached via unpack_convert.mfi's .mf-custom-scrollbar markup.
 };
 
 window.metaforge.unpack_convert.init();

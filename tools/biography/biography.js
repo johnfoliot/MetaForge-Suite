@@ -119,7 +119,8 @@ window.metaforge.biography = {
 
     showCandidates: function(matches) {
         const list = document.getElementById('bio-search-candidates');
-        if (!list) return;
+        const outer = document.getElementById('bio-candidates-outer');
+        if (!list || !outer) return;
         list.innerHTML = '';
         matches.forEach(m => {
             const btn = document.createElement('button');
@@ -133,12 +134,16 @@ window.metaforge.biography = {
             };
             list.appendChild(btn);
         });
-        list.style.display = 'block';
+        // Toggling the wrapper (not the list itself) so the sibling
+        // custom scrollbar shows/hides in sync with it.
+        outer.style.display = 'flex';
     },
 
     hideCandidates: function() {
         const list = document.getElementById('bio-search-candidates');
-        if (list) { list.style.display = 'none'; list.innerHTML = ''; }
+        const outer = document.getElementById('bio-candidates-outer');
+        if (outer) outer.style.display = 'none';
+        if (list) list.innerHTML = '';
     },
 
     loadArtist: async function(mf_id) {

@@ -28,7 +28,21 @@
                      match (e.g. "Ace" matching "John Ac-ERN-o") used to
                      attach a generated biography to the wrong artist with
                      zero on-screen indication anything had gone wrong. -->
-                <div id="bio-search-candidates" class="bio-candidate-list" style="display:none;" role="listbox" aria-label="Multiple artists matched, choose one"></div>
+                <!-- Wrapper's display:none/flex is now toggled by JS
+                     (biography.js showCandidates()/hideCandidates()),
+                     not the inner list's own -- needed so the sibling
+                     custom scrollbar hides/shows in sync with it. -->
+                <div id="bio-candidates-outer" style="display:none;">
+                    <div id="bio-search-candidates" class="bio-candidate-list mf-hide-native-scrollbar" role="listbox" aria-label="Multiple artists matched, choose one"></div>
+                    <!-- Custom scrollbar, shared implementation -- see
+                         layout.css section 10 / metaforge_core.js's
+                         MFScrollbar. No per-tool JS needed. -->
+                    <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-search-candidates" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                    </div>
+                </div>
             </div>
             
             <div class="bio-action-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
@@ -89,7 +103,8 @@ div[aria-checked="true"]#bio-profile-toggle .mf-toggle-knob { transform: transla
 .bio-textarea-field { flex: 1; width: 100%; height: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
 .bio-btn-amber { height: 34px; padding: 0 20px; background-color: var(--mf-gold); color: #000000; border: 1px solid var(--mf-gold); font-family: inherit; font-weight: bold; cursor: pointer; }
 .bio-btn-amber:disabled { background-color: #555555; color: #888888; border-color: #444444; cursor: not-allowed; }
-.bio-candidate-list { margin-top: 8px; border: 1px solid #444444; background-color: var(--bg-main); max-height: 180px; overflow-y: auto; }
+#bio-candidates-outer { margin-top: 8px; display: flex; max-height: 180px; }
+.bio-candidate-list { flex: 1; border: 1px solid #444444; border-right: none; background-color: var(--bg-main); overflow-y: auto; }
 .bio-candidate-item { display: block; width: 100%; text-align: left; padding: 8px 10px; background: none; border: none; border-bottom: 1px solid #333333; color: var(--text-output); font-family: inherit; font-size: 0.85rem; cursor: pointer; }
 .bio-candidate-item:last-child { border-bottom: none; }
 .bio-candidate-item:hover, .bio-candidate-item:focus { background-color: rgba(204, 153, 0, 0.15); outline: none; }

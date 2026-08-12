@@ -32,21 +32,33 @@
             <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-count-dismissed">0</span> Dismissed</span>
         </div>
 
-        <div id="mbs-queue-viewport" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; margin:0 15px 10px 15px;">
-            <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
-                <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
-                    <tr>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Track</th>
-                        <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Current Year</th>
-                        <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Proposed Year</th>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="mbs-queue-body" style="color:var(--text-output);">
-                    <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
-                </tbody>
-            </table>
+        <div style="flex:1; display:flex; min-height:0; margin:0 15px 10px 15px;">
+            <div id="mbs-queue-viewport" class="mf-hide-native-scrollbar" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; border-right:none;">
+                <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
+                    <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
+                        <tr>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Track</th>
+                            <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Current Year</th>
+                            <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Proposed Year</th>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mbs-queue-body" style="color:var(--text-output);">
+                        <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Custom scrollbar, shared implementation -- see
+                 layout.css section 10 / metaforge_core.js's
+                 MFScrollbar. No per-tool JS needed. -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mbs-queue-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
+                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
         </div>
     </div>
 
@@ -58,20 +70,32 @@
             <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-p-count-dismissed">0</span> Dismissed</span>
         </div>
 
-        <div style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; margin:0 15px 10px 15px;">
-            <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
-                <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
-                    <tr>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Credited Name</th>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:160px;">Role</th>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
-                        <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="mbs-p-queue-body" style="color:var(--text-output);">
-                    <tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
-                </tbody>
-            </table>
+        <div style="flex:1; display:flex; min-height:0; margin:0 15px 10px 15px;">
+            <div id="mbs-p-queue-viewport" class="mf-hide-native-scrollbar" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; border-right:none;">
+                <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
+                    <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
+                        <tr>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Credited Name</th>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:160px;">Role</th>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
+                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mbs-p-queue-body" style="color:var(--text-output);">
+                        <tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Custom scrollbar, shared implementation -- see
+                 layout.css section 10 / metaforge_core.js's
+                 MFScrollbar. No per-tool JS needed. -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mbs-p-queue-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
+                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
         </div>
     </div>
 

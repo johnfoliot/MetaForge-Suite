@@ -182,6 +182,108 @@ window.loadTool = async function(toolId) {
     }
 };
 
+// --- SHARED CUSTOM SCROLLBAR (John's report, 2026-08-11) ---
+// See layout.css section 10 for the CSS half and the full history of
+// why native ::-webkit-scrollbar-button was abandoned. A tool marks up
+// its scrollable target plus a sibling .mf-custom-scrollbar block (real
+// button/track/thumb divs, aria-controls pointing at the target's id) --
+// no per-tool JS needed at all. initCommonComponents() below calls
+// autoAttachAll() on every tool load (see loadTool()'s existing call to
+// it, further up this file), which finds and wires every
+// .mf-custom-scrollbar on the page automatically.
+window.MFScrollbar = {
+    attach: function(bar) {
+        if (typeof bar === 'string') bar = document.getElementById(bar);
+        if (!bar || bar.dataset.mfWired) return;
+
+        const targetId = bar.getAttribute('aria-controls');
+        const target = targetId ? document.getElementById(targetId) : null;
+        const btns = bar.querySelectorAll('.mf-scroll-btn');
+        const track = bar.querySelector('.mf-scroll-track');
+        const thumb = bar.querySelector('.mf-scroll-thumb');
+        const upBtn = btns[0], downBtn = btns[1];
+        if (!target || !upBtn || !downBtn || !track || !thumb) return;
+        bar.dataset.mfWired = 'true';
+
+        const sync = () => {
+            const scrollable = target.scrollHeight - target.clientHeight;
+            if (scrollable <= 1) {
+                thumb.style.display = 'none';
+                upBtn.disabled = true; downBtn.disabled = true;
+                upBtn.style.opacity = '0.4'; downBtn.style.opacity = '0.4';
+                return;
+            }
+            thumb.style.display = 'block';
+            upBtn.disabled = false; downBtn.disabled = false;
+            upBtn.style.opacity = '1'; downBtn.style.opacity = '1';
+
+            const trackHeight = track.clientHeight;
+            const visibleRatio = target.clientHeight / target.scrollHeight;
+            const thumbHeight = Math.max(trackHeight * visibleRatio, 20);
+            const maxThumbTop = trackHeight - thumbHeight;
+            const scrollRatio = target.scrollTop / scrollable;
+            const thumbTop = maxThumbTop * scrollRatio;
+
+            thumb.style.height = thumbHeight + 'px';
+            thumb.style.top = thumbTop + 'px';
+            bar.setAttribute('aria-valuenow', Math.round(scrollRatio * 100));
+        };
+
+        upBtn.addEventListener('click', () => target.scrollBy({ top: -40, behavior: 'smooth' }));
+        downBtn.addEventListener('click', () => target.scrollBy({ top: 40, behavior: 'smooth' }));
+
+        track.addEventListener('click', (e) => {
+            if (e.target !== track) return;
+            const clickY = e.clientY - track.getBoundingClientRect().top;
+            const direction = clickY < thumb.offsetTop ? -1 : 1;
+            target.scrollBy({ top: direction * target.clientHeight, behavior: 'smooth' });
+        });
+
+        thumb.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            const startY = e.clientY;
+            const startScrollTop = target.scrollTop;
+            const scrollable = target.scrollHeight - target.clientHeight;
+            const trackSpace = track.clientHeight - thumb.clientHeight;
+            thumb.classList.add('dragging');
+
+            const onMove = (moveEvt) => {
+                if (trackSpace <= 0 || scrollable <= 0) return;
+                const deltaY = moveEvt.clientY - startY;
+                target.scrollTop = startScrollTop + (deltaY / trackSpace) * scrollable;
+            };
+            const onUp = () => {
+                thumb.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        target.addEventListener('scroll', sync);
+        window.addEventListener('resize', sync);
+
+        // Auto-resync on any content change -- rows added/removed,
+        // streamed console output, etc. -- rather than requiring each
+        // tool to remember to call a sync function at every mutation
+        // point (the exact pattern that had to be manually hunted down
+        // per-tool in the three original hand-built implementations).
+        new MutationObserver(sync).observe(target, { childList: true, subtree: true, characterData: true });
+
+        sync();
+    },
+
+    autoAttachAll: function() {
+        document.querySelectorAll('.mf-custom-scrollbar').forEach(el => this.attach(el));
+    }
+};
+
+window.metaforge.ui = window.metaforge.ui || {};
+window.metaforge.ui.initCommonComponents = function() {
+    window.MFScrollbar.autoAttachAll();
+};
+
 // --- CENTRALIZED EVENT DELEGATION & SANITIZATION ---
 
 function setupGlobalNavigationListeners() {

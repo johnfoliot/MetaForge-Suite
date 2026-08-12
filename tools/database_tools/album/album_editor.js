@@ -359,13 +359,23 @@ window.metaforge.database_tools.album = {
             list.map(v => `<option value="${this.escapeHTML(v)}" ${v === current ? 'selected' : ''}>${this.escapeHTML(v)}</option>`)
         ).join('');
 
+        // Wrapper takes over the fixed positioning/sizing role; modal itself
+        // becomes a plain flex:1 child alongside the custom scrollbar. This
+        // modal is created dynamically (not present at tool-load time), so
+        // MFScrollbar.attach() is called explicitly below rather than
+        // relying on autoAttachAll() (which only runs once, on tool load).
+        const modalOuter = document.createElement('div');
+        modalOuter.id = "track-detail-modal-outer";
+        modalOuter.style = "position:fixed; top:6%; left:26%; width:48%; max-height:88vh; display:flex; z-index:10000; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
+
         const modal = document.createElement('div');
         modal.id = "track-detail-modal";
+        modal.className = "mf-hide-native-scrollbar";
         modal.setAttribute('role', 'dialog');
         modal.setAttribute('aria-modal', 'true');
         modal.setAttribute('aria-labelledby', 'track-detail-title');
         modal.dataset.filePath = filePath;
-        modal.style = "position:fixed; top:6%; left:26%; width:48%; max-height:88vh; overflow-y:auto; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
+        modal.style = "flex:1; overflow-y:auto; background:var(--bg-main); border:1px solid var(--mf-gold); border-right:none; padding:20px;";
         modal.innerHTML = `
             <h3 id="track-detail-title" style="color:var(--mf-gold); margin-top:0;">Track Detail: ${this.escapeHTML(track.title || filePath.split('/').pop())}</h3>
 
@@ -438,7 +448,21 @@ window.metaforge.database_tools.album = {
                 <button type="button" class="mf-button-gold-fixed" id="tm-cancel-btn">Cancel</button>
             </div>
         `;
-        document.body.appendChild(modal);
+
+        const scrollbar = document.createElement('div');
+        scrollbar.className = 'mf-custom-scrollbar';
+        scrollbar.setAttribute('role', 'scrollbar');
+        scrollbar.setAttribute('aria-controls', 'track-detail-modal');
+        scrollbar.setAttribute('aria-orientation', 'vertical');
+        scrollbar.setAttribute('aria-valuemin', '0');
+        scrollbar.setAttribute('aria-valuemax', '100');
+        scrollbar.setAttribute('aria-valuenow', '0');
+        scrollbar.innerHTML = '<button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button><div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div><button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>';
+
+        modalOuter.appendChild(modal);
+        modalOuter.appendChild(scrollbar);
+        document.body.appendChild(modalOuter);
+        if (window.MFScrollbar) window.MFScrollbar.attach(scrollbar);
 
         this.populateTrackSubGenres(track.genre, track.sub_genre);
         document.getElementById('tm-genre').addEventListener('change', (e) => this.populateTrackSubGenres(e.target.value, null));
@@ -463,8 +487,11 @@ window.metaforge.database_tools.album = {
     },
 
     closeTrackModal: function() {
-        const modal = document.getElementById('track-detail-modal');
-        if (modal) modal.remove();
+        // Removes the outer wrapper (which also contains the custom
+        // scrollbar), not just the inner modal -- otherwise the wrapper
+        // and scrollbar would be orphaned in the DOM after "closing."
+        const modalOuter = document.getElementById('track-detail-modal-outer');
+        if (modalOuter) modalOuter.remove();
     },
 
     // Deliberately its own atomic action, independent of the modal's main

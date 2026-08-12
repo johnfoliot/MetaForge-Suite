@@ -41,7 +41,7 @@ window.metaforge.intelli_tagger = {
 
         // 2. Ingest Context from Global Orchestrator (10ms Paint Guard)
         setTimeout(() => this.ingestContext(), 10);
-        
+
         // 3. Setup Re-entry Watcher (MutationObserver)
         this.setupReentryWatcher();
     },
@@ -262,6 +262,9 @@ window.metaforge.intelli_tagger = {
         if (startBtn) startBtn.disabled = true;
 
         consoleBox.innerHTML = '';
+        // No explicit scrollbar sync needed here -- MFScrollbar's
+        // MutationObserver (metaforge_core.js) auto-detects this console
+        // reset and resyncs the shared custom scrollbar itself.
 
         const payload = {
             path: path,
@@ -448,6 +451,9 @@ window.metaforge.intelli_tagger = {
         });
         this.state.observer.observe(stage, { childList: true });
     }
+    // Custom scrollbar for #it-console is no longer wired here -- it now
+    // uses the shared MFScrollbar utility (metaforge_core.js), auto-
+    // attached via intelli-tagger.mfi's .mf-custom-scrollbar markup.
 };
 
 // Auto-boot

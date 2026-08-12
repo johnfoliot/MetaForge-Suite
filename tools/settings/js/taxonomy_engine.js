@@ -38,38 +38,61 @@ window.metaforge.settings.taxonomy = {
         const activeParent = window.metaforge.settings.state.activeParentGenre;
         const parents = Object.keys(data).sort();
         
+        // Custom scrollbars, shared implementation (layout.css section 10 /
+        // metaforge_core.js's MFScrollbar). This whole block is rebuilt via
+        // innerHTML on every render() call (genre selection, add, etc.), so
+        // the scrollbars need re-attaching every time too, not just once --
+        // see the explicit attach() calls at the end of this function.
         let html = `
             <div style="display: flex; gap: 20px; min-height: 450px;">
                 <!-- SECTION 1: Genre List -->
-                <section style="flex: 1; border-right: 1px solid var(--mf-gold); overflow-y: auto; padding-right: 15px;" aria-labelledby="mf-tax-genre-label">
-                    <h2 id="mf-tax-genre-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0 0 15px 0; border-bottom: 1px solid var(--mf-gold);">Genre</h2>
-                    <ul role="listbox" aria-labelledby="mf-tax-genre-label" style="list-style:none; padding:0;">
-                        ${parents.map(p => `
-                            <li role="option" tabindex="0" 
-                                class="taxonomy-item ${activeParent === p ? 'active' : ''}" 
-                                aria-selected="${activeParent === p}" 
-                                onclick="metaforge.settings.taxonomy.selectParent('${p}')" 
-                                onkeydown="if(event.key==='Enter'||event.key===' ') metaforge.settings.taxonomy.selectParent('${p}')">
-                                ${p}
-                            </li>
-                        `).join('')}
-                    </ul>
-                    <div style="margin-top:20px; border-top: 1px solid var(--bg-accent); padding-top: 10px;">
-                        <label class="data-text" for="new-parent-name" style="display:block;">Add category</label>
-                        <input type="text" id="new-parent-name" class="mf-input" placeholder="New genre..." style="margin-bottom: 5px;">
-                        <button class="mf-button-gold-fixed" onclick="metaforge.settings.taxonomy.addParent()">Add genre</button>
+                <section style="flex: 1; display: flex; min-height: 0;" aria-labelledby="mf-tax-genre-label">
+                    <div id="tax-genre-list" class="mf-hide-native-scrollbar" style="flex: 1; overflow-y: auto; border-right: 1px solid var(--mf-gold); padding-right: 15px;">
+                        <h2 id="mf-tax-genre-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0 0 15px 0; border-bottom: 1px solid var(--mf-gold);">Genre</h2>
+                        <ul role="listbox" aria-labelledby="mf-tax-genre-label" style="list-style:none; padding:0;">
+                            ${parents.map(p => `
+                                <li role="option" tabindex="0"
+                                    class="taxonomy-item ${activeParent === p ? 'active' : ''}"
+                                    aria-selected="${activeParent === p}"
+                                    onclick="metaforge.settings.taxonomy.selectParent('${p}')"
+                                    onkeydown="if(event.key==='Enter'||event.key===' ') metaforge.settings.taxonomy.selectParent('${p}')">
+                                    ${p}
+                                </li>
+                            `).join('')}
+                        </ul>
+                        <div style="margin-top:20px; border-top: 1px solid var(--bg-accent); padding-top: 10px;">
+                            <label class="data-text" for="new-parent-name" style="display:block;">Add category</label>
+                            <input type="text" id="new-parent-name" class="mf-input" placeholder="New genre..." style="margin-bottom: 5px;">
+                            <button class="mf-button-gold-fixed" onclick="metaforge.settings.taxonomy.addParent()">Add genre</button>
+                        </div>
+                    </div>
+                    <div class="mf-custom-scrollbar" id="tax-genre-scrollbar" role="scrollbar" aria-controls="tax-genre-list" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
                     </div>
                 </section>
 
                 <!-- SECTION 2: Sub-Genre List -->
-                <section style="flex: 2; overflow-y: auto;" aria-labelledby="mf-tax-subgenre-label">
-                    <h2 id="mf-tax-subgenre-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0 0 15px 0; border-bottom: 1px solid var(--mf-gold);">Sub-genre</h2>
-                    <div id="sub-genre-controls">
-                        ${this.renderSubControls()}
+                <section style="flex: 2; display: flex; min-height: 0;" aria-labelledby="mf-tax-subgenre-label">
+                    <div id="tax-subgenre-list" class="mf-hide-native-scrollbar" style="flex: 1; overflow-y: auto;">
+                        <h2 id="mf-tax-subgenre-label" style="color: var(--mf-gold); font-size: 1.2rem; margin: 0 0 15px 0; border-bottom: 1px solid var(--mf-gold);">Sub-genre</h2>
+                        <div id="sub-genre-controls">
+                            ${this.renderSubControls()}
+                        </div>
+                    </div>
+                    <div class="mf-custom-scrollbar" id="tax-subgenre-scrollbar" role="scrollbar" aria-controls="tax-subgenre-list" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
                     </div>
                 </section>
             </div>`;
         container.innerHTML = html;
+        if (window.MFScrollbar) {
+            window.MFScrollbar.attach('tax-genre-scrollbar');
+            window.MFScrollbar.attach('tax-subgenre-scrollbar');
+        }
     },
 
     /**

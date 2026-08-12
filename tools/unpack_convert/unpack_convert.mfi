@@ -112,64 +112,10 @@
         flex: 1;
         line-height: 1.4;
     }
-    .unpacker-console::-webkit-scrollbar {
-        display: none;
-    }
-
-    /* CUSTOM SCROLLBAR for #unpacker-console -- same pattern/reasoning as
-       Personnel Scout's .p-custom-scrollbar (see that file's comment for
-       the full history of why native ::-webkit-scrollbar-button was
-       abandoned). Sized to John's 2.5:1 height:width spec -- 16px wide,
-       so 40px tall buttons. */
-    .upk-custom-scrollbar {
-        width: 16px;
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        background: var(--bg-accent);
-        border: 1px solid #000;
-    }
-    .upk-scroll-btn {
-        width: 100%;
-        height: 40px;
-        flex-shrink: 0;
-        background: none;
-        border: none;
-        /* !important needed -- layout.css's global `button { color:
-           var(--input-foreground) !important; }` (meant for the app's
-           normal gold-background action buttons) otherwise silently wins
-           over this. Same fix as Personnel Scout's .p-scroll-btn. */
-        color: var(--mf-gold) !important;
-        font-size: 11px;
-        line-height: 40px;
-        text-align: center;
-        padding: 0;
-        cursor: pointer;
-    }
-    .upk-scroll-btn:hover {
-        color: var(--text-output) !important;
-    }
-    .upk-scroll-track {
-        flex: 1;
-        position: relative;
-        cursor: pointer;
-    }
-    .upk-scroll-thumb {
-        position: absolute;
-        left: 2px;
-        right: 2px;
-        background: var(--mf-gold);
-        border: 1px solid #000;
-        border-radius: 3px;
-        min-height: 20px;
-        cursor: grab;
-    }
-    .upk-scroll-thumb:hover {
-        background: var(--text-output);
-    }
-    .upk-scroll-thumb.dragging {
-        cursor: grabbing;
-    }
+    /* Custom scrollbar CSS (.mf-custom-scrollbar etc.) now lives shared
+       in layout.css section 10, not duplicated per-tool here.
+       #unpacker-console's own markup carries .mf-hide-native-scrollbar
+       to suppress its real native scrollbar. */
 
     /* --- ART GALLERY ARCHITECTURE --- */
     .art-selection-grid {
@@ -543,23 +489,19 @@
                 <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem; border-bottom: 1px solid var(--mf-gold);background-color:var(--bg-main); margin-top:-5px;padding-top:-30px;">Standing By</h2>
 			</div>
             <div id="upk-console-outer" style="flex: 1; display: flex; min-height: 0;">
-                <div id="unpacker-console" class="unpacker-console" aria-live="polite" style="padding:10px;">
+                <div id="unpacker-console" class="unpacker-console mf-hide-native-scrollbar" aria-live="polite" style="padding:10px;">
                     <div class="data-text" >Provide album details and select a source directory to begin.</div>
                 </div>
-                <!-- Custom scrollbar (John's report, 2026-08-11): same
-                     pattern built for Personnel Scout's #p-mapping-viewport
-                     -- real DOM, not native ::-webkit-scrollbar-button
-                     (which proved unreliable across four separate attempts
-                     there). Wired in unpack_convert.js's
-                     initCustomScrollbar()/syncScrollbar(). Tool-scoped
-                     `upk-` class names, not reused from personnel.mfi's
-                     `p-` classes, to avoid any cross-tool CSS collision. -->
-                <div class="upk-custom-scrollbar" id="upk-custom-scrollbar" role="scrollbar" aria-controls="unpacker-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="upk-scroll-btn" id="upk-scroll-up" aria-label="Scroll up" tabindex="-1" onclick="metaforge.unpack_convert.nudgeScroll(-1)">▲</button>
-                    <div class="upk-scroll-track" id="upk-scroll-track" onclick="metaforge.unpack_convert.trackClick(event)">
-                        <div class="upk-scroll-thumb" id="upk-scroll-thumb"></div>
+                <!-- Custom scrollbar, shared implementation (John's report,
+                     2026-08-11) -- see layout.css section 10 and
+                     metaforge_core.js's MFScrollbar for the full history
+                     and the shared CSS/JS. No per-tool JS needed. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="unpacker-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track">
+                        <div class="mf-scroll-thumb"></div>
                     </div>
-                    <button type="button" class="upk-scroll-btn" id="upk-scroll-down" aria-label="Scroll down" tabindex="-1" onclick="metaforge.unpack_convert.nudgeScroll(1)">▼</button>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
                 </div>
             </div>
         </div>

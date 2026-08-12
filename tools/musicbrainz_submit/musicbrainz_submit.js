@@ -721,8 +721,23 @@ window.metaforge.musicbrainz_submit = {
             <p style="font-size:0.75rem; color:var(--text-message);">
                 Every track is checked by default (MetaForge Studio's assumption is that an album-wide credit applies throughout). Uncheck any track you know this credit doesn't apply to -- unchecked tracks are marked skipped immediately, no need to step through each one individually.
             </p>
-            <div style="overflow-y:auto; flex:1; border-top:1px solid #333; border-bottom:1px solid #333; padding:8px 0; margin:8px 0;">
-                ${rows}
+            <div style="display:flex; flex:1; min-height:0; border-top:1px solid #333; border-bottom:1px solid #333; margin:8px 0;">
+                <div id="mbs-track-modal-rows" class="mf-hide-native-scrollbar" style="overflow-y:auto; flex:1; padding:8px 0;">
+                    ${rows}
+                </div>
+                <!-- Custom scrollbar, shared implementation -- see
+                     layout.css section 10 / metaforge_core.js's
+                     MFScrollbar. Dynamically created (like this whole
+                     modal), so attach() is called explicitly below
+                     rather than relying on autoAttachAll(), which only
+                     runs once on tool load. -->
+                <div class="mf-custom-scrollbar" id="mbs-track-modal-scrollbar" role="scrollbar" aria-controls="mbs-track-modal-rows" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track">
+                        <div class="mf-scroll-thumb"></div>
+                    </div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                </div>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
                 <button class="mf-button-gold-fixed" onclick="window.metaforge.musicbrainz_submit.confirmTrackSelection('${esc(key).replace(/'/g, "\\'")}')">Confirm Selection</button>
@@ -731,6 +746,7 @@ window.metaforge.musicbrainz_submit = {
             </div>
         `;
         document.body.appendChild(modal);
+        if (window.MFScrollbar) window.MFScrollbar.attach('mbs-track-modal-scrollbar');
     },
 
     confirmTrackSelection: async function(key) {
