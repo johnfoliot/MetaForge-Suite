@@ -77,7 +77,24 @@
         <div class="bio-right-panel">
             <div class="bio-form-group h-100">
                 <label for="bio-text-editor" class="bio-label">Biography Editor Workspace</label>
-                <textarea id="bio-text-editor" class="bio-textarea-field" placeholder="Artist background details..."></textarea>
+                <div id="bio-text-outer" style="flex: 1; display: flex; min-height: 0;">
+                    <textarea id="bio-text-editor" class="bio-textarea-field mf-hide-native-scrollbar" placeholder="Artist background details..."></textarea>
+                    <!-- Custom scrollbar, shared implementation -- see
+                         layout.css section 10 / metaforge_core.js's
+                         MFScrollbar. A textarea's content changes via its
+                         .value property, not child DOM nodes, so the
+                         MutationObserver MFScrollbar.attach() relies on
+                         for auto-resync never fires here -- biography.js
+                         dispatches a synthetic 'scroll' event after every
+                         .value assignment instead, which reaches the same
+                         internal sync() through the scroll listener
+                         attach() already sets up. -->
+                    <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-text-editor" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -100,7 +117,7 @@ div[aria-checked="true"]#bio-profile-toggle .mf-toggle-knob { transform: transla
 .bio-label { font-family: 'Cascadia Code', monospace; color: var(--mf-gold); font-size: 0.95rem; margin-bottom: 6px; font-weight: bold; }
 .bio-input-row { display: flex; gap: 10px; align-items: center; }
 .bio-input-field { flex: 1; height: 34px; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 0 10px; font-family: inherit; font-size: 0.95rem; }
-.bio-textarea-field { flex: 1; width: 100%; height: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
+.bio-textarea-field { flex: 1; width: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; border-right: none; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
 .bio-btn-amber { height: 34px; padding: 0 20px; background-color: var(--mf-gold); color: #000000; border: 1px solid var(--mf-gold); font-family: inherit; font-weight: bold; cursor: pointer; }
 .bio-btn-amber:disabled { background-color: #555555; color: #888888; border-color: #444444; cursor: not-allowed; }
 #bio-candidates-outer { margin-top: 8px; display: flex; max-height: 180px; }

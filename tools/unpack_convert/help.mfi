@@ -2,7 +2,7 @@
 <!-- --- UNPACK & CONVERT HELP DOCUMENTATION --- -->
 <div class="mf-help-panel">
     <h3 class="help first">What it does:</h3>
-    <p class="help">The Unpack &amp; Convert tool is the pre-production entry point for new music into your MetaForge library. It acts as a professional ingestion engine, transforming raw downloads and legacy archives into standardized, clean audio files ready for additional tagging ("Clean Room state").</p> 
+    <p class="help">Unpack &amp; Convert unboxes .cue, .wv, .zip, .rar, and .iso (SACD or raw Audio-CD image) files, and converts them to the high-quality .mp3 VBR (V0) format. It then applies an intelligent 'clean-up', leaving your album folders in pristine shape and ready for continued tagging.</p> 
 	
 	<div class="tool_notes" style="margin-top: 20px; padding: 12px; border-left: 4px solid var(--mf-gold);">
     <h3 class="help">How to use this tool:</h3> 

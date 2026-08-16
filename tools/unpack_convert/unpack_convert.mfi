@@ -300,25 +300,18 @@
         width: 100%;
     }
 
-    /* --- Filing Category lock toggle ---
-       Lets John pin the Category select across multiple albums by the
-       same artist instead of re-picking it every time. Locked = read-only
-       (matches the padlock metaphor -- unlock to change it), and the
-       locked value/state is remembered at the JS-module level (see
-       toggleCategoryLock in unpack_convert.js) so it survives navigating
-       away to another tool and back, which fully rebuilds this DOM. */
     .upk-field-wrap { position: relative; }
 
     .upk-lockable-select {
         appearance: none;
         -webkit-appearance: none;
+    }
+    .upk-lockable-select,
+    .upk-lockable-input {
         padding-right: 34px !important;
     }
-    .upk-lockable-select:disabled {
-        /* John's report, 2026-08-11: locking should only change the
-           button's appearance, not the field itself -- removed the
-           background swap that used to make the whole input go grey. */
-        opacity: 1; /* stay fully legible while locked, not greyed out */
+    .upk-lockable-select:disabled,
+    .upk-lockable-input:disabled {
         cursor: default;
     }
 
@@ -335,26 +328,12 @@
         border: none;
         cursor: pointer;
         padding: 0;
-        /* John's report, 2026-08-11: the icon vanished after choosing a
-           category. Root cause -- layout.css's global :focus-visible rule
-           forces z-index:999 !important onto whatever's currently
-           focused, and the select regains focus the instant its native
-           dropdown closes. Since this button sits INSIDE the select's own
-           reserved right-padding area by design, the now-elevated select
-           painted its opaque white background right over it. Needs to
-           beat that 999, not just have "a" z-index. */
         z-index: 1000;
     }
     .upk-lock-icon {
         width: 15px;
         height: 15px;
         display: inline-block;
-        /* --input-foreground is theme-flipped (black in dark theme,
-           WHITE in light theme -- it's meant for text ON an accent-
-           colored button, not an icon sitting on the always-white input
-           field). Using it here was invisible in light theme (1:1).
-           --input-foreground2 is the correct one -- fixed black in both
-           themes, same variable the sibling text inputs already use. */
         background-color: var(--input-foreground2);
         -webkit-mask-image: url('/ui/images/un-lock.svg');
         mask-image: url('/ui/images/un-lock.svg');
@@ -368,13 +347,6 @@
         background-color: var(--mf-gold);
     }
     .upk-lock-btn.locked {
-        /* John's report, 2026-08-11: gold-on-white was only 2.58:1,
-           below the 3:1 non-text minimum -- verified via the real WCAG
-           relative-luminance formula, not eyeballed. bg-stage behind the
-           icon fixes that (5.18:1 dark theme). The border is needed too:
-           bg-stage vs the white field is only 1.50:1 in light theme --
-           without it the button barely reads as a distinct control
-           there, even though the icon-on-button contrast itself is fine. */
         background: var(--bg-stage);
         border: 1px solid #000;
         border-radius: 4px;
@@ -391,7 +363,7 @@
 <section class="unpack_convert-description" aria-labelledby="unpack_convert-info-label">
     <h2 id="unpack_convert-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-		<p class="data-text tool_notes">Unpack &amp; Convert unboxes .cue, .wv, .zip, .rar, and .iso (SACD or raw Audio-CD image) files, and converts them to the high-quality .mp3 VBR (V0) format.<br>It then applies an intelligent 'clean-up', leaving your album folders in pristine shape and ready for continued tagging.</p>
+		<p class="data-text tool_notes">&nbsp;</p>
         <button class="mf-button-gold-fixed" 
                 style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
                 onclick="metaforge.unpack_convert.openHelp()" 
@@ -417,16 +389,22 @@
                             <button type="button" class="mf-button-gold-fixed" onclick="metaforge.unpack_convert.pickFolder()">Browse</button>
 						</div>
                     </div>
-
-                    <div class="interview-group">
-                        <label for="upk-artist">Filing Artist (Required)</label>
-                        <input type="text" id="upk-artist" class="mb-input-text" style="color:var(--input-foreground2)" placeholder="e.g. Pink Floyd" required>
-                    </div>
-
-                    <div class="interview-group">
+					
+					<div class="interview-group">
                         <label for="upk-album">Album Title (Required)</label>
                         <input type="text" id="upk-album" class="mb-input-text" style="color:var(--input-foreground2)" placeholder="e.g. The Dark Side Of the Moon" required>
                     </div>
+					
+
+                    <div class="interview-group">
+                        <label for="upk-artist">Filing Artist (Required)</label>
+                        <div class="upk-field-wrap">
+                            <input type="text" id="upk-artist" class="mb-input-text upk-lockable-input" style="color:var(--input-foreground2)" placeholder="e.g. Pink Floyd" required>
+                            <button type="button" id="upk-artist-lock" class="upk-lock-btn" aria-pressed="false" aria-label="Lock Filing Artist so it stays set for the next album" title="Lock Filing Artist" onclick="metaforge.unpack_convert.toggleArtistLock()">
+                                <span class="upk-lock-icon" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    </div>                   
 
                     <div id="enhanced-section" class="interview-group" style="display: none;">
                         <label for="upk-category">Filing Category (Required)</label>

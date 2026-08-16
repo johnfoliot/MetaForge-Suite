@@ -14,12 +14,22 @@
         gap: 20px;
     }
 
-    /* Silo 1: Discovery (40% Fixed) */
+    /* Silo 1: Discovery (40% Fixed)
+       Real bug, John's report 2026-08-14: this used to set
+       `align-items: flex-start`, which overrides flexbox's default
+       cross-axis stretch -- so the row wrapping #mb-results-viewport +
+       its scrollbar shrank to fit its own content instead of filling
+       this silo's fixed width. Sparse content ("Ready for Discovery")
+       shrank it noticeably narrower than the panel, reading as an
+       undersized box; wide result rows let it grow past the silo's
+       right edge, spilling into the Confirm Choice panel next door.
+       Left at the default stretch instead -- confirmed via an isolated
+       static repro (no live app involved) that this alone pins the row
+       to a constant width regardless of content. */
     .mb-discovery-silo {
         flex: 0 0 calc(40% - 10px);
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
         gap: 15px;
         min-width: 0;
     }
@@ -100,11 +110,19 @@
         background: var(--bg-main);
         border: 1px solid var(--bg-accent);
         overflow-y: auto;
+        overflow-x: hidden;
         min-height: 0;
     }
 
+    /* table-layout: fixed -- companion half of the same-day fix above.
+       Without it, auto layout lets a long unbroken word/title expand a
+       column past its declared <th style="width:..."> hint, forcing the
+       whole table wider than the viewport with no way to clip it.
+       Fixed layout makes columns honor their declared widths (Artist /
+       Album gets whatever's left over) and wrap/clip content instead. */
     .mb-table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: separate;
         border-spacing: 0;
         font-size: 0.7rem;
@@ -126,6 +144,11 @@
         border-bottom: 1px solid var(--bg-accent);
         color: var(--text-message);
         cursor: pointer;
+        /* table-layout: fixed stops the TABLE from growing past its
+           column widths, but a single unbroken word inside a cell could
+           still visually spill past that cell's own edge without this --
+           forces it to break instead. */
+        overflow-wrap: break-word;
     }
 
     /* Selected candidate row -- confirms a click actually registered a
@@ -290,11 +313,11 @@
                     <table class="mb-table">
                         <thead>
                             <tr>
-                                <th style="width:40px;">Score</th>
+                                <th style="width:45px;">Score</th>
                                 <th>Artist / Album</th>
-                                <th style="width:60px;">Format</th>
+                                <th style="width:65px;">Format</th>
                                 <th style="width:40px;">Tracks</th>
-                                <th style="width:40px;">Year</th>
+                                <th style="width:45px;">Year</th>
                                 <th style="width:45px; text-align:center;">CC</th>
                             </tr>
                         </thead>
@@ -318,7 +341,7 @@
 
         <!-- SILO 2: ALIGNMENT & SYNC -->
         <div class="mb-confirm-silo">
-            <h2 class="mf-grid-heading" style="border-bottom:1px solid var(--mf-gold); padding-bottom:5px; margin-bottom:10px; font-size:1rem;">Confirm Choice</h2>
+            <h2 class="mf-grid-heading" style="border-bottom:1px solid var(--mf-gold); padding-bottom:5px; margin-bottom:10px; "><img src="ui/images/musicbrainz.svg" alt="" style="height:32px; width:auto;"> Confirm MusicBrainz Release</h2>
             <div id="mb-id-summary" style="font-family:var(--font-mono); font-size:0.6rem; color:var(--mf-gold); min-height:35px; margin-bottom:5px;">
                 Select a Release to view the MusicBrainz IDs
             </div>

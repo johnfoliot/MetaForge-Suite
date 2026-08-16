@@ -79,7 +79,8 @@ def execute_commit(
     if manifest_seeds is None:
         manifest_seeds = {}
 
-    yield '<div class="it-log-entry it-val-gold">✏️ Finalizing MP3 tags... <br><img src="ui/images/database.png" alt="" style="height:16px; width:auto;margin-bottom:-2px"> Writing to MetaForge database...</div>'
+    yield '<div class="it-log-entry it-val-gold" style="color:var(--mf-gold);"><img src="ui/images/metadata.png" alt="" style="width:32px; height:auto; margin-bottom:-6px; float:left; margin-right:6px;">Finalizing Metadata...</div>'
+    yield '<div style="margin-left:36px;">✍🏻 Writing MP3 tags... <br><img src="ui/images/database.png" alt="" style="height:16px; width:auto; margin-bottom:-2px"> Writing to MetaForge database...</div>'
 
     artist_name = manifest_seeds.get('artist')
     album_title = manifest_seeds.get('album')
@@ -269,7 +270,7 @@ def execute_commit(
     except Exception as e:
         yield f'<div class="it-log-entry it-val-red">Audit warning: {str(e)}</div>'
 
-    yield f'<div class="it-log-entry" style="margin-left:16px;">✅ {success_count} tracks finalized.</div>'
+    yield f'<div class="it-log-entry" style="margin-left:36px;">✅ {success_count} tracks finalized.</div>'
 
 
 # =========================================================

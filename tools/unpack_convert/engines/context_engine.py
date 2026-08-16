@@ -78,12 +78,22 @@ def handle_interview_fetch(env_path):
     if l_match:
         locked_category = l_match.group(1).strip().strip('"')
 
+    # 5. Locked Filing Artist (John's request, 2026-08-14: same lock
+    #    pattern as Filing Category, for the same reason -- a run of
+    #    consecutive albums by one artist shouldn't require retyping it
+    #    each time).
+    locked_artist = ""
+    a_match = re.search(r'MF_UNPACKER_LOCKED_ARTIST\s*=\s*"?([^"\r\n]*)', content)
+    if a_match:
+        locked_artist = a_match.group(1).strip().strip('"')
+
     return jsonify({
         "status": "success",
         "policy": policy,
         "categories": sorted(categories),
         "stored_consent": consent,
-        "locked_category": locked_category
+        "locked_category": locked_category,
+        "locked_artist": locked_artist
     })
 
 def write_audit_log(root, report_data):
@@ -177,6 +187,32 @@ def update_locked_category(env_path, category):
     content = target_env.read_text(encoding='utf-8')
     key = "MF_UNPACKER_LOCKED_CATEGORY"
     value = (category or "").strip()
+
+    pattern = re.compile(rf'^{key}\s*=.*$', re.MULTILINE)
+
+    if pattern.search(content):
+        new_content = pattern.sub(f'{key}="{value}"', content)
+    else:
+        new_content = content.rstrip() + f'\n{key}="{value}"\n'
+
+    target_env.write_text(new_content, encoding='utf-8')
+
+def update_locked_artist(env_path, artist):
+    """
+    Physically updates the .env file to persist the locked Filing Artist
+    (or clear it, when artist is empty/None) -- same surgical-regex
+    pattern as update_locked_category.
+    """
+    target_env = Path(env_path)
+    if not target_env.exists():
+        target_env = Path(os.getenv('APPDATA')) / "MetaForge" / ".env"
+
+    if not target_env.exists():
+        return
+
+    content = target_env.read_text(encoding='utf-8')
+    key = "MF_UNPACKER_LOCKED_ARTIST"
+    value = (artist or "").strip()
 
     pattern = re.compile(rf'^{key}\s*=.*$', re.MULTILINE)
 

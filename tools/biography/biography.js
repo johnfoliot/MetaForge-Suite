@@ -30,7 +30,7 @@ window.metaforge.biography = {
         const img = document.getElementById('bio-img-element');
         
         if (artistIn) artistIn.value = "";
-        if (bioEd) bioEd.value = "";
+        if (bioEd) { bioEd.value = ""; bioEd.dispatchEvent(new Event('scroll')); }
         if (img) img.src = '/ui/images/no-photo.png';
         this.hideCandidates();
 
@@ -152,7 +152,13 @@ window.metaforge.biography = {
             const result = await res.json();
             if (result.status === 'success') {
                 this.currentArtist = result.data;
-                document.getElementById('bio-text-editor').value = result.data.biography || "";
+                const bioEd = document.getElementById('bio-text-editor');
+                bioEd.value = result.data.biography || "";
+                // MutationObserver never fires for a textarea's .value
+                // assignment -- see biography.mfi's comment on this
+                // element's custom scrollbar wiring -- so the resync has
+                // to be forced explicitly here.
+                bioEd.dispatchEvent(new Event('scroll'));
                 document.getElementById('bio-img-element').src = result.data.md5_hash ? 
                     `/ui/artist_photo/${result.data.md5_hash}?t=${Date.now()}` : '/ui/images/no-photo.png';
                 
@@ -210,7 +216,9 @@ window.metaforge.biography = {
             });
             const result = await res.json();
             if (result.status === 'success') {
-                document.getElementById('bio-text-editor').value = result.biography;
+                const bioEd = document.getElementById('bio-text-editor');
+                bioEd.value = result.biography;
+                bioEd.dispatchEvent(new Event('scroll'));
                 document.getElementById('bio-img-element').src = `/ui/artist_photo/${result.md5_hash}?t=${Date.now()}`;
                 this.setButtonState('get', false);
                 this.setButtonState('save', true);

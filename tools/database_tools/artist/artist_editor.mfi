@@ -8,7 +8,20 @@
 
     <div id="multiple-matches-container" style="display: none; padding: 5px 0; color: var(--mf-gold);">
         <h2 style="font-size: 1.1rem; margin-bottom: 10px;">Matches identified. Select target identity:</h2>
-        <div id="matches-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <!-- John's report, 2026-08-12: this list previously had no height
+             boundary of its own, so a long result set silently fell
+             through to the whole-panel-level overflow (a plain native
+             scrollbar on #panel-artist), not a real, intentional one.
+             Bounded + given its own custom scrollbar, same as everywhere
+             else in this audit. -->
+        <div style="display: flex; max-height: 340px;">
+            <div id="matches-list" class="mf-hide-native-scrollbar" style="flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px;"></div>
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="matches-list" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
+        </div>
     </div>
 
     <div id="artist-workspace" style="display: none; grid-template-columns: 400px 240px 1fr; gap: 20px; padding-top: 10px; flex: 1; overflow: hidden;">

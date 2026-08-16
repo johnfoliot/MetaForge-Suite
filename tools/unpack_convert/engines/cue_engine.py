@@ -31,7 +31,7 @@ def split_cue(root, artist, report_data):
 
     if discrete_count >= 2:
         if not report_data.get('extraction_occurred', False):
-            yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Discrete tracks detected ({discrete_count}). Unpacking not required.</div>'
+            yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px;">📦</span> Step 1: Discrete tracks detected ({discrete_count}). Unpacking not required.</div>'
             yield "<!-- PROGRESS:1:1:1 -->"
             report_data['extraction_occurred'] = True
         return
@@ -64,7 +64,7 @@ def split_cue(root, artist, report_data):
 
             # Header Control with Accessibility Guard
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:14px; width:auto;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {source_audio.name}</span></div>'
+                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {source_audio.name}</span></div>'
                 report_data['extraction_occurred'] = True
             else:
                 yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Splitting {source_audio.name}</div>'
@@ -106,7 +106,7 @@ def split_cue(root, artist, report_data):
 
                 if res.returncode == 0:
                     # FIX: Wrapped Outbox emoji in aria-hidden span
-                    yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
+                    yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:36px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
                     report_data['extraction']['count'] += 1
                     success_count += 1
                     yield f"<!-- PROGRESS:1:{i+1}:{total_tracks} -->"

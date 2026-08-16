@@ -20,7 +20,7 @@ def execute_cleanup(root, report_data):
     2. Deletes non-standard files (preserving failed conversions). 
     3. Performs a final discovery of the /art folder to signal Step 4.
     """
-    yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cleanup.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 3: Cleaning Album Folder...</div>'
+    yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cleaned.png" alt="" aria-hidden="true" style="margin-left:3px; height:34px; width:auto; margin-bottom:-12px;"> Step 3: Cleaning Album Folder...</div>'
 
     if 'artwork' not in report_data:
         report_data['artwork'] = []
@@ -96,9 +96,9 @@ def execute_cleanup(root, report_data):
     # 4. REPORTING
     total_art_discovered = len(report_data['artwork'])
     if total_art_discovered > 0:
-        yield f'<div class="status-message" style="color:var(--text-output); margin-left: 1rem;"><span aria-hidden="true">🖼️</span> Art Discovery: {total_art_discovered} image(s) available in /art.</div>'
+        yield f'<div class="status-message" style="color:var(--text-output); margin-left: 36px;"><span aria-hidden="true" style="font-size:16px;">🖼️</span> Art Discovery: {total_art_discovered} image(s) available in /art.</div>'
     
-    yield f'<div class="status-message" style="color:var(--text-message); margin-left: 1rem;"><span aria-hidden="true">🧹</span> Cleanup: {len(report_data["deletions"])} legacy files deleted.</div>'
+    yield f'<div class="status-message" style="color:var(--text-message); margin-left: 36px;"><span aria-hidden="true">🧹</span> Cleanup: {len(report_data["deletions"])} legacy files deleted.</div>'
     
     if preserved_count > 0:
         yield f'<div class="status-error" style="margin-top:5px;"><span aria-hidden="true">⚠️</span> SAFETY ALERT: {preserved_count} source file(s) were preserved because conversion failed. Check MetaForge.log.</div>'

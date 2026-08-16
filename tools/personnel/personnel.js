@@ -15,6 +15,47 @@ window.metaforge.personnel = {
         pendingVerifyIdx: null
     },
 
+    // Human-readable names for aria-labels, keyed the same as the
+    // p-src-{key}-btn/-check element id convention.
+    _sourceLabels: { mb: 'MusicBrainz', wiki: 'Wikipedia', discogs: 'Discogs', allmusic: 'AllMusic' },
+
+ 
+    _markSourceChecked: function(key, found) {
+        const btn = document.getElementById(`p-src-${key}-btn`);
+        const badge = document.getElementById(`p-src-${key}-check`);
+        if (btn) btn.style.display = 'none';
+        if (!badge) return;
+        badge.style.display = 'inline-flex';
+        const label = this._sourceLabels[key] || key;
+        if (found) {
+            badge.className = 'p-scout-check p-scout-found';
+            badge.textContent = '✓';
+            badge.setAttribute('aria-label', `${label}: credits found`);
+        } else {
+            badge.className = 'p-scout-check p-scout-none';
+            badge.textContent = '';
+            badge.setAttribute('aria-label', `${label}: checked, nothing found`);
+        }
+    },
+
+    // Called whenever a new album folder loads (this tool processes many
+    // albums back to back) -- without this, a badge earned on album #1
+    // would incorrectly still show as checked on album #2, which has
+    // never actually had any of these sources checked yet.
+    _resetSourceChecks: function() {
+        ['mb', 'wiki', 'discogs', 'allmusic'].forEach(key => {
+            const btn = document.getElementById(`p-src-${key}-btn`);
+            const badge = document.getElementById(`p-src-${key}-check`);
+            if (btn) btn.style.display = '';
+            if (badge) {
+                badge.style.display = 'none';
+                badge.className = 'p-scout-check';
+                badge.textContent = '';
+                badge.removeAttribute('aria-label');
+            }
+        });
+    },
+
     init: function() {
         setTimeout(() => {
             const h1 = document.querySelector('h1.main');
@@ -23,13 +64,7 @@ window.metaforge.personnel = {
         }, 50);
     },
 
-    // Same pattern as tools/biography/biography.js's toggleLoading()
-    // (John, 2026-07-09) -- reused deliberately. `text` lets the overlay
-    // say what's actually happening instead of a fixed generic message,
-    // since the automatic waterfall can be doing genuinely different
-    // things (MB+Discogs lookup vs. an AI grounded search) at different
-    // points, and the small status-bar text alone read as a hang, not
-    // progress.
+
     toggleLoading: function(show, text) {
         const overlay = document.getElementById('p-loading-overlay');
         if (!overlay) return;
@@ -73,6 +108,10 @@ window.metaforge.personnel = {
 
     getFolderContext: async function(path) {
         if (!path) return;
+        // Reset before the new folder's data even arrives -- a new album
+        // means none of the 4 sources have been checked yet, regardless
+        // of what the previous album left behind.
+        this._resetSourceChecks();
         try {
             const response = await fetch('/run_tool_logic/personnel/get_folder_context', {
                 method: 'POST',
@@ -85,10 +124,6 @@ window.metaforge.personnel = {
                 document.getElementById('p-album-input').value = data.context.album_seed || "";
                 document.getElementById('p-year-input').value = data.context.release_year || "";
                 this.updateStatus("Directory context loaded from manifest.", "success");
-                // Automatic Tier 1+2 (MB+Discogs merged, falling back to
-                // Wikipedia if thin) -- no click required, mirrors the
-                // "Optional: Add Personnel" hand-off already being
-                // automatic up to this point.
                 this.resolveWaterfall();
             }
         } catch (err) {
@@ -125,6 +160,18 @@ window.metaforge.personnel = {
                 // MANUAL_CONFIRM_CONFIDENCE here that could drift.
                 this.state.manualConfirmConfidence = data.manual_confirm_confidence;
                 this.renderMapping();
+                // MB+Discogs is one merged call from the frontend's
+                // perspective (no separate per-source completion signal),
+                // but each staged credit still carries its own real
+                // provenance -- computing per-source counts from that
+                // (John's report, 2026-08-13) is what lets the two
+                // sources show genuinely different outcomes instead of
+                // both getting an identical checkmark regardless of
+                // which one actually contributed anything.
+                const mbCount = this.state.mapping.filter(c => c.provenance === 'MusicBrainz').length;
+                const discogsCount = this.state.mapping.filter(c => c.provenance === 'Discogs').length;
+                this._markSourceChecked('mb', mbCount > 0);
+                this._markSourceChecked('discogs', discogsCount > 0);
                 if (this.state.mapping.length === 0) {
                     this.updateStatus("No automatic matches found -- try Wikipedia search or Check AllMusic below.", "error");
                 } else if (data.thin) {
@@ -168,7 +215,19 @@ window.metaforge.personnel = {
                 body: JSON.stringify({ artist, album, year })
             });
             const data = await res.json();
-            if (data.status === "success" && data.results.length > 0) {
+            // Badge shown regardless of result count -- but only here,
+            // after a real completed response, not from the catch block
+            // below on an outright network failure (see
+            // _markSourceChecked's own comment). Wikipedia surfaces
+            // candidates for manual review rather than adding credits
+            // directly, so "found" here means "found candidates," a
+            // genuinely different kind of result than MB/Discogs/AllMusic's
+            // direct credit counts -- still the right question to ask
+            // ("did anything show up"), just worth remembering it's not
+            // literally a credit count for this one source.
+            const wikiFound = data.status === "success" && data.results.length > 0;
+            this._markSourceChecked('wiki', wikiFound);
+            if (wikiFound) {
                 this.renderCandidates(data.results);
                 this.updateStatus(`Identified ${data.results.length} relevance matches.`, "success");
             } else {
@@ -497,11 +556,31 @@ window.metaforge.personnel = {
                  style="min-height:100px; border:1px solid #444; background:var(--input-background2); color:var(--input-foreground2); padding:8px; overflow-y:auto; max-height:150px;"
                  onpaste="window.metaforge.personnel.handleAllMusicPaste(event)"></div>
             <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button class="mf-button-gold-fixed" style="background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;" onclick="document.getElementById('p-allmusic-modal').remove()">Close</button>
+                <button class="mf-button-gold-fixed" style="background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;" onclick="window.metaforge.personnel.closeAllMusicModal()">Close</button>
             </div>
         `;
         document.body.appendChild(modal);
         document.getElementById('p-allmusic-paste-target').focus();
+    },
+
+    // Closes the AllMusic paste modal AND ensures the source-status badge
+    // reflects that AllMusic was genuinely checked (John's report,
+    // 2026-08-13). Reached two ways: the user manually clicks Close
+    // without ever pasting anything, or the zero-results branch of
+    // handleAllMusicPaste() below closes it automatically instead of
+    // leaving it sitting open waiting for a manual click. Either way, by
+    // the time this runs the source was genuinely attempted --
+    // checkAllMusic() already opened the real companion search tab
+    // before this modal ever appeared -- so leaving the original "Check
+    // AllMusic" button in place afterward would misrepresent whether the
+    // source was ever looked at. Only ever called on a not-found/never-
+    // pasted path (the success path removes the modal itself, having
+    // already marked the badge "found" first), so unconditionally
+    // marking "not found" here is always correct, not a guess.
+    closeAllMusicModal: function() {
+        const modal = document.getElementById('p-allmusic-modal');
+        if (modal) modal.remove();
+        this._markSourceChecked('allmusic', false);
     },
 
     handleAllMusicPaste: async function(event) {
@@ -538,7 +617,15 @@ window.metaforge.personnel = {
                 body: JSON.stringify({ html, plain })
             });
             const data = await res.json();
-            if (data.status === "success" && data.candidates.length > 0) {
+            // Badge shown regardless of result count -- but only here,
+            // after a real completed response, not from the catch block
+            // below on an outright parse/network failure (see
+            // _markSourceChecked's own comment) -- nor on the empty-
+            // clipboard early return above, since nothing was actually
+            // sent to the backend there.
+            const allmusicFound = data.status === "success" && data.candidates.length > 0;
+            this._markSourceChecked('allmusic', allmusicFound);
+            if (allmusicFound) {
                 // Candidates arrive already junk-filtered and classified
                 // (relation_type/confidence/evidence_scope/evidence_detail
                 // included) -- carry all of it through, not just name/role,
@@ -551,14 +638,32 @@ window.metaforge.personnel = {
                 const modal = document.getElementById('p-allmusic-modal');
                 if (modal) modal.remove();
             } else {
-                // The outcome must land inside the still-open modal, not just
-                // the page's status bar underneath it -- John flagged (2026-07-08)
-                // that a sighted user has to notice text behind an open modal,
-                // and a screen reader focused in the modal's DOM never reaches
-                // it at all. Same reasoning applies to the catch block below.
+                // John's report, 2026-08-13: a zero-result paste used to
+                // leave the modal sitting open forever, requiring a
+                // manual Close click before the source-status badge
+                // would ever update -- now auto-closes via
+                // closeAllMusicModal(), which also marks the badge.
+                // Deliberately NOT applied to the catch block below (a
+                // genuine network/parse failure, not a real "checked,
+                // found nothing" outcome) -- that path stays open so the
+                // user can retry, same reasoning as everywhere else this
+                // session that a technical failure shouldn't be treated
+                // as a completed check.
+                //
+                // This does trade away part of the original 2026-07-08
+                // fix's reasoning (the message living INSIDE the modal so
+                // a sighted user can't miss it behind a closed dialog,
+                // and so a screen reader focused in the modal's DOM
+                // actually reaches it) -- the same message still reaches
+                // the page's own aria-live status region via
+                // updateStatus() below, but that's a different, less
+                // immediate channel than text inside the dialog someone
+                // was already looking at. Flagging this rather than
+                // silently overriding a previous explicit design call.
                 const msg = data.message || "No credits found in pasted content.";
                 if (target) target.innerText = msg;
                 this.updateStatus(msg, "error");
+                this.closeAllMusicModal();
             }
         } catch (e) {
             if (target) target.innerText = "AllMusic parse failed -- try copying the table again.";
@@ -601,7 +706,7 @@ window.metaforge.personnel = {
             const data = await res.json();
 
             if (res.ok && data.status === "success") {
-                this.updateStatus(`✅ Success: ${data.count} edges committed.`, "success");
+                this.updateStatus(`<img src="/ui/images/support.png" alt="" aria-hidden="true" style="width:auto; height:64px; float:left; margin-right:8px; margin-top:-15px!important;"> ${data.count} support artists committed to the database.`, "success", true);
                 setTimeout(() => {
                     alert(`Transaction Complete: ${data.count} personnel records successfully written to the database.`);
                 }, 100);
@@ -617,10 +722,15 @@ window.metaforge.personnel = {
         }
     },
 
-    updateStatus: function(msg, type) {
+    // isHtml defaults false so every existing call site (several of
+    // which pass through server/DB-sourced text, e.g. data.message or
+    // result.verification_tier) keeps using innerText exactly as before.
+    // Only a call that explicitly opts in with isHtml=true -- a fully
+    // hardcoded template, never raw external content -- gets innerHTML.
+    updateStatus: function(msg, type, isHtml) {
         const el = document.getElementById('p-status-text');
         if (!el) return;
-        el.innerText = msg;
+        if (isHtml) { el.innerHTML = msg; } else { el.innerText = msg; }
         el.style.color = (type === "success") ? "var(--status-success)" : "var(--status-error)";
     }
     // Custom scrollbar for #p-mapping-viewport is no longer wired here --

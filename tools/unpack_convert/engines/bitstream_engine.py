@@ -50,7 +50,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
     """
     Identifies audio targets and executes conversion or normalization.
     """
-    yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:15px; width:auto;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
+    yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
 
     if 'failed_targets' not in report_data:
         report_data['failed_targets'] = []
@@ -131,7 +131,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
                 report_data['failed_targets'].append(f_p.name)
         else:
             mp3_path = _rename_existing_mp3(f_p, artist, filing_id, extracted_title)
-            yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:20px;"><span aria-hidden="true">✨</span> Converted: {mp3_path.name}</div>'
+            yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:36px;"><span aria-hidden="true">✨</span> Converted: {mp3_path.name}</div>'
 
         # 5. METADATA ENFORCEMENT
         if mp3_path:
@@ -147,7 +147,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             _enforce_metadata_truth(mp3_path, artist, album, extracted_title, metadata_track, category, disc_num, total_discs, is_multidisc)
 
             status_suffix = f"(Disc {disc_num}, Track {metadata_track})" if is_multidisc else f"(Track {metadata_track})"
-            yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px; margin-bottom:10px;"><span aria-hidden="true">🧼</span> Metadata Cleaned: {mp3_path.name} {status_suffix}</div>'
+            yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:36px; margin-bottom:10px;"><span aria-hidden="true">🧼</span> Metadata Cleaned: {mp3_path.name} {status_suffix}</div>'
             
             if mp3_path.name not in report_data['conversion']:
                 report_data['conversion'].append(mp3_path.name)
@@ -211,7 +211,7 @@ def _convert_to_mp3(f_path, artist, filing_id, title, do_norm, report_data):
                 os.remove(f_path)
             except: pass
             
-        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:20px;"><span aria-hidden="true">✨</span> Converted: {out_name}</div>'
+        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:36px;"><span aria-hidden="true">✨</span> Converted: {out_name}</div>'
         if do_norm:
             yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px;"><span aria-hidden="true">⚖️</span> Normalized: {out_name}</div>'
     else:

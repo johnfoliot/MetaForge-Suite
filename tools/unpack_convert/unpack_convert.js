@@ -22,6 +22,8 @@ window.metaforge.unpack_convert = {
     // only module-level state survives that round trip.
     categoryLocked: false,
     lockedCategoryValue: "",
+    artistLocked: false,
+    lockedArtistValue: "",
 
     toTitleCase: function(str) {
         if (!str) return "";
@@ -84,6 +86,19 @@ window.metaforge.unpack_convert = {
                 } else {
                     if (enhancedPanel) enhancedPanel.style.display = 'none';
                 }
+
+                // Restore the Filing Artist lock the same way Filing
+                // Category's is restored just above -- persisted to disk
+                // so it survives navigating away to another tool and back,
+                // which fully rebuilds this DOM.
+                if (data.locked_artist) {
+                    this.artistLocked = true;
+                    this.lockedArtistValue = data.locked_artist;
+                } else {
+                    this.artistLocked = false;
+                    this.lockedArtistValue = "";
+                }
+                this.applyArtistLockState();
 
                 if (data.stored_consent === true) {
                     if (consentGate) consentGate.style.display = 'none';
@@ -156,8 +171,8 @@ window.metaforge.unpack_convert = {
 
             let galleryHTML = `
                 <div id="upk-step4-wrapper" style="margin-top:20px; border-top:2px solid var(--bg-accent); padding-top:15px;">
-                    <div class="status-api">🖼️ Step 4: Album Cover Selection</div>
-                    <div class="data-text" style="margin-bottom:10px;">Select the primary image to promote as folder.jpg</div>
+                    <div class="status-api"><span aria-hidden="true"><img src="/ui/images/cover.png" alt="" style="height:auto; width:32px; margin-bottom:-6px; margin-left:3px;"></span> Step 4: Album Cover Selection</div>
+                    <div class="data-text" style="margin-bottom:10px; margin-left:40px;">Select the primary image to promote as folder.jpg</div>
                     <div id="upk-art-gallery" class="art-selection-grid">
             `;
 
@@ -222,7 +237,18 @@ window.metaforge.unpack_convert = {
         const albumName = document.getElementById('upk-album').value;
 
         if (!this.selectedArtFile) return;
-        if (btn) btn.disabled = true;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Embedding Artwork...';
+        }
+
+        // Streaming, not a single blocking JSON response (John's report,
+        // 2026-08-14) -- same reader/decoder pattern as startProcessing()'s
+        // run_unpack consumption above, so this step's per-track embed
+        // loop shows live progress in the console instead of going silent
+        // for the whole duration.
+        let finalized = false;
+        let hadError = false;
 
         try {
             const res = await fetch('/run_tool_logic/unpack_convert/finalize_art', {
@@ -230,9 +256,27 @@ window.metaforge.unpack_convert = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ path: path, filename: this.selectedArtFile })
             });
-            const result = await res.json();
 
-            if (result.status === "success") {
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+
+                if (consoleBox) {
+                    consoleBox.insertAdjacentHTML('beforeend', chunk);
+                    consoleBox.scrollTop = consoleBox.scrollHeight;
+                }
+
+                if (!finalized && buffer.includes('<!-- FINALIZE_DONE:')) finalized = true;
+                if (!hadError && buffer.includes('<!-- FINALIZE_ERROR -->')) hadError = true;
+            }
+
+            if (finalized && !hadError) {
                 const step4Wrapper = document.getElementById('upk-step4-wrapper');
                 if (step4Wrapper) {
                     step4Wrapper.style.opacity = "0.5";
@@ -249,9 +293,19 @@ window.metaforge.unpack_convert = {
                 consoleBox.insertAdjacentHTML('beforeend', finalMessage);
                 this.injectHandoffButton(path);
                 consoleBox.scrollTop = consoleBox.scrollHeight;
+            } else if (btn) {
+                // Real failure (bad source image, disk error, etc.) -- leave
+                // the gallery selectable so the user can retry instead of
+                // getting stuck behind a permanently disabled button.
+                btn.disabled = false;
+                btn.textContent = 'Confirm Cover';
             }
         } catch (err) {
             if (consoleBox) consoleBox.insertAdjacentHTML('beforeend', `<div class="status-error">❌ Promotion Error: ${err.message}</div>`);
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = 'Confirm Cover';
+            }
         } finally {
             const fieldset = document.getElementById('upk-fieldset');
             if (fieldset) fieldset.disabled = false;
@@ -378,6 +432,64 @@ window.metaforge.unpack_convert = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ category: this.lockedCategoryValue })
         }).catch(err => console.error("METAFORGE: Failed to persist category lock:", err));
+    },
+
+    /**
+     * Filing Artist lock -- same pattern and reasoning as
+     * applyCategoryLockState() above, just for a text input instead of a
+     * select. No "value no longer exists" check needed here (that was
+     * specific to the category select's fixed option list); a locked
+     * artist name is always valid to reapply as-is.
+     */
+    applyArtistLockState: function() {
+        const input = document.getElementById('upk-artist');
+        const btn = document.getElementById('upk-artist-lock');
+        if (!input || !btn) return;
+
+        if (!this.artistLocked) {
+            input.disabled = false;
+            btn.classList.remove('locked');
+            btn.setAttribute('aria-pressed', 'false');
+            btn.setAttribute('aria-label', 'Lock Filing Artist so it stays set for the next album');
+            btn.title = 'Lock Filing Artist';
+            return;
+        }
+
+        input.value = this.lockedArtistValue;
+        input.disabled = true;
+        btn.classList.add('locked');
+        btn.setAttribute('aria-pressed', 'true');
+        btn.setAttribute('aria-label', 'Unlock Filing Artist');
+        btn.title = 'Unlock Filing Artist';
+    },
+
+    toggleArtistLock: function() {
+        const input = document.getElementById('upk-artist');
+        if (!input) return;
+
+        if (this.artistLocked) {
+            this.artistLocked = false;
+            this.lockedArtistValue = "";
+        } else {
+            if (!input.value.trim()) {
+                // Nothing to lock yet -- same native validation-bubble
+                // approach as toggleCategoryLock().
+                input.focus();
+                input.reportValidity();
+                return;
+            }
+            this.artistLocked = true;
+            this.lockedArtistValue = input.value.trim();
+        }
+
+        this.applyArtistLockState();
+        this.validate();
+
+        fetch('/run_tool_logic/unpack_convert/set_locked_artist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ artist: this.lockedArtistValue })
+        }).catch(err => console.error("METAFORGE: Failed to persist artist lock:", err));
     },
 
     populateSelect: function(select, items) {

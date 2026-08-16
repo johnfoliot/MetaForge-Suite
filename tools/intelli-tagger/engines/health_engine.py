@@ -34,27 +34,19 @@ def check_health(root_path, health_summary=None):
 
     target_files = list(root_path.glob("**/*.mp3"))
     if not target_files:
-        yield '<div class="it-log-entry it-val-error" style="margin-left:1rem;">⚠️ No .mp3 files found in target directory.</div>'
+        yield '<div class="it-log-entry it-val-error" style="margin-left:36px;">⚠️ No .mp3 files found in target directory.</div>'
         return
 
-    yield f'<div class="it-log-entry it-val-gold" style="margin-top:10px;"><img src="ui/images/health.png" alt="" style="height:12px; width: auto;"> Running Health Check on {len(target_files)} tracks...</div>'
+    yield f'<div class="it-log-entry it-val-gold" style="margin-top:10px;"><img src="ui/images/health.png" alt="" style="height:32px; width: auto; margin-bottom:-12px;"> Running Health Check on {len(target_files)} tracks...</div>'
 
     repair_count = 0
     queued_count = 0
     vanished_count = 0
     for f in target_files:
-        # Real bug, found live 2026-07-21 (John's Matt Bianco box set report):
-        # a file that vanished between the initial glob (above) and this
-        # loop reaching it used to go straight into mp3val with no existence
-        # check -- whatever mp3val or the surrounding subprocess call did
-        # with a target that no longer existed was never observed, only its
-        # aftermath (empty disc folders). This is the earliest point
-        # anything in Intelli-Tagger touches the physical files, so it's
-        # the first place that must fail loud instead of silently
-        # continuing into a missing target.
+
         if not f.exists():
             vanished_count += 1
-            yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 MISSING BEFORE HEALTH CHECK: {f.name} was found by the initial scan but is gone from disk. Skipped -- investigate immediately, do not re-run this album until the cause is known.</div>'
+            yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🔥 MISSING BEFORE HEALTH CHECK: {f.name} was found by the initial scan but is gone from disk. Skipped -- investigate immediately, do not re-run this album until the cause is known.</div>'
             continue
 
         try:
@@ -73,10 +65,10 @@ def check_health(root_path, health_summary=None):
                 bak = f.with_name(f.name + ".bak")
                 if bak.exists() and bak.stat().st_size > 0:
                     bak.replace(f)
-                    yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 mp3val fix produced an empty/missing file for {f.name} -- restored from its .bak backup. Investigate before trusting this album further.</div>'
+                    yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🔥 mp3val fix produced an empty/missing file for {f.name} -- restored from its .bak backup. Investigate before trusting this album further.</div>'
                 else:
                     vanished_count += 1
-                    yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 CRITICAL: mp3val fix destroyed {f.name} and no .bak backup was found to restore. This file may be unrecoverable from this run.</div>'
+                    yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🔥 CRITICAL: mp3val fix destroyed {f.name} and no .bak backup was found to restore. This file may be unrecoverable from this run.</div>'
                 continue
 
             if verify_res.returncode != 0:
@@ -86,17 +78,17 @@ def check_health(root_path, health_summary=None):
                 repair_count += 1
 
         except Exception as e:
-            yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🔥 Health Engine Exception on {f.name}: {str(e)}</div>'
+            yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🔥 Health Engine Exception on {f.name}: {str(e)}</div>'
 
     if vanished_count > 0:
-        yield f'<div class="it-log-entry it-val-red" style="margin-top:5px; margin-left:1rem;">⚠️ SAFETY ALERT: {vanished_count} file(s) went missing during the health check pass. Batch continuing for the remaining files, but this album needs manual investigation.</div>'
+        yield f'<div class="it-log-entry it-val-red" style="margin-top:5px; margin-left:50px;">⚠️ SAFETY ALERT: {vanished_count} file(s) went missing during the health check pass. Batch continuing for the remaining files, but this album needs manual investigation.</div>'
 
     if queued_count > 0:
-        yield f'<div class="it-log-entry it-val-red" style="margin-left:1rem;">🩹 {queued_count} file(s) could not be structurally repaired and were queued for the Repair tool.</div>'
+        yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🩹 {queued_count} file(s) could not be structurally repaired and were queued for the Repair tool.</div>'
     if repair_count > 0:
-        yield f'<div class="it-log-entry it-val-success" style="margin-left:1rem;">✅ Health Check complete. {repair_count} file(s) structurally aligned.</div>'
+        yield f'<div class="it-log-entry it-val-success" style="margin-left:36px;">✅ Health Check complete. {repair_count} file(s) structurally aligned.</div>'
     if queued_count == 0 and repair_count == 0:
-        yield '<div class="it-log-entry" style="margin-left:1rem;">✅ No structural header repairs required.</div>'
+        yield '<div class="it-log-entry" style="margin-left:36px;">✅ No structural header repairs required.</div>'
 
     if health_summary is not None:
         health_summary["vanished"] = vanished_count

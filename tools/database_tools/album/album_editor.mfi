@@ -9,7 +9,17 @@
 
     <div id="album-multiple-matches-container" style="display: none; padding: 5px 0; color: var(--mf-gold);">
         <h2 style="font-size: 1.1rem; margin-bottom: 10px;">Matches identified. Select target album:</h2>
-        <div id="album-matches-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        <!-- Same fix as artist_editor.mfi's #matches-list, John's report
+             2026-08-12: bounded + given its own custom scrollbar instead
+             of silently falling through to the whole-panel overflow. -->
+        <div style="display: flex; max-height: 340px;">
+            <div id="album-matches-list" class="mf-hide-native-scrollbar" style="flex: 1; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; padding-right: 4px;"></div>
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="album-matches-list" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
+        </div>
     </div>
 
     <div id="album-workspace" style="display: none; flex: 1; gap: 15px; min-height: 0; padding-top: 10px; height: calc(100% - 60px);">

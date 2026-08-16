@@ -48,12 +48,19 @@ def run_logic(action, tools_dir, env_path):
         if not data or not data.get('path') or not data.get('filename'):
             return jsonify({"status": "error", "message": "Missing required promotion data."})
         import art_engine
-        result = art_engine.finalize_cover(data.get('path'), data.get('filename'))
-        return jsonify(result)
+        return Response(
+            stream_with_context(art_engine.finalize_cover_stream(data.get('path'), data.get('filename'))),
+            mimetype='text/html'
+        )
 
     if action == "set_locked_category":
         data = request.json or {}
         context_engine.update_locked_category(env_path, data.get('category', ''))
+        return jsonify({"status": "success"})
+
+    if action == "set_locked_artist":
+        data = request.json or {}
+        context_engine.update_locked_artist(env_path, data.get('artist', ''))
         return jsonify({"status": "success"})
 
     return jsonify({"status": "error", "message": f"Action {action} unrecognized."}), 400
@@ -98,7 +105,12 @@ def _orchestrate_workflow(data, env_path):
     if data.get('remember'):
         context_engine.update_consent_status(env_path, "TRUE")
 
-    yield f'<div class="status-api" style="font-size:1rem;"><span aria-hidden="true">🔓</span> Starting Processing: <span style="color:var(--text-output);">{album_name}</span></div>'
+    # NOTE: color: doesn't work on <img> for the same reason it never did
+    # on the .upk-lock-icon (unpack_convert.mfi) -- an <img src> is an
+    # opaque resource, no page CSS reaches inside it, whether the source
+    # is a PNG or an SVG. mask-image + background-color is the proven
+    # fix already used for this exact file (John's report, 2026-08-13).
+    yield f'<div class="status-api" style="font-size:1rem;"><span aria-hidden="true" style="display:inline-block; width:36px; height:36px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url(\'/tool_asset/unpack_convert/unpack-convert.svg\'); mask-image:url(\'/tool_asset/unpack_convert/unpack-convert.svg\'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span> Starting Processing: <span style="color:var(--text-output);">{album_name}</span></div>'
 
     for msg in zip_engine.extract_zip(root, report_data): yield msg
     for msg in rar_engine.extract_rar(root, report_data): yield msg
@@ -118,14 +130,14 @@ def _orchestrate_workflow(data, env_path):
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     if not report_data.get('extraction_occurred', False):
-        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:25px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
+        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px; margin-bottom:-16px; margin-right:-3px;">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:50px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
         yield "<!-- PROGRESS:1:1:1 -->"
 
     # 3. STEP 2: BITSTREAM & METADATA
     if disc_dirs:
         total_discs = len(disc_dirs)
         linear_offset = 0
-        yield f'<div class="status-message" style="margin-left:1.5rem; margin-top:5px; display:flex; align-items:center; gap:8px;"><img src="/ui/images/multi-disc.svg" alt="" aria-hidden="true" style="margin-left:3px; height:20px; width:auto;"> Box Set Detected: <strong>{total_discs} volume(s)</strong> found.</div>'
+        yield f'<div class="status-message" style="margin-left:50px; margin-top:5px; display:flex; align-items:center; gap:8px;"><img src="/ui/images/multi-disc.svg" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto;"> Box Set Detected: <strong>{total_discs} volume(s)</strong> found.</div>'
         
         for d_idx, d_path in enumerate(disc_dirs, 1):
             for msg in bitstream_engine.process_targets(d_path, artist, album_name, category, report_data, 
@@ -155,7 +167,7 @@ def _orchestrate_workflow(data, env_path):
         # JS picks this up and shows the gallery
         yield "<!-- ART_READY -->"
     else:
-        yield f'<div class="status-api" style="margin-top:5px; padding-top:10px;"><span aria-hidden="true">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
+        yield f'<div class="status-api" style="margin-top:5px; padding-top:10px;"><span aria-hidden="true" style="font-size:36px!important;">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
         yield f'<div class="status-message" style="color:var(--text-output); margin-left:1rem; margin-left:15px;"><img src="/ui/images/cloud.png" style="height:14px; width:auto;" alt=""> Querying Discogs Archive for {album_name}...</div>'
         
         cloud_res = art_engine.trigger_discogs_fetch(root, artist, album_name)

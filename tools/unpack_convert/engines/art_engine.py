@@ -78,43 +78,62 @@ def scan_art_folder(album_path):
 
     return gallery
 
-def finalize_cover(album_path, selected_filename):
+def finalize_cover_stream(album_path, selected_filename):
     """
     User Path (Step 4): Promotes a specific image to folder.jpg and embeds.
+    Streaming generator (John's report, 2026-08-14): this used to be a
+    single blocking call returning one JSON response only once every
+    track had been rewritten -- no feedback for the entire duration,
+    unlike every other step in the pipeline (which streams via yield).
+    On a box set over the DAS enclosure, that full-file ID3 rewrite per
+    track (mutagen has to shift the whole audio payload, not patch in
+    place) has real wall-clock cost, so the silence read as hung. Now
+    yields a visible line per track as it's embedded, same console
+    pattern as bitstream_engine.py's conversion loop.
     """
     album_path = Path(album_path)
     source_path = album_path / selected_filename
-    
+
     # Fallback to \art\ if not in root
     if not source_path.exists():
         source_path = album_path / "art" / selected_filename
 
     if not source_path.exists():
-        return {"status": "error", "message": "Source image not found on disk."}
+        yield '<div class="status-error"><span aria-hidden="true">⚠️</span> Source image not found on disk.</div>'
+        yield "<!-- FINALIZE_ERROR -->"
+        return
 
     dest_path = album_path / "folder.jpg"
-    
+
     try:
         # 1. Enforce Archival Fit (500x500 RGB JPEG)
         res = image_processor.apply_archival_fit(source_path, dest_path)
         if res['status'] != 'success':
-            return res
+            yield f'<div class="status-error"><span aria-hidden="true">⚠️</span> {res.get("message", "Archival fit failed.")}</div>'
+            yield "<!-- FINALIZE_ERROR -->"
+            return
+
+        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-bottom:12px;"><span aria-hidden="true"><img src="/ui/images/resize.png" alt="" style="height:auto; width:32px; margin-bottom:-12px;"></span> Album art resized to {res["dims"]} - ready to apply.</div>'
 
         # 2. Forensic Loop: Physical bitstream embedding
         audio_files = io_bridge.get_audio_targets(album_path, recursive=True)
+        total = len(audio_files)
+        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-message); margin-left:36px;"><span aria-hidden="true">📝</span> Embedding artwork into {total} audio file(s)...</div>'
+
         embedded_count = 0
         for audio in audio_files:
             # Uses tag_engine Build 1.0.3 APIC logic
-            if tag_engine.embed_artwork(audio, dest_path):
+            success, msg = tag_engine.embed_artwork(audio, dest_path)
+            if success:
                 embedded_count += 1
+                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:36px;"><span aria-hidden="true">🖼️</span> Embedded: {audio.name}</div>'
+            else:
+                yield f'<div class="status-error" style="font-size:0.7rem; margin-left:36px;"><span aria-hidden="true">⚠️</span> Failed: {audio.name} -- {msg}</div>'
 
-        return {
-            "status": "success",
-            "embedded_count": embedded_count,
-            "dims": res['dims']
-        }
+        yield f"<!-- FINALIZE_DONE:{embedded_count} -->"
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        yield f'<div class="status-error"><span aria-hidden="true">⚠️</span> {str(e)}</div>'
+        yield "<!-- FINALIZE_ERROR -->"
 
 def trigger_discogs_fetch(album_path, artist, album_name):
     """

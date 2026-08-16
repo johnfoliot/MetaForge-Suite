@@ -70,6 +70,17 @@ window.metaforge.database_tools.showPanel = async function(panelId, element) {
                     const dynamicHeader = targetPanel.querySelector('h2');
                     if (dynamicHeader) dynamicHeader.focus();
                 }
+                // John's report, 2026-08-12: every custom scrollbar in
+                // Database Tools rendered correctly but did nothing --
+                // this tool loads each sub-panel (Modify Artist/Album,
+                // Database Purge) through its OWN fetch_sub_module +
+                // stage.innerHTML path, completely separate from
+                // metaforge_core.js's loadTool(), so
+                // window.metaforge.ui.initCommonComponents() (which
+                // MFScrollbar.autoAttachAll() hangs off of) was never
+                // being called for content injected this way. Calling it
+                // directly here, every time a sub-panel loads.
+                if (window.MFScrollbar) window.MFScrollbar.autoAttachAll();
             }, 10);
         } else {
             stage.innerHTML = `<div style="padding: 20px; color: var(--status-error);">Error loading sub-module layout: ${data.message}</div>`;
