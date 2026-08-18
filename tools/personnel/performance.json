@@ -46,6 +46,7 @@
   "junk_roles": [
     "a & r",
     "a&r",
+	"agency representation",
     "album cover",
     "art direction",
     "artwork",
@@ -53,6 +54,7 @@
     "assistant",
 	"audio production",
 	"audio restoration",
+	"booking",
     "booking agent",
 	"compiled by",
     "compilation producer",
@@ -110,6 +112,7 @@
     "stylist",
     "supervised by",
     "talent scout",
+	"tape op",
 	"technician",
     "thanks",
     "transferred by",

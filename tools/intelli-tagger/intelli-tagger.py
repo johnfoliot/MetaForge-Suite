@@ -28,23 +28,7 @@ import it_context_engine
 
 
 def _natural_track_sort_key(path):
-    """
-    Real bug, found live 2026-07-15: plain lexicographic sort on the raw
-    glob results (`sorted(path.glob(...))`) processed a 13-track album
-    named "1 -" through "13 -" (no zero-padding) as 1, 10, 11, 12, 13, 2,
-    3, ... instead of numeric order. This coincidentally worked whenever
-    every filename in a folder happened to be zero-padded to the same
-    width, which is most of the library but not a safe assumption --
-    never was a deliberate natural sort, just lucky padding.
 
-    Sorts by (parent folder, leading track number, filename) -- the
-    parent-folder component preserves disc-folder ordering for box sets
-    ("CD 1" before "CD 2", plain string comparison, unchanged from
-    before), the leading-number component fixes the actual reported bug
-    WITHIN a folder, and the filename is a final tiebreak for anything
-    with no leading digits at all (sorts after every numbered track,
-    never crashes on an unexpected name).
-    """
     match = re.match(r'^0*(\d+)', path.stem)
     number = int(match.group(1)) if match else float('inf')
     return (path.parent.as_posix(), number, path.name)
@@ -90,9 +74,6 @@ def _handle_get_context():
                 "manifest": json.loads(manifest_file.read_text(encoding="utf-8"))
             })
 
-        # No manifest -- this album may never have been run through the
-        # MusicBrainz ID tool. Check for legacy/Picard MB tags already
-        # embedded in the files so the UI can still be pre-filled.
         recovered = _recover_legacy_mb_seeds(target_path)
         if recovered:
             return jsonify({"status": "success", "manifest": recovered})
@@ -104,9 +85,7 @@ def _handle_get_context():
 
 
 def _handle_get_taxonomy():
-    # Feeds the Various Artists genre-gate interstitial (intelli-tagger.js
-    # promptForcedGenre()) -- just the top-level genre keys, not the full
-    # sub-genre structure the AI prompt itself uses.
+
     taxonomy_path = PROJECT_ROOT / "data" / "taxonomy.json"
     try:
         taxonomy = json.loads(taxonomy_path.read_text(encoding="utf-8"))
@@ -116,13 +95,7 @@ def _handle_get_taxonomy():
 
 
 def _handle_reanalyze_track():
-    # Narrow, single-track re-measurement -- deliberately does NOT go
-    # through _orchestrate_tagger_batch (health check, scrub, AI taxonomy,
-    # year resolution, personnel pre-seed, full commit). John's own
-    # motivating case: a 5-disc box set shouldn't need a full album re-run
-    # to fix one track's BPM. acoustic_engine.analyze_file() already
-    # operates on a single file under the hood -- this just exposes that
-    # as its own action instead of only reaching it via the full batch.
+
     import acoustic_engine
 
     data = request.json
@@ -157,8 +130,7 @@ def _handle_reanalyze_track():
 
 
 def _recover_legacy_mb_seeds(target_path):
-    # Recursive for the same reason as the main batch loop below -- a box
-    # set's first track may live inside a "CD 1" subfolder.
+
     mp3_files = sorted(target_path.glob("**/*.mp3"), key=_natural_track_sort_key)
     if not mp3_files:
         return None
@@ -214,10 +186,6 @@ def _orchestrate_tagger_batch(data, env_path):
     mb_ids = data.get('mb_ids', {})
     release_year = data.get('release_year', "Unknown")
 
-    # Various Artists genre-gate (intelli-tagger.js promptForcedGenre()) --
-    # user-confirmed Parent Genre for the whole album, or None if they chose
-    # "Skip / Let AI Decide". See ai_engine.map_track_taxonomy()'s own
-    # forced_parent_genre handling for why this exists.
     forced_parent_genre = (data.get('forced_parent_genre') or '').strip() or None
 
     mb_track_map_list = data.get('mb_track_map', [])
@@ -234,11 +202,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if position is not None:
             mb_track_lookup[("position", position)] = entry
 
-    # ----------------------------------------------------------
-    # MB RESOLUTION ENGINE — one instance shared for the whole batch:
-    # release-level label lookup below, plus per-track original-year
-    # resolution further down.
-    # ----------------------------------------------------------
+
     mb = MBResolutionEngine()
 
     release_label = "Unknown"
@@ -250,29 +214,16 @@ def _orchestrate_tagger_batch(data, env_path):
         except Exception:
             release_label = "Unknown"
 
-    # ----------------------------------------------------------
-    # RELEASE-GROUP DATA — captured once at Stage 2 (MusicBrainz ID tool),
-    # zero extra HTTP calls here. Feeds original-year tier 2 and
-    # is_compilation, both album-level, not per-track.
-    # ----------------------------------------------------------
+
     group_first_release_date = data.get('mb_release_group_first_date', '')
     group_secondary_types = data.get('mb_release_group_secondary_types', []) or []
     is_compilation = 1 if 'Compilation' in group_secondary_types else 0
     data['is_compilation'] = is_compilation
 
-    # Shared, mutable cache for the year-resolution waterfall's Discogs/
-    # Wikipedia tiers -- both are album-level, expensive (HTTP + AI
-    # extraction) lookups that must only ever run ONCE per album
-    # regardless of how many tracks need them. See year_resolution_engine.py.
+
     year_cache = {}
 
-    # Personnel Engine v2's manifest pre-seed: recording_id -> raw MB
-    # artist-rels list, captured as a free side effect of the year
-    # waterfall's own per-track Tier-1 MB call (widened to inc=artist-rels,
-    # zero extra HTTP cost -- see mb_resolution_engine.py). Only written to
-    # manifest.json (below, after the per-track loop) when db_write is
-    # true -- no point capturing data Personnel will never be reachable to
-    # consume.
+
     mb_personnel_preseed = {}
 
     yield '<!-- PROGRESS:5:Ingesting Content -->'
@@ -280,10 +231,6 @@ def _orchestrate_tagger_batch(data, env_path):
 
     yield from it_context_engine.initialize_audit_pair(root_path, data)
 
-    # Carried forward to the MetaForge.log audit block written at the end
-    # of this run (see the audit_fn binding below) -- health check happens
-    # here, at the START of the batch, but the log entry it feeds into is
-    # only written once the whole run (including tagging) has finished.
     health_summary = {}
 
     yield '<!-- PROGRESS:15:Health Check -->'
@@ -294,41 +241,14 @@ def _orchestrate_tagger_batch(data, env_path):
 
     yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:32px; width:auto; margin-bottom:-12px;" alt=""> Intelli-Tagger AI engines determining metadata values...</div>'
 
-    # A real progress marker for this window -- previously nothing yielded
-    # here carried a PROGRESS comment at all, so the bar sat frozen on
-    # "25: Scrubbing" through this whole stretch and then jumped straight to
-    # "40: Tagging Track 1/N", with no narration bridging the two.
     yield '<!-- PROGRESS:35:Preparing Acoustic Analysis -->'
 
-    # =========================================================
-    # ACOUSTIC WAIT INDICATOR
-    # Removal is handled by intelli-tagger.js when the first
-    # it-log-row chunk arrives in the stream reader.
-    # Scoped keyframe — no external CSS dependencies.
-    #
-    # Wording corrected: nothing is actually "analyzing all tracks" at this
-    # point -- there's no batch-level analysis step here at all, only the
-    # per-track loop about to start. The per-track progress-bar labels
-    # (Analyzing Acoustics / Fingerprinting / etc.) now narrate that in
-    # real time for every track, including track 1, so this indicator's
-    # job is just to explain why track 1's own log row takes a moment to
-    # appear -- not to claim work is underway that isn't yet.
-    # =========================================================
     yield '''
 <div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:36px; margin-bottom:-10px; color:var(--text-output)">
-    <img src="/ui/images/acoustic_analysis.png" alt="" style="height:32px; width:auto; float:left; margin-right:16px; margin-bottom:5px;margin-top:5px;"> Beginning acoustic analysis of this Album.<br> The first track may take a little longer to appear while album identification and forensic tagging get underway...
+    ✅ Beginning acoustic analysis of this Album.<br> ⚠️ The first track may take a little longer to appear while initial album identification and forensic tagging get underway...
 </div>'''
     yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
-    # Recursive -- a box set's tracks live inside "CD 1"/"CD 2" subfolders
-    # (Unpack/Convert and MusicBrainz ID both already handle this
-    # correctly), and a non-recursive glob here would silently find zero
-    # tracks for one, the other half of the box-set "choke" John flagged
-    # 2026-07-08. _natural_track_sort_key preserves disc-folder ordering
-    # ("CD 1" before "CD 2", plain string comparison as before) while
-    # sorting numerically WITHIN a folder -- plain lexicographic sort
-    # here was a real live bug (see that function's docstring): only
-    # coincidentally correct when every filename happens to be
-    # zero-padded to the same width, not a safe assumption library-wide.
+
     files = sorted(list(root_path.glob("**/*.mp3")), key=_natural_track_sort_key)
     total_files = len(files)
 
@@ -338,24 +258,11 @@ def _orchestrate_tagger_batch(data, env_path):
         progress = int(40 + ((idx / total_files) * 45))
         track_prefix = f'Processing Track {idx}/{total_files}'
 
-        # Real bug, found live 2026-07-21 (John's Matt Bianco box set
-        # report): a batch runs for minutes once MB/Discogs/AI calls per
-        # track are involved, and a file that vanishes mid-batch used to go
-        # completely unnoticed here -- it would only surface as a generic
-        # "No such file or directory" deep in commit_engine's exception
-        # handler at the very end, with no indication of when it actually
-        # disappeared. Checking here, right before this track is touched,
-        # narrows that window and fails loud immediately instead of
-        # quietly excluding the track from track_results and only finding
-        # out at commit time.
+
         if not f_path.exists():
             yield f'<div class="it-log-entry it-val-red">🔥 MISSING: {f_path.name} was found by the initial scan but is gone from disk. Skipping this track -- investigate immediately, do not re-run this album until the cause is known.</div>'
             continue
 
-        # Per-track processing routinely takes ~20s once MB/Discogs/Wikipedia/
-        # AI calls are involved -- without an interim label for each phase,
-        # neither the progress bar nor the console log changes for that whole
-        # stretch, and the tool can genuinely look hung even while it's working.
         yield f'<!-- PROGRESS:{progress}:{track_prefix} - Analyzing Acoustics -->'
 
         acoustic_data = acoustic_engine.analyze_file(f_path)
@@ -445,15 +352,7 @@ def _orchestrate_tagger_batch(data, env_path):
         combined.update(identity_data)
         combined.update(ai_results)
 
-        # Whatever's in the left panel's Country field at commit time --
-        # pre-filled from the MB artist's own home country, or corrected by
-        # hand -- is the artist's actual origin and always wins over
-        # ai_results["country"] (a pure AI nationality guess, only ever a
-        # fallback). Real bug, John's report 2026-08-01: this field was
-        # captured into mb_ids but never read again, so nothing the user
-        # entered here ever reached library_artist.country -- see
-        # commit_engine.py's country_val / _sync_library_artist, which is
-        # what actually persists this per artist.
+
         if mb_ids.get("country"):
             combined["country"] = mb_ids["country"]
 
@@ -476,13 +375,7 @@ def _orchestrate_tagger_batch(data, env_path):
             personnel_preseed=mb_personnel_preseed if db_write else None,
         )
         combined.update(year_result)
-        # Real per-track performer (from the MB-sourced manifest, see
-        # identity_data above) takes priority over the blanket album-level
-        # artist -- the fix for Various Artists compilations, where "artist"
-        # here would otherwise be the release's nominal filing name for
-        # every single track. Falls back to the album-level artist for the
-        # normal case (no per-track override, or the id_engine fallback
-        # path above which doesn't carry one at all).
+
         combined["artist"] = combined.get("track_artist") or artist
         combined["release_year"] = release_year
 
@@ -501,12 +394,7 @@ def _orchestrate_tagger_batch(data, env_path):
 
         yield _render_deep_view_line(idx, total_files, f_path.name, combined)
 
-    # health_summary bound in here (functools.partial) rather than
-    # threaded through execute_commit's own signature -- that function's
-    # audit_callback contract is already fixed elsewhere (commit_engine.py
-    # calls it with root_path/manifest_seeds/track_results/label/personnel/
-    # db_write/release_year as kwargs); partial just adds one more fixed
-    # kwarg on top without touching that contract.
+
     audit_fn = functools.partial(it_context_engine.update_audit_trail, health_summary=health_summary) if hasattr(it_context_engine, "update_audit_trail") else None
 
     yield from commit_engine.execute_commit(
@@ -517,21 +405,13 @@ def _orchestrate_tagger_batch(data, env_path):
         audit_callback=audit_fn
     )
 
-    # Personnel Engine v2's manifest pre-seed -- write ONLY when db_write is
-    # true, since "Optional: Add Personnel" is itself gated on db_write
-    # below and this data would otherwise never be consumed. See
-    # _write_personnel_preseed()'s own docstring for the free-ride
-    # rationale (both signals ride HTTP calls already made above).
+
     if db_write:
         _write_personnel_preseed(root_path, mb_personnel_preseed, year_cache.get("discogs_extraartists"))
 
     yield '<!-- PROGRESS:100:Batch Complete -->'
     yield '<div style="margin-top:15px; border-top:1px solid var(--bg-accent); padding-top:10px;"><img src="/ui/images/complete.svg" alt="" aria-hidden="true" style="width:48px; height:48px; float:left; margin-right:8px; margin-top:5px;"><span style="font-size:1rem; font-weight:bold; margin-bottom:1rem;">Congratulations! You have successfully <span style="color:var(--mf-gold);">Intelli-Tagged</span> your files.</span><br>You are also encouraged to add the optional Personnel data (used by the Intelligent Playlist Maker) and an Artist Bio which will be stored in your database and used as part of the Library Viewer.</div>'
 
-    # "Optional: Add Personnel" only makes sense when data was actually
-    # written to the database this run -- previously this fired
-    # unconditionally, making the button a dead end whenever db_write was
-    # off.
     if db_write:
         yield '<div style="display:none;" id="it-handoff-trigger">HANDOFF_READY</div>'
     yield '<!-- BATCH_COMPLETE -->'
@@ -579,9 +459,6 @@ def _render_deep_view_line(idx, total, filename, data):
 
     idx_str = f"[{str(idx).rjust(len(str(total)))}/{total}]"
 
-    # Header line: index + full filename, untruncated -- a long track
-    # title (e.g. "Found a Wonderful Savior") shouldn't get cut off just
-    # because it used to share a line with Date/Genre/Sub Genre.
     line1 = f'<span class="it-val-gold">{idx_str}</span> <span class="it-val-white">{filename}</span>'
 
     subline = f'<div style="margin-right:10px; margin-left:-40px!important; text-align:left; margin-top:5px; border-bottom:1px solid var(--mf-gold); padding-bottom:5px; width:100%;">'

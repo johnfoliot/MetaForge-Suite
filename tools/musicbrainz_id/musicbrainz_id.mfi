@@ -341,7 +341,7 @@
 
         <!-- SILO 2: ALIGNMENT & SYNC -->
         <div class="mb-confirm-silo">
-            <h2 class="mf-grid-heading" style="border-bottom:1px solid var(--mf-gold); padding-bottom:5px; margin-bottom:10px; "><img src="ui/images/musicbrainz.svg" alt="" style="height:32px; width:auto;"> Confirm MusicBrainz Release</h2>
+            <h2 class="mf-grid-heading" style="border-bottom:1px solid var(--mf-gold); padding-bottom:5px; margin-bottom:10px; "><span aria-hidden="true" class="p-scout-logo" style="display:inline-block; width:36px; height:36px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/musicbrainz.svg'); mask-image:url('/ui/images/musicbrainz.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span> Confirm MusicBrainz Release</h2>
             <div id="mb-id-summary" style="font-family:var(--font-mono); font-size:0.6rem; color:var(--mf-gold); min-height:35px; margin-bottom:5px;">
                 Select a Release to view the MusicBrainz IDs
             </div>

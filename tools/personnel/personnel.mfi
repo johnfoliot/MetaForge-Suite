@@ -47,34 +47,17 @@
                     <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
                 </div>
             </div>
-
-            <!-- STATUS: relocated here 2026-07-09 (John) -- was a thin
-                 bar at the very bottom of the whole page, far from these
-                 action controls. At high screen magnification (200%+),
-                 that distance means physically panning the viewport to
-                 find out whether anything happened at all, not just an
-                 inconvenience for a low-vision user -- proximity of
-                 feedback to its trigger is the actual requirement here,
-                 not a cosmetic preference.
-
-                 REDESIGNED 2026-08-13 (John): the plain text-only status
-                 line wasn't prominent enough given how much it actually
-                 conveys. Now a two-part panel: the headline text stays
-                 (same aria-live region, same #p-status-text id -- no JS
-                 wiring changed there), plus a real 2x2 per-source grid
-                 below it. MusicBrainz/Discogs are automatic (checked the
-                 instant resolveWaterfall() completes, no button needed);
-                 Wikipedia/AllMusic keep their existing search buttons,
-                 which get replaced in place by the same green checkmark
-                 once that source has genuinely been checked (regardless
-                 of whether it found anything -- John's explicit rule).
-                 Checkmarks are a static "done for this session" badge,
-                 not clickable to re-run (John's call, 2026-08-13). -->
+			
             <div id="p-status-bar" role="status" aria-live="polite" class="p-scout-panel">
                 <div id="p-status-text" class="p-scout-headline" style="color: var(--status-success);">Scout Engine Ready.</div>
                 <div class="p-scout-grid">
                     <div class="p-scout-source">
-                        <img src="/ui/images/musicbrainz.svg" alt="" class="p-scout-logo" style="margin-left:27px; margin-right:27px;">
+                        <!-- <img> can't be recolored via CSS (mask-image +
+                             background-color is the established fix for a
+                             theme-reactive icon -- see unpack_convert.py's
+                             Starting Processing icon for the confirmed-
+                             working reference case). -->
+                        <span aria-hidden="true" class="p-scout-logo" style="display:inline-block; margin-left:27px; margin-right:27px; width:32px; height:32px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/musicbrainz.svg'); mask-image:url('/ui/images/musicbrainz.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span>
                         <!-- class/content/aria-label all set dynamically by
                              personnel.js's _markSourceChecked() -- distinct
                              "found" (green check) vs "none" (red circle-
@@ -135,7 +118,7 @@
         <!-- RIGHT SILO: MAPPING INTERFACE (60% Width) -->
         <div id="p-right-silo" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0;">
             <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--mf-gold); padding-bottom: 5px;">
-                <h2 class="mf-card-label" style="color: var(--mf-gold); margin: 0;"><img src="ui/images/personnel.svg"alt=""style="height:32px; width:auto;"> Album Artists</h2>
+                <h2 class="mf-card-label" style="color: var(--mf-gold); margin: 0; font-size:26px;"><span aria-hidden="true" style="display:inline-block; width:40px; height:40px; padding-bottom:6px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/personnel.svg'); mask-image:url('/ui/images/personnel.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span> Album Artists</h2>
                 <span id="p-mapping-count" class="mf-card-label" style="font-size: 0.75rem; color: var(--text-message);">0 Rows Staged</span>
             </div>
 
@@ -219,22 +202,7 @@
     font-size: 0.72rem !important;
     padding: 4px 8px !important;
 }
-/* Badge replaces the button in place once a source has genuinely been
-   checked. Static, not clickable (John's call, 2026-08-13). Hidden by
-   default; personnel.js's _markSourceChecked(key, found) reveals it,
-   hides the sibling button, and picks one of two states below --
-   John's report, same day: a flat checkmark for every outcome made a
-   source that contributed nothing look identical to one that actually
-   helped (a real "60 credits found via MusicBrainz" case where Discogs
-   silently contributed zero, but both showed the same green check).
-   .p-scout-found (green check, rounded square) = this source
-   contributed real credits/candidates. .p-scout-none (red circle-slash)
-   = checked, found nothing -- a genuinely different SHAPE and color,
-   not just a number next to the same icon, so the distinction survives
-   even for a user not reading the shape closely. Drawn in pure CSS
-   (border-radius + a rotated bar), not a Unicode/emoji glyph -- glyph
-   rendering proved unreliable across this exact codebase's scrollbar
-   work, a plain geometric shape has no such risk. */
+
 .p-scout-check {
     display: none;
     align-items: center;
