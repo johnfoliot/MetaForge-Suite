@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Spoke: CUE Engine
 # Role: Parses CUE sheets and executes FFmpeg splitting.
-# Build 7.4.0: Multi-FILE CUE Support + Timestamp Carry Fix.
+# Build 7.4.1: Accurate out-of-spec timestamp warning wording.
 # ======================================================================
 import re
 import os
@@ -160,8 +160,13 @@ def split_cue(root, artist, report_data):
             for ref in missing:
                 yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> CUE references a file not on disk: {ref}</div>'
 
+            # Build 7.4.1 (John's report, 2026-10-01): the previous wording
+            # ("split points may be off by up to ~1 second") read as though
+            # audio could be lost. It can't -- each track ends exactly where
+            # the next begins, so an off timestamp only moves a boundary
+            # between neighbouring tracks. Say that plainly.
             if bad_frames:
-                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--mf-gold); margin-left:20px;"><span aria-hidden="true">⚠️</span> CUE has {bad_frames} timestamp(s) with frame values above 74 (out of spec) — read as frames with carry; split points may be off by up to ~1 second.</div>'
+                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--mf-gold); margin-left:20px;"><span aria-hidden="true">⚠️</span> CUE has {bad_frames} out-of-spec timestamp(s); track boundaries may shift by a fraction of a second. No audio is lost.</div>'
 
             # 3. PARSE & SPLIT
             audio_positions = [i for i, t in enumerate(all_tracks) if t['type'] == 'AUDIO']

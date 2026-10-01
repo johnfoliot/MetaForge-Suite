@@ -173,7 +173,7 @@ def process_dsf(root, artist, report_data):
     total = len(dsd_files)
 
     if not report_data.get('extraction_occurred', False):
-        yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/DSF.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Decoding DSD Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {total} DSD file(s)</span></div>'
+        yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/DSF.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Decoding DSD Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {total} DSD file(s) found</span></div>'
         report_data['extraction_occurred'] = True
     else:
         yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Decoding {total} DSD file(s)</div>'
