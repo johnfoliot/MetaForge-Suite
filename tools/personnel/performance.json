@@ -46,6 +46,7 @@
   "junk_roles": [
     "a & r",
     "a&r",
+	"A&R",
 	"agency representation",
     "album cover",
     "art direction",
@@ -61,6 +62,7 @@
 	"concept",
 	"coordinator",
 	"copyist",
+	"copyright holder",
 	"cover art",
 	"creative director",
     "dedication",
@@ -71,6 +73,7 @@
     "engineer",
     "film director",
 	"graphics",
+	"groomer",
     "hair",
     "illustration",
     "lacquer",
@@ -93,6 +96,8 @@
     "photography",
     "photos by",
 	"previous attribution",
+	"production coordination",
+	"project director",
 	"project manager",
     "production assistant",
 	"production manager",
@@ -105,6 +110,7 @@
     "reissue producer",
 	"release coordinator",
     "remastered by",
+	"remastering",
 	"research",
 	"restoration",
     "series supervision",
@@ -116,6 +122,7 @@
 	"technician",
     "thanks",
     "transferred by",
+	"translator",
     "typography"
   ],
   "junk_names": [

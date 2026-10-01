@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Spoke: ZIP Engine
 # Role: Extracts archives, executes ACR Discovery, and logs audit.
-# Build 7.3.4: Accessibility Hardening (Wrapped Emojis).
+# Build 7.4.0: Same-Drive Staging + Cumulative Counts + Failure Registry.
 # ======================================================================
 import zipfile
 import shutil
@@ -12,7 +12,15 @@ from pathlib import Path
 
 # --- [ CONFIGURATION ] ---
 METADATA_JUNK = {'.ds_store', 'desktop.ini', 'thumbs.db', '__macosx', 'album_art_tips.txt'}
-AUDIO_EXT = {'.flac', '.ape', '.wav', '.m4a', '.mp3', '.ogg', '.wma', '.wv'}
+AUDIO_EXT = {'.flac', '.ape', '.wav', '.m4a', '.mp3', '.ogg', '.wma', '.wv', '.dsf', '.dff'}
+
+
+def _register_failed(report_data, zip_path):
+    """Adds the archive to failed_targets so the audit log and safety alert report it."""
+    report_data.setdefault('failed_targets', [])
+    if zip_path.name not in report_data['failed_targets']:
+        report_data['failed_targets'].append(zip_path.name)
+
 
 def extract_zip(root, report_data):
     """
@@ -21,7 +29,7 @@ def extract_zip(root, report_data):
     """
     zip_files = list(root.glob("*.zip"))
     if not zip_files:
-        return 
+        return
 
     total_files_to_unpack = 0
     valid_zips = []
@@ -30,8 +38,9 @@ def extract_zip(root, report_data):
             with zipfile.ZipFile(zip_path, 'r') as z:
                 total_files_to_unpack += len(z.infolist())
                 valid_zips.append(zip_path)
-        except:
-            yield f'<div class="status-error"><span aria-hidden="true">❌</span> Archive Corrupt: {zip_path.name}</div>'
+        except Exception:
+            _register_failed(report_data, zip_path)
+            yield f'<div class="status-error"><span aria-hidden="true">❌</span> Archive Corrupt: {zip_path.name} — source preserved.</div>'
             continue
 
     if total_files_to_unpack == 0:
@@ -47,12 +56,20 @@ def extract_zip(root, report_data):
                 report_data['extraction_occurred'] = True
             else:
                 yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Unzipping {zip_path.name}</div>'
-            
+
             report_data['extraction']['source'] = f"ZIP Archive: {zip_path.name}"
 
-            with tempfile.TemporaryDirectory() as tmp_dir:
+            # Staged inside the album folder (not the system temp dir) so
+            # the hoist below is a same-drive rename, not a full cross-
+            # drive copy of every file -- the album lives on D:/the DAS,
+            # the system temp dir is on C:. Leading dot keeps it out of
+            # the way; TemporaryDirectory still removes it on exit.
+            with tempfile.TemporaryDirectory(prefix=".mf_zip_", dir=str(root)) as tmp_dir:
                 tmp_path = Path(tmp_dir)
-                
+
+                # Any CRC or read error during extract() raises here and
+                # drops to the except below -- the hoist and the source
+                # deletion are never reached on a failed extraction.
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                     file_list = zip_ref.infolist()
                     for member in file_list:
@@ -67,9 +84,9 @@ def extract_zip(root, report_data):
                 for item in content_root.iterdir():
                     if item.name.lower() in METADATA_JUNK:
                         continue
-                    
+
                     dest = root / item.name
-                    
+
                     if item.is_dir() and dest.exists() and dest.is_dir():
                         for sub_item in item.iterdir():
                             sub_dest = dest / sub_item.name
@@ -82,15 +99,18 @@ def extract_zip(root, report_data):
                     else:
                         if dest.exists() and not dest.is_dir():
                             dest = root / f"{item.stem}_{moved_count}{item.suffix}"
-                        
+
                         shutil.move(str(item), str(dest))
-                        
+
                         if item.is_dir():
                             moved_count += len([f for f in dest.rglob('*') if f.suffix.lower() in AUDIO_EXT])
                         elif item.suffix.lower() in AUDIO_EXT:
                             moved_count += 1
-                    
-                report_data['extraction']['count'] = moved_count
+
+                # Accumulate, don't overwrite -- multiple archives in one
+                # album previously left only the last one's count in the
+                # audit log.
+                report_data['extraction']['count'] += moved_count
                 yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">📂</span> {moved_count} audio items moved to album directory.</div>'
 
             yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">✨</span> Extraction Successful: {zip_path.name}</div>'
@@ -99,27 +119,28 @@ def extract_zip(root, report_data):
             try:
                 if zip_path.name not in report_data['deletions']:
                     report_data['deletions'].append(zip_path.name)
-                
+
                 zip_path.unlink()
                 yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> ZIP source file deleted.</div>'
-            except:
+            except Exception:
                 pass
 
         except Exception as e:
-            yield f'<div class="status-error"><span aria-hidden="true">❌</span> ZIP Spoke Error [{zip_path.name}]: {str(e)}</div>'
+            _register_failed(report_data, zip_path)
+            yield f'<div class="status-error"><span aria-hidden="true">❌</span> ZIP Spoke Error [{zip_path.name}]: {str(e)} — source preserved.</div>'
 
 def _find_atomic_content_root(current_path):
     """
-    Recursively drills until it finds a folder with multiple items 
+    Recursively drills until it finds a folder with multiple items
     OR any audio files.
     """
     all_items = [p for p in current_path.iterdir() if p.name.lower() not in METADATA_JUNK]
     audio_files = [p for p in all_items if p.suffix.lower() in AUDIO_EXT]
     sub_dirs = [p for p in all_items if p.is_dir()]
-    
+
     if len(audio_files) == 0 and len(sub_dirs) == 1:
         return _find_atomic_content_root(sub_dirs[0])
-    
+
     return current_path
 
 # --- END OF FILE zip_engine.py ---

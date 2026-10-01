@@ -4,7 +4,7 @@
 # Role: Extracts Super Audio CD ISO images (via the external sacd_extract
 # tool) to stereo DSD, then downsamples to FLAC via the bundled ffmpeg so
 # the result flows into the normal pipeline exactly like a CUE-split album.
-# Build 1.0.0: Initial implementation.
+# Build 1.1.0: CD-DA ISO Deferral (CUE-referenced images go to cue_engine).
 # ======================================================================
 import re
 import subprocess
@@ -17,14 +17,49 @@ from common.config_handler import FFMPEG_EXE, SACD_EXTRACT_EXE
 # decoder than jumping straight to 44.1kHz. 24-bit avoids baking in
 # quantization noise DSD's dynamic range would otherwise lose. This FLAC
 # is a temporary intermediate on its way to the pipeline's existing MP3
-# pass (janitor_engine deletes it once bitstream_engine converts it), so
-# the extra size costs nothing.
+# pass (bitstream_engine deletes it once it converts it), so the extra
+# size costs nothing.
 TARGET_SAMPLE_RATE = "88200"
 TARGET_SAMPLE_FMT = "s32"
 
 # Matches sacd_extract's own "Processing [path] (N/M).." announcement,
 # printed once per track as extraction begins it.
 _TRACK_START_RE = re.compile(r'Processing \[.*?\]\s*\((\d+)/(\d+)\)')
+
+
+def _cue_referenced_isos(root, iso_files):
+    """
+    Returns the subset of iso_files that a .cue sheet in the same folder
+    points at -- those are raw CD-DA PCM dumps ("ISO/CUE" rips), which
+    cue_engine.py already handles via its RAW_PCM_EXT path, NOT SACD
+    filesystem images.
+
+    Real bug, found in the 2026-10-01 review: both engines claimed every
+    .iso. sacd_engine runs first, so a CD-DA ISO/CUE rip was sent to
+    sacd_extract, which failed and printed a red "SACD extraction failed"
+    error -- even though cue_engine then split it correctly right after.
+    The result was fine; the console was lying.
+
+    Matching mirrors cue_engine._find_audio_source(): a CUE's FILE
+    reference matches an .iso either by exact filename or by stem (CUE
+    sheets commonly say FILE "Album.wav" while the actual dump on disk is
+    Album.iso).
+    """
+    ref_names = set()
+    ref_stems = set()
+    for cue_path in root.glob("*.cue"):
+        try:
+            content = cue_path.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            continue
+        for ref in re.findall(r'FILE\s+"(.*?)"', content):
+            ref_names.add(ref.lower())
+            ref_stems.add(Path(ref).stem.lower())
+
+    return {
+        iso for iso in iso_files
+        if iso.name.lower() in ref_names or iso.stem.lower() in ref_stems
+    }
 
 
 def process_sacd(root, artist, report_data):
@@ -35,17 +70,28 @@ def process_sacd(root, artist, report_data):
     needs zero changes, it only ever reads the leading digit prefix of
     whatever discrete tracks already exist.
 
-    CRITICAL SAFETY NOTE: janitor_engine.py's cleanup pass (Step 3)
-    unconditionally deletes any non-.mp3, non-system file in the album
-    folder UNLESS its filename is registered in report_data['failed_targets'].
-    A bare .iso is not exempted anywhere else in the pipeline -- every
-    non-success path below MUST register the iso into failed_targets, or
-    a multi-GB source file gets silently destroyed on the very next
-    janitorial pass. This is not optional hardening, it's the only thing
-    standing between this file and deletion.
+    CD-DA ISO images referenced by a .cue sheet are skipped here and left
+    for cue_engine.py (see _cue_referenced_isos above).
+
+    CRITICAL SAFETY NOTE: every non-success path below MUST register the
+    iso into failed_targets. janitor_engine.py Build 7.3.0 now also never
+    deletes source-class files (.iso included) as a backstop, but
+    failed_targets is still what drives the "conversion failed" safety
+    alert and the audit log -- keep registering.
     """
     iso_files = list(root.glob("*.iso"))
     if not iso_files:
+        return
+
+    cdda_isos = _cue_referenced_isos(root, iso_files)
+    for iso_path in sorted(cdda_isos):
+        yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> CD-DA image referenced by CUE sheet, handing off to CUE splitter: {iso_path.name}</div>'
+
+    iso_files = [iso for iso in iso_files if iso not in cdda_isos]
+    if not iso_files:
+        # Checked BEFORE the sacd_extract presence test below -- a CD-DA
+        # ISO/CUE rip must never trigger a "sacd_extract.exe missing"
+        # error on a machine that simply doesn't need it.
         return
 
     if not SACD_EXTRACT_EXE.exists():

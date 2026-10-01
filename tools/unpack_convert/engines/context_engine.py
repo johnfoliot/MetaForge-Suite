@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Spoke: Context Engine
 # Role: Manages .env parsing, manifest generation, and forensic auditing.
-# Build 7.4.0: Frictionless Handoff (Working Directory Persistence).
+# Build 7.5.0: Audit Log Records Failed + Preserved Sources.
 # Physical Location: \tools\unpack_convert\engines\context_engine.py
 # ======================================================================
 import re
@@ -100,6 +100,14 @@ def write_audit_log(root, report_data):
     """
     Writes or Appends to the forensic MetaForge.log.
     Build 7.4.0: Maintained forensic track count logging.
+    Build 7.5.0 (2026-10-01 review): now also records
+      - FAILED: report_data['failed_targets'] -- sources an engine tried
+        and could not process. janitor_engine's SAFETY ALERT has always
+        said "Check MetaForge.log" for these, but they were never
+        actually written here.
+      - PRESERVED: report_data['preserved'] -- source files no engine
+        processed at all (janitor_engine Build 7.3.0 keeps them instead
+        of deleting), plus any CUE sheet kept alongside them for retry.
     """
     log_path = root / "MetaForge.log"
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -136,6 +144,18 @@ def write_audit_log(root, report_data):
         log_content.append(f"PURGE: Permanently deleted {len(report_data['deletions'])} legacy files:")
         for f in sorted(report_data['deletions']):
             log_content.append(f"  [X] {f}")
+
+    if report_data.get('failed_targets'):
+        failed = sorted(set(report_data['failed_targets']))
+        log_content.append(f"FAILED: {len(failed)} source file(s) could not be processed and were preserved for retry:")
+        for f in failed:
+            log_content.append(f"  [!] {f}")
+
+    if report_data.get('preserved'):
+        preserved = sorted(set(report_data['preserved']))
+        log_content.append(f"PRESERVED: {len(preserved)} unprocessed source file(s) kept (no engine handled them):")
+        for f in preserved:
+            log_content.append(f"  [?] {f}")
 
     log_content.append(f"{'='*60}\n")
     

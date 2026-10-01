@@ -52,16 +52,8 @@
                 <div id="p-status-text" class="p-scout-headline" style="color: var(--status-success);">Scout Engine Ready.</div>
                 <div class="p-scout-grid">
                     <div class="p-scout-source">
-                        <!-- <img> can't be recolored via CSS (mask-image +
-                             background-color is the established fix for a
-                             theme-reactive icon -- see unpack_convert.py's
-                             Starting Processing icon for the confirmed-
-                             working reference case). -->
                         <span aria-hidden="true" class="p-scout-logo" style="display:inline-block; margin-left:27px; margin-right:27px; width:32px; height:32px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/musicbrainz.svg'); mask-image:url('/ui/images/musicbrainz.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span>
-                        <!-- class/content/aria-label all set dynamically by
-                             personnel.js's _markSourceChecked() -- distinct
-                             "found" (green check) vs "none" (red circle-
-                             slash) states, not just a static checkmark. -->
+
                         <span id="p-src-mb-check" class="p-scout-check"></span>
                     </div>
                     <div class="p-scout-source">

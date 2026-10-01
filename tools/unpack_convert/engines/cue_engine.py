@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Spoke: CUE Engine
 # Role: Parses CUE sheets and executes FFmpeg splitting.
-# Build 7.2.0: Loud-Failure Hardening (no more silent source deletion).
+# Build 7.4.0: Multi-FILE CUE Support + Timestamp Carry Fix.
 # ======================================================================
 import re
 import os
@@ -12,6 +12,89 @@ from common.config_handler import FFMPEG_EXE
 
 # Audio extensions that qualify as "Discrete Tracks"
 DISCRETE_EXT = {'.flac', '.mp3', '.m4a', '.ape', '.wav'}
+
+# Raw, headerless CD-DA PCM dumps -- the standard "BIN/CUE" or "ISO/CUE"
+# rip convention (EAC, dBpoweramp, etc all support this alongside FLAC).
+# Not a filesystem image and not the same thing as an SACD ISO (see
+# sacd_engine.py, which as of Build 1.1.0 skips any .iso a CUE sheet
+# references so it lands here) -- just uncompressed Red Book audio with
+# no container header, which is exactly why ffmpeg needs to be told the
+# format explicitly in split_cue() below rather than auto-detecting it.
+RAW_PCM_EXT = {'.iso', '.bin'}
+
+_FILE_RE = re.compile(r'^FILE\s+(?:"(.*?)"|(\S+))', re.IGNORECASE)
+_TRACK_RE = re.compile(r'^TRACK\s+(\d+)\s+(\S+)', re.IGNORECASE)
+_TITLE_RE = re.compile(r'^TITLE\s+(?:"(.*?)"|(.+?))\s*$', re.IGNORECASE)
+_INDEX01_RE = re.compile(r'^INDEX\s+01\s+(\d{1,3}):(\d{2}):(\d{2})', re.IGNORECASE)
+
+
+def _parse_cue(content):
+    """
+    Line-by-line CUE parser. Returns (file_refs, tracks, bad_frame_count):
+      file_refs: FILE names in sheet order
+      tracks:    list of dicts, sheet order, ALL track types:
+                 {'num', 'type', 'title', 'start', 'file'}
+                 'start' is (min, sec, frame) or None
+                 'file'  is the FILE in effect when INDEX 01 appeared
+
+    Build 7.4.0 (John's Joe Bonamassa "Dust Bowl" report, 2026-10-01):
+    multi-FILE sheets are now supported -- e.g. one FLAC per vinyl side,
+    each side's timestamps restarting at 00:00:00. Previously any CUE
+    with more than one FILE line was rejected as "Non-compliant."
+
+    A track belongs to whichever FILE is in effect when its INDEX 01
+    line appears, not where its TRACK line appears. That's the CUE spec,
+    and it matters for EAC "noncompliant" rips where a track's pregap
+    (INDEX 00) sits at the end of the previous file and its INDEX 01 is
+    at the start of the next one.
+
+    Line-based (not block-regex) parsing also keeps Build 7.3.0's fix:
+    each track's title/start come only from that track's own lines, so a
+    missing TITLE can never shift titles onto other tracks.
+    """
+    file_refs = []
+    tracks = []
+    current_file = None
+    cur = None
+    bad_frames = 0
+
+    for raw in content.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+
+        m = _FILE_RE.match(line)
+        if m:
+            current_file = m.group(1) if m.group(1) is not None else m.group(2)
+            file_refs.append(current_file)
+            continue
+
+        m = _TRACK_RE.match(line)
+        if m:
+            cur = {'num': int(m.group(1)), 'type': m.group(2).upper(),
+                   'title': None, 'start': None, 'file': None}
+            tracks.append(cur)
+            continue
+
+        if cur is None:
+            continue  # album-level TITLE/PERFORMER/REM before any TRACK
+
+        m = _TITLE_RE.match(line)
+        if m:
+            t = (m.group(1) if m.group(1) is not None else m.group(2) or "").strip()
+            cur['title'] = t or None
+            continue
+
+        m = _INDEX01_RE.match(line)
+        if m:
+            mm, ss, ff = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            if ff > 74:
+                bad_frames += 1
+            cur['start'] = (mm, ss, ff)
+            cur['file'] = current_file
+
+    return file_refs, tracks, bad_frames
+
 
 def split_cue(root, artist, report_data):
     """
@@ -38,13 +121,10 @@ def split_cue(root, artist, report_data):
 
     # 2. SELECTION & VALIDATION
     for cue_path in cue_files:
-        source_audio = None
+        sources = {}  # FILE reference -> resolved Path (or None)
         try:
             content = cue_path.read_text(encoding='utf-8', errors='ignore')
-            file_references = re.findall(r'FILE\s+"(.*?)"', content)
-            if len(file_references) > 1:
-                yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> Non-compliant CUE ignored: {cue_path.name}</div>'
-                continue
+            file_refs, all_tracks, bad_frames = _parse_cue(content)
 
             # Real bug, found live 2026-07-20 (John's Don Bryant "Precious
             # Soul" report -- console "jumped straight past" Step 1 with no
@@ -52,39 +132,74 @@ def split_cue(root, artist, report_data):
             # so a CUE sheet with no parseable FILE reference vanished
             # without a trace instead of telling the user why nothing
             # happened.
-            if not file_references:
+            if not file_refs:
                 yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> No FILE reference found in CUE, skipped: {cue_path.name}</div>'
                 continue
 
-            source_audio = _find_audio_source(cue_path.parent, file_references[0])
+            for ref in file_refs:
+                if ref not in sources:
+                    sources[ref] = _find_audio_source(cue_path.parent, ref)
 
-            if not source_audio:
+            found = [p for p in sources.values() if p]
+            if not found:
                 yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> Ghost CUE ignored: {cue_path.name} (Blob missing).</div>'
                 continue
 
+            source_names = ", ".join(p.name for p in found)
+
             # Header Control with Accessibility Guard
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {source_audio.name}</span></div>'
+                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {source_names}</span></div>'
                 report_data['extraction_occurred'] = True
             else:
-                yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Splitting {source_audio.name}</div>'
+                yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Splitting {source_names}</div>'
 
-            report_data['extraction']['source'] = f"CUE Bundle: {source_audio.name}"
+            report_data['extraction']['source'] = f"CUE Bundle: {source_names}"
+
+            missing = [ref for ref, p in sources.items() if p is None]
+            for ref in missing:
+                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> CUE references a file not on disk: {ref}</div>'
+
+            if bad_frames:
+                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--mf-gold); margin-left:20px;"><span aria-hidden="true">⚠️</span> CUE has {bad_frames} timestamp(s) with frame values above 74 (out of spec) — read as frames with carry; split points may be off by up to ~1 second.</div>'
 
             # 3. PARSE & SPLIT
-            tracks = re.findall(r'TRACK (\d+) AUDIO.*?TITLE "(.*?)"', content, re.DOTALL)
-            times = re.findall(r'INDEX 01 (\d{1,3}:\d{2}:\d{2})', content)
-
-            total_tracks = len(tracks)
+            audio_positions = [i for i, t in enumerate(all_tracks) if t['type'] == 'AUDIO']
+            total_tracks = len(audio_positions)
             success_count = 0
-            for i, (num, title) in enumerate(tracks):
-                t_start = _format_ts(times[i])
-                t_dur = ["-to", _format_ts(times[i+1])] if i+1 < len(times) else []
 
-                safe_title = re.sub(r'[\\/*?:"<>|]', '', title).strip()
-                track_id = str(int(num))
+            if total_tracks == 0:
+                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> No AUDIO tracks found in CUE: {cue_path.name}</div>'
+
+            for n, pos in enumerate(audio_positions, 1):
+                track = all_tracks[pos]
+                track_id = str(track['num'])
+                title = track['title'] or f"Track {track['num']}"
+                safe_title = re.sub(r'[\\/*?:"<>|]', '', title).strip() or f"Track {track['num']}"
                 out_name = f"{track_id} - {artist} - {safe_title}.wav"
                 out_path = cue_path.parent / out_name
+
+                if not track['start']:
+                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — CUE has no INDEX 01 for track {track_id}</div>'
+                    continue
+
+                source_audio = sources.get(track['file'])
+                if not source_audio:
+                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — source file missing: {track["file"]}</div>'
+                    continue
+
+                t_start = _format_ts(track['start'])
+
+                # End boundary = the next track's INDEX 01, but ONLY if it
+                # sits in the same FILE. If the next start is in a
+                # different file (or there is none), this track runs to
+                # the end of its own file -- no -to at all.
+                t_dur = []
+                for nxt in all_tracks[pos + 1:]:
+                    if nxt['start']:
+                        if nxt['file'] == track['file']:
+                            t_dur = ["-to", _format_ts(nxt['start'])]
+                        break
 
                 # Raw BIN/ISO CD-DA dumps have no container header for
                 # ffmpeg to auto-detect -- has to be told explicitly it's
@@ -109,7 +224,7 @@ def split_cue(root, artist, report_data):
                     yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:36px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
                     report_data['extraction']['count'] += 1
                     success_count += 1
-                    yield f"<!-- PROGRESS:1:{i+1}:{total_tracks} -->"
+                    yield f"<!-- PROGRESS:1:{n}:{total_tracks} -->"
                 else:
                     # Real bug, found live 2026-07-20: a failed split used to
                     # be completely silent (no message at all) -- the user
@@ -118,64 +233,54 @@ def split_cue(root, artist, report_data):
                     err_line = (res.stderr or "").strip().splitlines()[-1] if (res.stderr or "").strip() else "unknown error"
                     yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — {err_line}</div>'
 
-            # 4. DELETE SOURCE -- only when EVERY track split successfully.
-            # Real bug, found live 2026-07-20 (John's Don Bryant "Precious
-            # Soul" report): this used to run unconditionally regardless of
-            # success_count, so any split failure (even just one track)
-            # still deleted the only source audio and the CUE sheet needed
-            # to ever retry -- confirmed capable of destroying an entire
-            # album with zero tracks recovered. A partial success (some
-            # tracks split, others failed) is treated the same as total
-            # failure here -- deleting the source would still permanently
-            # strand whichever tracks failed, so nothing gets deleted
-            # unless the whole split succeeded.
-            if total_tracks > 0 and success_count == total_tracks:
+            # 4. DELETE SOURCES -- only when EVERY track split successfully
+            # AND every referenced FILE was found. Real bug, found live
+            # 2026-07-20 (John's Don Bryant "Precious Soul" report): this
+            # used to run unconditionally regardless of success_count, so
+            # any split failure (even just one track) still deleted the
+            # only source audio and the CUE sheet needed to ever retry.
+            # Multi-FILE sheets follow the same all-or-nothing rule across
+            # the WHOLE sheet: one failed track keeps every source file
+            # and the CUE, since the CUE is needed to retry any of them.
+            if total_tracks > 0 and success_count == total_tracks and not missing:
                 try:
-                    if source_audio.name not in report_data['deletions']:
-                        report_data['deletions'].append(source_audio.name)
+                    for src in found:
+                        if src.name not in report_data['deletions']:
+                            report_data['deletions'].append(src.name)
+                        src.unlink()
                     if cue_path.name not in report_data['deletions']:
                         report_data['deletions'].append(cue_path.name)
-
-                    source_audio.unlink()
                     cue_path.unlink()
-                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> Monolithic source deleted.</div>'
-                except: pass
+                    label = "Monolithic source deleted." if len(found) == 1 else f"{len(found)} source files deleted."
+                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> {label}</div>'
+                except Exception:
+                    pass
             else:
                 # Register with the SAME failed_targets list bitstream_
                 # engine populates -- janitor_engine.py's cleanup pass
-                # already knows to preserve (not delete) anything in this
-                # list, so this reuses that existing safety net rather
-                # than adding a new, separate one.
+                # preserves (not deletes) anything in this list.
                 report_data.setdefault('failed_targets', [])
-                if source_audio.name not in report_data['failed_targets']:
-                    report_data['failed_targets'].append(source_audio.name)
+                for src in found:
+                    if src.name not in report_data['failed_targets']:
+                        report_data['failed_targets'].append(src.name)
                 if cue_path.name not in report_data['failed_targets']:
                     report_data['failed_targets'].append(cue_path.name)
-                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> Only {success_count}/{total_tracks} tracks split successfully — source and CUE sheet preserved for retry.</div>'
+                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> Only {success_count}/{total_tracks} tracks split successfully — source(s) and CUE sheet preserved for retry.</div>'
 
         except Exception as e:
             # Real bug, found live 2026-07-20: this used to be a bare
             # `except Exception: continue` -- ANY unexpected failure
-            # anywhere in CUE parsing or splitting (a bad regex edge case,
-            # a permissions error, a subprocess failure) vanished with zero
-            # trace, console just "jumped straight past" Step 1 entirely.
-            # Whatever the actual cause turns out to be, it must never
-            # again be invisible.
+            # anywhere in CUE parsing or splitting vanished with zero
+            # trace. Whatever the actual cause turns out to be, it must
+            # never again be invisible.
             report_data.setdefault('failed_targets', [])
             if cue_path.name not in report_data['failed_targets']:
                 report_data['failed_targets'].append(cue_path.name)
-            if source_audio and source_audio.name not in report_data['failed_targets']:
-                report_data['failed_targets'].append(source_audio.name)
+            for src in sources.values():
+                if src and src.name not in report_data['failed_targets']:
+                    report_data['failed_targets'].append(src.name)
             yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> CUE processing error on {cue_path.name}: {e}</div>'
             continue
-
-# Raw, headerless CD-DA PCM dumps -- the standard "BIN/CUE" or "ISO/CUE"
-# rip convention (EAC, dBpoweramp, etc all support this alongside FLAC).
-# Not a filesystem image and not the same thing as an SACD ISO (see
-# sacd_engine.py) -- just uncompressed Red Book audio with no container
-# header, which is exactly why ffmpeg needs to be told the format
-# explicitly in _run_split() below rather than auto-detecting it.
-RAW_PCM_EXT = {'.iso', '.bin'}
 
 def _find_audio_source(directory, filename):
     if (directory / filename).exists(): return directory / filename
@@ -184,12 +289,21 @@ def _find_audio_source(directory, filename):
         if (directory / f"{stem}{ext}").exists(): return directory / f"{stem}{ext}"
     return None
 
-def _format_ts(ts):
-    parts = ts.split(':')
-    m_raw, s, f = int(parts[0]), int(parts[1]), int(parts[2])
-    ms = int(f * (1000 / 75))
-    h = m_raw // 60
-    m = m_raw % 60
-    return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+def _format_ts(mmssff):
+    """
+    (minutes, seconds, frames) -> "HH:MM:SS.mmm" for ffmpeg.
+
+    Build 7.4.0: converts to total milliseconds FIRST, then formats. The
+    old version formatted each field separately, so an out-of-spec frame
+    value (> 74, e.g. "05:23:88") produced 1173 "milliseconds" and a
+    malformed "00:05:23.1173" -- which ffmpeg reads as 23.117s instead of
+    the intended ~24.17s. Total-ms math carries the overflow correctly.
+    """
+    m_raw, s, f = mmssff
+    total_ms = round((m_raw * 60 + s) * 1000 + f * 1000 / 75)
+    h, rem = divmod(total_ms, 3_600_000)
+    m, rem = divmod(rem, 60_000)
+    sec, ms = divmod(rem, 1000)
+    return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
 
 # --- END OF FILE cue_engine.py ---

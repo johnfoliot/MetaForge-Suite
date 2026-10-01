@@ -2,13 +2,13 @@
 /**
  * ======================================================================
  * MetaForge Logic Bridge: Unpack & Convert
- * Build 8.2.1: Workflow Handoff Ordering Fix.
+ * Build 8.2.2: Removed stray Intelli-Tagger path reference in run().
  * Role: Transitions path context to Step 2 (MusicBrainz IDs).
  * Accessibility: WCAG 2.2 AA | COGA 4.5.10 (Feedback Loops)
  * ======================================================================
  */
 
-console.log("METAFORGE: unpack_convert.js Build 8.2.1 active...");
+console.log("METAFORGE: unpack_convert.js Build 8.2.2 active...");
 
 window.metaforge = window.metaforge || {};
 window.metaforge.unpack_convert = {
@@ -534,7 +534,10 @@ window.metaforge.unpack_convert = {
         const step4Wrapper = document.getElementById('upk-step4-wrapper');
         if (step4Wrapper) step4Wrapper.remove();
 
-        const path = document.getElementById('it-path')?.value.trim() || document.getElementById('upk-path').value.trim();
+        // Build 8.2.2 (2026-10-01 review): this used to check
+        // Intelli-Tagger's #it-path first -- a stray cross-tool reference.
+        // This tool's own path field is the only source of truth here.
+        const path = document.getElementById('upk-path').value.trim();
         const payload = {
             artist: document.getElementById('upk-artist').value.trim(),
             album: document.getElementById('upk-album').value.trim(),

@@ -708,7 +708,7 @@ window.metaforge.personnel = {
             if (res.ok && data.status === "success") {
                 this.updateStatus(`<img src="/ui/images/support.png" alt="" aria-hidden="true" style="width:auto; height:64px; float:left; margin-right:8px; margin-top:-15px!important;"> ${data.count} support artists committed to the database.`, "success", true);
                 setTimeout(() => {
-                    alert(`Transaction Complete: ${data.count} personnel records successfully written to the database.`);
+                    alert(`Update Complete: ${data.count} personnel records successfully written to the database.`);
                 }, 100);
             } else {
                 throw new Error(data.message || "Server returned error status.");

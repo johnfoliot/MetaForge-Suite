@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Tool Hub: Unpack & Convert
 # Role: Primary tool orchestrator for ingestion and standardization.
-# Build 7.9.1: Workflow Handoff Sync (Ready for Tagging Hook).
+# Build 7.10.0: Audio-Bearing Disc Detection + DSD Engine + Offset Source.
 # Physical Location: \tools\unpack_convert\unpack_convert.py
 # ======================================================================
 import os
@@ -19,6 +19,18 @@ if str(ENGINES_DIR) not in sys.path:
 
 import context_engine
 from common import io_bridge
+
+# Anything one of the Step 1/Step 2 engines can actually consume. A
+# subfolder holding any of these directly is treated as a disc (John's
+# decision, 2026-10-01). .7z is deliberately absent -- no engine extracts
+# it, so a .7z-only folder would just become an empty "disc" and inflate
+# TPOS; janitor_engine preserves and flags it instead.
+DISC_SOURCE_EXT = {
+    '.mp3', '.flac', '.ape', '.wav', '.m4a', '.wma', '.ogg', '.aiff', '.aif',
+    '.wv', '.shn', '.tta', '.dsf', '.dff', '.iso', '.bin', '.zip', '.rar'
+}
+
+DISC_PATTERN = re.compile(r'(?:^|[\s\-_])(disc|disk|cd|v\.|vol|volume|part)[\s\-_]*(\d+)', re.I)
 
 def run_logic(action, tools_dir, env_path):
     """
@@ -69,15 +81,58 @@ def _natural_sort_key(text):
     """Helper for numerical sorting of directory names."""
     return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', str(text))]
 
+def _is_audio_bearing(d_path):
+    """True if the folder directly holds anything a Step 1/2 engine consumes."""
+    try:
+        return any(f.is_file() and f.suffix.lower() in DISC_SOURCE_EXT for f in d_path.iterdir())
+    except Exception:
+        return False
+
+def _disc_sort_key(d_path):
+    """
+    Named discs first, in disc-number order ("CD1", "Disc 2", "Vol. 3");
+    then any other audio-bearing folders ("Bonus Tracks", "Side A") in
+    natural name order. Plain natural sort would put "Bonus" before
+    "CD1" and shift every real disc's numbering by one.
+    """
+    m = DISC_PATTERN.search(d_path.name)
+    if m:
+        return (0, int(m.group(2)), _natural_sort_key(d_path.name))
+    return (1, 0, _natural_sort_key(d_path.name))
+
+def _find_disc_dirs(root):
+    """
+    Real bug, found in the 2026-10-01 review: disc detection used to be
+    name-pattern only. Audio in a subfolder the pattern didn't match
+    ("Disk 1", "Side A", "Bonus Tracks") was never sent to any engine,
+    then janitor_engine deleted it as legacy cruft. Now any subfolder
+    that directly holds consumable source material is a disc; the name
+    pattern only decides ordering. Hidden folders (the .mf_zip_/.mf_rar_
+    staging dirs, .DS_Store-style junk) and /art are never discs.
+    """
+    candidates = [
+        d for d in root.iterdir()
+        if d.is_dir()
+        and d.name.lower() != 'art'
+        and not d.name.startswith('.')
+        and _is_audio_bearing(d)
+    ]
+    return sorted(candidates, key=_disc_sort_key)
+
 def _orchestrate_workflow(data, env_path):
     """
     Orchestration Engine: Manages the bimodal lifecycle.
     Build 7.9.1: Synchronized 'ready for tagging.' hook for JS hand-off.
+    Build 7.10.0: dsf_engine runs after SACD and before CUE in both
+    branches -- after SACD so CD-DA/SACD ISO handling is settled first,
+    before CUE so a CUE-referenced monolithic DSD is already decoded to
+    FLAC when cue_engine looks for its source.
     """
     import cue_engine
     import zip_engine
     import rar_engine
     import sacd_engine
+    import dsf_engine
     import bitstream_engine
     import janitor_engine
     import art_engine
@@ -88,10 +143,10 @@ def _orchestrate_workflow(data, env_path):
     album_name = data.get('album')
     do_norm = data.get('normalization', False)
     library_type = context_engine.get_policy(env_path)
-    
+
     category = data.get('category')
     if library_type != "ENHANCED":
-        category = None 
+        category = None
 
     report_data = {
         "phase": "Unpack & Convert",
@@ -115,46 +170,54 @@ def _orchestrate_workflow(data, env_path):
     for msg in zip_engine.extract_zip(root, report_data): yield msg
     for msg in rar_engine.extract_rar(root, report_data): yield msg
 
-    disc_pattern = re.compile(r'(?:^|[\s\-_])(disc|cd|v\.|vol|volume|part)[\s\-_]*(\d+)', re.I)
-    sub_dirs = sorted([d for d in root.iterdir() if d.is_dir() and d.name.lower() != 'art'], key=lambda x: _natural_sort_key(x.name))
-    disc_dirs = [d for d in sub_dirs if disc_pattern.search(d.name)]
+    disc_dirs = _find_disc_dirs(root)
 
     if disc_dirs:
         for d_path in disc_dirs:
             for msg in zip_engine.extract_zip(d_path, report_data): yield msg
             for msg in rar_engine.extract_rar(d_path, report_data): yield msg
             for msg in sacd_engine.process_sacd(d_path, artist, report_data): yield msg
+            for msg in dsf_engine.process_dsf(d_path, artist, report_data): yield msg
             for msg in cue_engine.split_cue(d_path, artist, report_data): yield msg
     else:
         for msg in sacd_engine.process_sacd(root, artist, report_data): yield msg
+        for msg in dsf_engine.process_dsf(root, artist, report_data): yield msg
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     if not report_data.get('extraction_occurred', False):
-        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px; margin-bottom:-16px; margin-right:-3px;">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:50px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
+        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px; margin-bottom:-16px; margin-right:-8px;">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:45px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
         yield "<!-- PROGRESS:1:1:1 -->"
 
     # 3. STEP 2: BITSTREAM & METADATA
     if disc_dirs:
         total_discs = len(disc_dirs)
+        # A lone audio-bearing subfolder (e.g. the user picked the parent
+        # of the real album folder) is a single disc, not a 1-disc box
+        # set -- no 1xx filing prefix, no TPOS "1/1".
+        is_multidisc = total_discs > 1
         linear_offset = 0
-        yield f'<div class="status-message" style="margin-left:50px; margin-top:5px; display:flex; align-items:center; gap:8px;"><img src="/ui/images/multi-disc.svg" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto;"> Box Set Detected: <strong>{total_discs} volume(s)</strong> found.</div>'
-        
+        if is_multidisc:
+            yield f'<div class="status-message" style="margin-left:50px; margin-top:5px; display:flex; align-items:center; gap:8px;"><img src="/ui/images/multi-disc.svg" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto;"> Box Set Detected: <strong>{total_discs} volume(s)</strong> found.</div>'
+
         for d_idx, d_path in enumerate(disc_dirs, 1):
-            for msg in bitstream_engine.process_targets(d_path, artist, album_name, category, report_data, 
-                                                       disc_num=d_idx, 
-                                                       total_discs=total_discs, 
-                                                       offset=linear_offset, 
-                                                       is_multidisc=True,
+            for msg in bitstream_engine.process_targets(d_path, artist, album_name, category, report_data,
+                                                       disc_num=d_idx,
+                                                       total_discs=total_discs,
+                                                       offset=linear_offset,
+                                                       is_multidisc=is_multidisc,
                                                        do_norm=do_norm):
                 yield msg
-            
-            audio_exts = {'.mp3', '.flac', '.wav', '.ape', '.m4a', '.ogg'}
-            linear_offset += len([f for f in d_path.iterdir() if f.suffix.lower() in audio_exts])
+
+            # Offset source (Build 7.10.0): the disc's own track count as
+            # recorded by bitstream_engine from its deduplicated target
+            # list -- NOT a count of whatever audio files remain on disk,
+            # which also counted preserved failures and skipped duplicates.
+            linear_offset += report_data.get('disc_track_counts', {}).get(d_idx, 0)
     else:
-        for msg in bitstream_engine.process_targets(root, artist, album_name, category, report_data, 
-                                                   disc_num=1, 
-                                                   total_discs=1, 
-                                                   offset=0, 
+        for msg in bitstream_engine.process_targets(root, artist, album_name, category, report_data,
+                                                   disc_num=1,
+                                                   total_discs=1,
+                                                   offset=0,
                                                    is_multidisc=False,
                                                    do_norm=do_norm):
             yield msg
@@ -169,9 +232,9 @@ def _orchestrate_workflow(data, env_path):
     else:
         yield f'<div class="status-api" style="margin-top:5px; padding-top:10px;"><span aria-hidden="true" style="font-size:36px!important;">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
         yield f'<div class="status-message" style="color:var(--text-output); margin-left:1rem; margin-left:15px;"><img src="/ui/images/cloud.png" style="height:14px; width:auto;" alt=""> Querying Discogs Archive for {album_name}...</div>'
-        
+
         cloud_res = art_engine.trigger_discogs_fetch(root, artist, album_name)
-        
+
         if cloud_res['status'] == 'success':
             # Build 7.9.1: Inclusion of "ready for tagging." ensures injectHandoffButton triggers in JS
             yield f'''
@@ -195,16 +258,16 @@ def _orchestrate_workflow(data, env_path):
     # 6. FINALIZATION & FORENSIC AUDIT
     final_audio_list = io_bridge.get_audio_targets(root, recursive=True)
     report_data["final_track_count"] = len(final_audio_list)
-    
+
     context_engine.write_audit_log(root, report_data)
-    
+
     manifest_category = category if category else "None Provided"
     context_engine.generate_manifest(
-        root, 
-        artist, 
-        album_name, 
-        manifest_category, 
-        library_type, 
+        root,
+        artist,
+        album_name,
+        manifest_category,
+        library_type,
         track_count=report_data["final_track_count"]
     )
 

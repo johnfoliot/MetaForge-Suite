@@ -2,7 +2,7 @@
 # ======================================================================
 # MetaForge Spoke: Bitstream Engine
 # Role: Executes FFmpeg conversion and surgical ID3 enforcement.
-# Build 7.4.9: Accessibility Hardening (WCAG 2.2 SC 1.1.1).
+# Build 7.5.0: Per-Disc Track Count Reporting (multi-disc offset source).
 # ======================================================================
 import os
 import re
@@ -49,11 +49,25 @@ def _check_mp3val(mp3_path):
 def process_targets(root, artist, album, category, report_data, disc_num=1, total_discs=1, offset=0, is_multidisc=False, do_norm=False):
     """
     Identifies audio targets and executes conversion or normalization.
+
+    Build 7.5.0: records this disc's track count in
+    report_data['disc_track_counts'][disc_num] for unpack_convert.py to
+    build the next disc's album-wide TRCK offset from. Real bug, found in
+    the 2026-10-01 review: the orchestrator used to compute that offset by
+    counting every audio file left in the disc folder afterward -- which
+    also counted preserved failed sources and skipped duplicate MP3s, so
+    one bad track or one duplicate inflated every later disc's TRCK.
+
+    The recorded count is the highest per-disc track number among this
+    disc's deduplicated targets -- counted BEFORE conversion, so a track
+    that fails to convert still holds its slot. Album-wide numbering then
+    stays aligned with the real disc layout once that track is repaired.
     """
     yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
 
     if 'failed_targets' not in report_data:
         report_data['failed_targets'] = []
+    report_data.setdefault('disc_track_counts', {})
 
 
     already_flagged = set(report_data['failed_targets'])
@@ -64,6 +78,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
     ]
 
     if not all_files:
+        report_data['disc_track_counts'][disc_num] = 0
         yield "<!-- PROGRESS:2:1:1 -->"
         return
 
@@ -88,6 +103,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
         final_targets.append(f_p)
 
     total_to_process = len(final_targets)
+    disc_max_track = 0
 
     # --- [ EMBEDDED ART RESCUE ] ---
     art_dir = root / "art"
@@ -110,12 +126,17 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             extracted_title = re.sub(r'^\d+[\s\.\-_]*', '', original_stem).strip()
 
         mp3_path = None
-        
+
         if is_multidisc and claimed_track:
             filing_id = str(claimed_track) if claimed_track >= 100 else str((disc_num * 100) + claimed_track)
         else:
             filing_id = str(claimed_track if claimed_track else idx)
-        
+
+        # Track this disc's length from the target list itself (before
+        # conversion), not from whatever survives on disk afterward.
+        per_disc_track = int(filing_id) % 100 if int(filing_id) >= 100 else int(filing_id)
+        disc_max_track = max(disc_max_track, per_disc_track)
+
         is_already_mp3 = f_p.suffix.lower() == '.mp3'
 
         if not is_already_mp3 or do_norm:
@@ -139,16 +160,16 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             # (filing_id, e.g. "205") so files sort correctly on disk.
             # The ID3 TRCK tag, however, should be the album-wide running
             # count across all discs (offset is the cumulative track count
-            # of every prior disc, computed once by unpack_convert.py) --
-            # per-disc-only numbering here would make disc 2+ restart at 1
-            # in the tags even though the files are correctly enumerated.
-            per_disc_track = int(filing_id) % 100 if int(filing_id) >= 100 else int(filing_id)
+            # of every prior disc, computed by unpack_convert.py from
+            # report_data['disc_track_counts']) -- per-disc-only numbering
+            # here would make disc 2+ restart at 1 in the tags even though
+            # the files are correctly enumerated.
             metadata_track = str(offset + per_disc_track) if is_multidisc else str(per_disc_track)
             _enforce_metadata_truth(mp3_path, artist, album, extracted_title, metadata_track, category, disc_num, total_discs, is_multidisc)
 
             status_suffix = f"(Disc {disc_num}, Track {metadata_track})" if is_multidisc else f"(Track {metadata_track})"
             yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:36px; margin-bottom:10px;"><span aria-hidden="true">🧼</span> Metadata Cleaned: {mp3_path.name} {status_suffix}</div>'
-            
+
             if mp3_path.name not in report_data['conversion']:
                 report_data['conversion'].append(mp3_path.name)
 
@@ -158,12 +179,14 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
 
         yield f"<!-- PROGRESS:2:{idx}:{total_to_process} -->"
 
+    report_data['disc_track_counts'][disc_num] = disc_max_track
+
 def _rescue_embedded_art(source_file, root):
     """Extracts image stream from source audio for Step 4 discovery."""
     art_dir = root / "art"
     art_dir.mkdir(parents=True, exist_ok=True)
     out_path = art_dir / "rescued_embedded_art.jpg"
-    
+
     cmd = [
         str(FFMPEG_EXE), "-i", str(source_file),
         "-an", "-vcodec", "mjpeg",
@@ -181,36 +204,36 @@ def _convert_to_mp3(f_path, artist, filing_id, title, do_norm, report_data):
     """Standardizes bitstream to MP3 VBR(V0)."""
     out_name = f"{filing_id} - {artist} - {title}.mp3"
     out_path = f_path.parent / out_name
-    
+
     work_path = out_path
     is_same_file = f_path.resolve() == out_path.resolve()
-    
+
     if is_same_file:
         work_path = out_path.with_suffix('.tmp.mp3')
 
     cmd = [str(FFMPEG_EXE), "-i", str(f_path)]
     if do_norm:
         cmd.extend(["-af", "loudnorm=I=-16:TP=-1.5:LRA=11"])
-    
+
     cmd.extend([
         "-codec:a", "libmp3lame", "-q:a", "0",
-        "-map_metadata", "0", "-id3v2_version", "3", 
+        "-map_metadata", "0", "-id3v2_version", "3",
         str(work_path), "-y", "-loglevel", "error"
     ])
-    
+
     res = subprocess.run(cmd)
-    
+
     if res.returncode == 0 and work_path.exists():
         if is_same_file:
             f_path.unlink()
             work_path.rename(out_path)
         else:
-            try: 
+            try:
                 if f_path.name not in report_data['deletions']:
                     report_data['deletions'].append(f_path.name)
                 os.remove(f_path)
             except: pass
-            
+
         yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:36px;"><span aria-hidden="true">✨</span> Converted: {out_name}</div>'
         if do_norm:
             yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px;"><span aria-hidden="true">⚖️</span> Normalized: {out_name}</div>'
@@ -223,7 +246,7 @@ def _rename_existing_mp3(f_path, artist, filing_id, title):
     """Aligns existing MP3 filenames with the standard."""
     out_name = f"{filing_id} - {artist} - {title}.mp3"
     out_path = f_path.parent / out_name
-    
+
     if f_path.resolve() != out_path.resolve():
         try:
             if out_path.exists(): out_path.unlink()
@@ -244,7 +267,7 @@ def _enforce_metadata_truth(f_path, artist, album, title, track, category, disc_
         tags = ID3(str(f_path))
         to_delete = [k for k in tags.keys() if not any(k.startswith(w) for w in ID3_WHITELIST)]
         for key in to_delete: tags.delall(key)
-            
+
         tags.add(TPE1(encoding=1, text=[artist]))
         tags.add(TALB(encoding=1, text=[album]))
         tags.add(TIT2(encoding=1, text=[title]))
