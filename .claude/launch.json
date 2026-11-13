@@ -8,6 +8,12 @@
       "port": 5000
     },
     {
+      "name": "metaforge-v2-ui",
+      "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["D:\\MetaForge Suite (New Build)\\dev\\serve_ui_only.py", "5050"],
+      "port": 5050
+    },
+    {
       "name": "survey-tool",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8934", "--directory", "D:\\Survey Tool"],
