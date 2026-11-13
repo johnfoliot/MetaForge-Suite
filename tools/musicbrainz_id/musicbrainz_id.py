@@ -11,11 +11,12 @@ import re
 import requests
 from datetime import datetime
 from pathlib import Path
-from flask import request, jsonify
+from flask import request, jsonify, Response, stream_with_context
 from mutagen.id3 import ID3, TXXX, UFID, TYER, TRCK, ID3NoHeaderError
 
 from common import io_bridge
 from common import mb_client
+from common.mf_events import event, signal, run_stream   # v2 event stream (Phase 0.3)
 
 # All MusicBrainz traffic goes through common/mb_client.py (shared pace,
 # retries on "busy", timeouts). Only the per-user User-Agent lives here.
@@ -71,7 +72,14 @@ def run_logic(action, tools_dir, env_path):
         return get_folder_context()
 
     if action == "commit":
-        return commit_ids_to_files(env_path)
+        # v2: one event per file, streamed to the screen's Activity log and
+        # written to the album's MetaForge.log (common/mf_events.py).
+        data = request.json or {}
+        return Response(
+            stream_with_context(run_stream(commit_ids_to_files(data), "MusicBrainz IDs",
+                                           log_root=data.get("local_path"))),
+            mimetype="application/x-ndjson"
+        )
 
     return jsonify({
         "status": "error",
@@ -328,7 +336,7 @@ def get_release_details():
 # =========================================================
 # FORENSIC AUDIT LOG
 # =========================================================
-def _write_mb_id_audit_log(root, release_title, artist_seed, fmt, track_count, mb_album_id):
+def _write_mb_id_audit_log(root, release_title, artist_seed, fmt, track_count, mb_album_id, inside_run=False):
     """
     Appends a "MusicBrainz ID" block to MetaForge.log, same header/footer
     convention as Unpack & Convert's own block (context_engine.write_audit_
@@ -343,18 +351,25 @@ def _write_mb_id_audit_log(root, release_title, artist_seed, fmt, track_count, m
     log_path = root / "MetaForge.log"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    log_content = [
-        f"\n{'='*60}",
-        f"METAFORGE AUDIT LOG | {timestamp}",
-        "MetaForge Process: MusicBrainz ID",
-        f"{'-'*60}",
+    details = [
         f"Version Selected: {release_title}",
         f"Artist: {artist_seed}",
         f"Format: {fmt}",
         f"Track Count: {track_count}",
         f'mb_album_id: "{mb_album_id}"',
-        f"{'='*60}\n",
     ]
+    if inside_run:
+        # v2: the run already has its own block (common/mf_events.run_stream
+        # writes header, every event and the "Finished" footer), so this
+        # is a sub-section of it, not a second banner.
+        log_content = ["", "SUMMARY"] + details + [""]
+    else:
+        log_content = [
+            f"\n{'='*60}",
+            f"METAFORGE AUDIT LOG | {timestamp}",
+            "MetaForge Process: MusicBrainz ID",
+            f"{'-'*60}",
+        ] + details + [f"{'='*60}\n"]
 
     try:
         with open(log_path, 'a', encoding='utf-8') as f:
@@ -366,11 +381,19 @@ def _write_mb_id_audit_log(root, release_title, artist_seed, fmt, track_count, m
 # =========================================================
 # COMMIT (UNCHANGED CONTRACT)
 # =========================================================
-def commit_ids_to_files(env_path):
-    data = request.json
+def commit_ids_to_files(data):
+    """
+    Writes the MusicBrainz IDs into each file and renames it.
 
-    local_path = Path(data.get("local_path"))
-    mapping = data.get("mapping")
+    v2 (2026-11-13): a generator of events instead of one silent JSON
+    reply. Every file gets its own entry ("track" event), so a box set
+    shows live progress, and every failure is reported with its reason
+    instead of only being counted (the 1.x screen said "N files updated"
+    even when some had failed, and offered the hand-off anyway). The
+    hand-off is only signalled after a clean commit.
+    """
+    local_path = Path(data.get("local_path") or "")
+    mapping = data.get("mapping") or []
 
     artist_seed = data.get("artist_seed", "Unknown Artist")
     album_seed = data.get("album_seed", local_path.name)
@@ -383,14 +406,24 @@ def commit_ids_to_files(env_path):
     mb_catalog_number = data.get("mb_catalog_number", "")
 
     stats = {"success": 0, "failed": 0}
+    total = len(mapping)
 
-    for item in mapping:
+    yield event("step", "Writing MusicBrainz IDs and renaming files", file=release_title)
+    if not mapping:
+        yield event("error", "There are no files to update. Choose the album folder, then a release")
+        return
+
+    for idx, item in enumerate(mapping, 1):
         old_path = local_path / item["current_filename"]
+        shown_name = Path(item["current_filename"]).name
 
         if not old_path.exists():
             stats["failed"] += 1
+            yield event("error", "File not found, so it was skipped", file=shown_name)
+            yield signal("progress", current=idx, total=total)
             continue
 
+        # 1. TAGS
         try:
             try:
                 audio = ID3(str(old_path))
@@ -433,44 +466,67 @@ def commit_ids_to_files(env_path):
             # TYER) even when v2_version=3 is requested -- must call this first.
             audio.update_to_v23()
             audio.save(str(old_path), v2_version=3)
-
-            # Real bug, found live 2026-07-21 (John's Matt Bianco box set
-            # report, watched live on a second run): this used to rename
-            # the physical file to item["track_num"] -- the album-wide
-            # linear position (1, 2, 3... continuing across every disc,
-            # matching MB's own tracklist position and what the TRCK tag
-            # above correctly carries). That collapsed Unpack & Convert's
-            # disc-aware "101"/"102"/"201"/"202" filing convention (disc N
-            # * 100 + per-disc track, see bitstream_engine.py's filing_id)
-            # down to a flat "1"/"2"/"3", discarding which disc a track
-            # belongs to. The TAG should be the album-wide position; the
-            # FILENAME's numeric prefix is Unpack & Convert's concern, not
-            # this tool's -- so it's preserved as-is from whatever the file
-            # is already named, not recomputed from track_num.
-            existing_prefix_match = re.match(r'^(\d+)', old_path.stem)
-            filing_prefix = existing_prefix_match.group(1) if existing_prefix_match else str(item["track_num"])
-            item["_filing_prefix"] = filing_prefix
-
-            # Real per-track performer (e.g. from MB's own recording-level
-            # artist-credit on a Various Artists compilation) takes priority
-            # over the blanket release-level artist_seed -- see track_artist
-            # capture in get_release_details() above. Falls back to
-            # artist_seed for the normal case where every track shares one
-            # artist and MB never returned a differing recording credit.
-            safe_artist = sanitize_filename(item.get("track_artist") or artist_seed)
-            safe_title = sanitize_filename(item["target_title"])
-
-            new_name = f"{filing_prefix} - {safe_artist} - {safe_title}.mp3"
-            new_path = old_path.parent / new_name
-
-            if old_path != new_path:
-                os.rename(str(old_path), str(new_path))
-
-            stats["success"] += 1
-
         except Exception as e:
-            print(f"Commit/Rename Failure: {e}")
             stats["failed"] += 1
+            yield event("error", f"IDs not written: {e}. The file was left as it was", file=shown_name)
+            yield signal("progress", current=idx, total=total)
+            continue
+
+        # 2. RENAME
+        # Real bug, found live 2026-07-21 (John's Matt Bianco box set
+        # report, watched live on a second run): this used to rename
+        # the physical file to item["track_num"] -- the album-wide
+        # linear position (1, 2, 3... continuing across every disc,
+        # matching MB's own tracklist position and what the TRCK tag
+        # above correctly carries). That collapsed Unpack & Convert's
+        # disc-aware "101"/"102"/"201"/"202" filing convention (disc N
+        # * 100 + per-disc track, see bitstream_engine.py's filing_id)
+        # down to a flat "1"/"2"/"3", discarding which disc a track
+        # belongs to. The TAG should be the album-wide position; the
+        # FILENAME's numeric prefix is Unpack & Convert's concern, not
+        # this tool's -- so it's preserved as-is from whatever the file
+        # is already named, not recomputed from track_num.
+        existing_prefix_match = re.match(r'^(\d+)', old_path.stem)
+        filing_prefix = existing_prefix_match.group(1) if existing_prefix_match else str(item["track_num"])
+        item["_filing_prefix"] = filing_prefix
+
+        # Real per-track performer (e.g. from MB's own recording-level
+        # artist-credit on a Various Artists compilation) takes priority
+        # over the blanket release-level artist_seed -- see track_artist
+        # capture in get_release_details() above. Falls back to
+        # artist_seed for the normal case where every track shares one
+        # artist and MB never returned a differing recording credit.
+        safe_artist = sanitize_filename(item.get("track_artist") or artist_seed)
+        safe_title = sanitize_filename(item["target_title"])
+
+        new_name = f"{filing_prefix} - {safe_artist} - {safe_title}.mp3"
+        new_path = old_path.parent / new_name
+
+        try:
+            # Compare the exact names, not the paths: Windows paths compare
+            # case-insensitively, so a capitalisation-only correction from
+            # MusicBrainz ("Out in the country" -> "Out In The Country") used
+            # to count as "same file" and was silently never applied.
+            if old_path.name != new_name:
+                os.rename(str(old_path), str(new_path))
+                did = f"IDs written (track {item['track_num']}), renamed from \u201c{old_path.name}\u201d"
+            else:
+                did = f"IDs written (track {item['track_num']}), name already correct"
+        except FileExistsError:
+            stats["failed"] += 1
+            yield event("error", f"IDs written, but not renamed: a file called \u201c{new_name}\u201d already exists",
+                        file=shown_name)
+            yield signal("progress", current=idx, total=total)
+            continue
+        except Exception as e:
+            stats["failed"] += 1
+            yield event("error", f"IDs written, but not renamed: {e}", file=shown_name)
+            yield signal("progress", current=idx, total=total)
+            continue
+
+        stats["success"] += 1
+        yield event("track", did, file=new_name)
+        yield signal("progress", current=idx, total=total)
 
     if stats["success"] > 0:
         _update_manifest(
@@ -478,12 +534,24 @@ def commit_ids_to_files(env_path):
             release_group_first_date, release_group_secondary_types,
             mb_label_name, mb_catalog_number
         )
+
+    n_ok, n_bad = stats["success"], stats["failed"]
+    yield signal("commit_result", success=n_ok, failed=n_bad)
+    if n_bad == 0:
+        yield event("done", f"{n_ok} file{'s' if n_ok != 1 else ''} updated. Ready for Intelli-Tagger")
+        yield signal("handoff_ready")
+    else:
+        yield event("warning", f"{n_bad} of {total} files were not fully updated (listed above in red). "
+                               f"Fix those, then choose the release again to retry")
+
+    # Last, so MetaForge.log reads in order: events, then the SUMMARY,
+    # then the run's "Finished" footer.
+    if n_ok > 0:
         _write_mb_id_audit_log(
             local_path, release_title, artist_seed, fmt,
-            stats["success"], mapping[0].get("album_id", "") if mapping else ""
+            n_ok, mapping[0].get("album_id", "") if mapping else "",
+            inside_run=True
         )
-
-    return jsonify({"status": "success", "summary": stats})
 
 
 # =========================================================
