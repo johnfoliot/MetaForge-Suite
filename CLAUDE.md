@@ -4,7 +4,9 @@
 
 Use the `modern-web-guidance` skill before writing or changing any user-facing markup, CSS or client-side JS. That includes HTML generated inside Python files (engine log output, f-string templates), not just `.html`/`.css`/`.js` files. Pay particular attention to accessibility (WCAG, COGA).
 
-**Desktop only:** MetaForge is a desktop tool with a minimum window width of 1240px. Don't design or test phone/tablet layouts; do make sure everything fits at 1240px. Height matters too: John runs Windows at ~150% scaling, so test layouts at an effective **1280×690** window. The app shell doesn't scroll as a whole; regions that can outgrow the window (like the left rail's tool list) must scroll on their own.
+**Desktop only:** MetaForge is a desktop tool with a minimum window width of 1240px. Don't design or test phone/tablet layouts; do make sure everything fits at 1240px. Height matters too: John runs Windows at ~150% scaling, and his maximised window measures an effective **1280×668** viewport (1920×1080 at 150%, minus the taskbar and title bar), so test layouts at 1280×668. The app shell doesn't scroll as a whole; regions that can outgrow the window (like the left rail's tool list) must scroll on their own, and each such region is `position: relative` so hidden screen-reader text (`.mf-visually-hidden`) inside it can't escape and make the page scroll.
+
+**Larger text beats a tidy fit:** users who enlarge their text take precedence over fitting the screen at the default size. Never shrink type or rely on a fixed fit. Test every reworked screen at 1280×668 with the root font size at 100%, 150% and 200%: the page must not scroll, the primary action stays reachable, and a focused field is never hidden behind pinned content (WCAG 1.4.4, 1.4.10, 2.4.11).
 
 **Enter submits (native-app feel):** any group of fields that ends in an action button must run that action when Enter is pressed in a field. Use a real `<form>` with the action button as `type="submit"` and handle the `submit` event (`preventDefault()`); every other button in the group is `type="button"`. No per-field Enter key handlers.
 
