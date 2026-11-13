@@ -79,6 +79,7 @@
     .mb-scroll-row { flex: 1; display: flex; min-height: 0; }
 
     .mb-results-viewport {
+        position: relative;   /* contains hidden screen-reader text */
         flex: 1;
         min-height: 0;
         overflow-y: auto;
@@ -207,6 +208,7 @@
     }
 
     .mb-comparison-viewport {
+        position: relative;   /* contains hidden screen-reader text */
         flex: 1;
         min-height: 0;
         overflow-y: auto;

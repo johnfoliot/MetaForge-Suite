@@ -247,7 +247,13 @@ html[data-toolbar-labels="on"] .mf-rail { --rail-w: 14rem; }
     padding-inline-end: 0.4rem;
 }
 .mf-rail-top, .mf-rail > .mf-nav-end { flex: none; overflow-y: hidden; }
+/* Every region that scrolls on its own is also position: relative, so
+   absolutely-positioned content inside it (e.g. .mf-visually-hidden
+   screen-reader text) stays inside it. Without that, at large text sizes
+   such text escaped to the page and made the whole app scroll (found
+   2026-11-13 testing 150-200% text). Apply the same to any new scroll region. */
 .mf-rail-scroll {
+    position: relative;
     flex: 1; min-height: 0;
     overflow-y: auto; overflow-x: hidden;
     display: flex; flex-direction: column; gap: 0.35rem;
