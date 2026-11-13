@@ -160,18 +160,24 @@ h1.main:focus { outline:none!important; }
 }
 
 /* --- BUTTONS --- */
+/* v2 (2026-11-13): the mock-up's button type: the main font (Atkinson) at
+   15px semi-bold, replacing 12.8px bold monospace. Measured on all 12
+   screens at 1280x690 before committing: nothing wraps, clips or pushes a
+   screen past the window. */
 button, .mf-button-gold-fixed {
     color: var(--input-foreground) !important;
     background-color: var(--input-background);
     border: 1px solid rgba(0,0,0,0.3);
-    border-radius: 3px;
-    padding: 8px 16px;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    font-weight: bold;
+    border-radius: 5px;
+    padding: 0.4rem 1rem;
+    font-family: var(--font-main);
+    font-size: 0.9375rem;
+    font-weight: 600;
     cursor: pointer;
     transition: filter 0.1s ease;
 }
+/* The main action buttons are at least 40px tall (comfortable target). */
+.mf-button-gold-fixed { min-block-size: 2.5rem; }
 
 button:hover, .mf-button-gold-fixed:hover {
     filter: brightness(1.2);
