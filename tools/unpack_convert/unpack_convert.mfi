@@ -116,24 +116,31 @@
         mask-image: url('/ui/images/lock.svg');
     }
 
-    /* Option groups: real fieldsets with a legend, native checkboxes */
+    /* Option groups: still real fieldsets (the legend names the group for
+       screen readers), but they LOOK like the other fields (John,
+       2026-11-13): the legend is an ordinary left-aligned label, and the
+       box below it has exactly the text inputs' background and border. */
     .upk-options {
         margin: 0;
-        padding: 0.6rem 0.75rem 0.75rem;
-        border: 1px solid var(--border-subtle);
-        border-radius: 4px;
-        background: var(--surface-raised);
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
+        padding: 0;
+        border: 0;
         min-width: 0;
     }
     .upk-options[hidden] { display: none; }
     .upk-options legend {
-        padding-inline: 0.25rem;
+        padding: 0;
+        margin-bottom: 0.25rem;
         color: var(--mf-gold);
         font-size: 0.875rem;
         font-weight: 700;
+    }
+    .upk-options-box {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background-color: var(--input-background2);
+        border: 1px solid var(--border-ui);
     }
     .upk-check {
         display: grid;
@@ -280,6 +287,7 @@
 
                     <fieldset class="upk-options">
                         <legend>Processing Details</legend>
+                        <div class="upk-options-box">
                         <div class="upk-check">
                             <input type="checkbox" id="upk-norm" aria-describedby="upk-norm-hint">
                             <label for="upk-norm">Apply Loudness Normalization</label>
@@ -288,10 +296,12 @@
                             Increases conversion time. Recommended for mixed sources.
                             <a href="https://tech.ebu.ch/loudness" target="_new">About EBU R 128<span class="upk-ext-icon" aria-hidden="true"></span><span class="mf-visually-hidden"> (opens in a new window)</span></a>
                         </p>
+                        </div>
                     </fieldset>
 
                     <fieldset class="upk-options" id="upk-consent-gate" hidden>
                         <legend>Consent</legend>
+                        <div class="upk-options-box">
                         <div class="upk-check">
                             <input type="checkbox" id="upk-consent" required>
                             <label for="upk-consent">I acknowledge that MetaForge will convert audio, rename files, and <strong class="upk-warn-word">delete</strong> original archives and legacy metadata.</label>
@@ -301,6 +311,7 @@
                             <label for="upk-remember">Remember this decision.</label>
                         </div>
                         <p class="upk-hint" id="upk-remember-hint">You can change it later in Settings &gt; Config &amp; API keys.</p>
+                        </div>
                     </fieldset>
 
                     <div class="upk-actions">

@@ -228,7 +228,7 @@ def process_dsf(root, artist, report_data):
         if ok:
             success_count += 1
             report_data['extraction']['count'] += 1
-            yield event("detail", "Decoded", file=out_name)
+            yield event("track", "Decoded from DSD to FLAC", file=out_name)
             try:
                 if src.name not in report_data['deletions']:
                     report_data['deletions'].append(src.name)

@@ -457,7 +457,7 @@ window.MFAnnounce = function(message, { urgent = false } = {}) {
 window.MFEvents = {
     // Hidden prefixes so the kind isn't conveyed by colour/glyph alone.
     LABEL: { error: 'Error: ', warning: 'Warning: ' },
-    MARK:  { success: '✓', warning: '!', error: '✕', done: '✓' },
+    MARK:  { success: '✓', warning: '!', error: '✕', done: '✓', track: '✓' },
 
     /** Draws one event into `log`. Returns the new row (or null). */
     render: function(log, ev) {
@@ -482,6 +482,22 @@ window.MFEvents = {
 
         const body = document.createElement('span');
         body.className = 'mf-ev-text';
+
+        // "track": one entry per file. File name is the headline; what
+        // was done to it sits on a quieter line underneath.
+        if (ev.kind === 'track') {
+            const file = document.createElement('span');
+            file.className = 'mf-ev-track-file';
+            file.textContent = ev.file || '';
+            const did = document.createElement('span');
+            did.className = 'mf-ev-track-did';
+            did.textContent = ev.text || '';
+            body.append(file, did);
+            row.append(body);
+            log.append(row);
+            return row;
+        }
+
         if (this.LABEL[ev.kind]) {
             const label = document.createElement('span');
             label.className = 'mf-visually-hidden';

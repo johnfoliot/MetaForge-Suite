@@ -128,7 +128,7 @@ def finalize_cover_stream(album_path, selected_filename):
             success, msg = tag_engine.embed_artwork(audio, dest_path)
             if success:
                 embedded_count += 1
-                yield event("detail", "Cover added", file=audio.name)
+                yield event("track", "Cover added", file=audio.name)
             else:
                 yield event("error", f"Cover not added: {msg}", file=audio.name)
 

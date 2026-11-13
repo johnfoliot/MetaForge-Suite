@@ -173,7 +173,7 @@ def process_sacd(root, artist, report_data):
                     )
 
                     if conv_res.returncode == 0:
-                        yield event("detail", "Extracted", file=out_name)
+                        yield event("track", "Extracted from the SACD image", file=out_name)
                         report_data['extraction']['count'] += 1
                         success_count += 1
                         yield signal("progress", phase=1, current=i, total=total_tracks)

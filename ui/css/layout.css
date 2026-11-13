@@ -613,6 +613,26 @@ input, textarea, select {
 .mf-ev-warning .mf-ev-mark { color: var(--status-warning); }
 .mf-ev-error,
 .mf-ev-error .mf-ev-mark { color: var(--status-error); }
+/* "track" entries: one block per file, file name as the headline and what
+   was done to it underneath; a hairline separates neighbouring files
+   (John, 2026-11-13: tracks must be easy to tell apart). */
+.mf-ev-track {
+    padding-block: 0.4rem;
+}
+.mf-ev-track + .mf-ev-track { border-top: 1px solid var(--border-subtle); }
+.mf-ev-track .mf-ev-mark { color: var(--status-success); }
+.mf-ev-track-file {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+.mf-ev-track-did {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
 .mf-ev-thumb {
     width: 2.5rem;
     height: 2.5rem;

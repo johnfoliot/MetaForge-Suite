@@ -141,21 +141,30 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
 
         is_already_mp3 = f_p.suffix.lower() == '.mp3'
 
+        # v2 (John, 2026-11-13): everything done to one file is collected
+        # and reported as ONE "track" entry (file name as the headline), so
+        # each track stands apart instead of a wall of 2-3 lines per file.
+        # Errors still go out on their own, straight away.
+        actions = []
         if not is_already_mp3 or do_norm:
             success = False
-            # v2: _convert_to_mp3 reports its output file in the event itself
+            # _convert_to_mp3 reports its output file in the event itself
             # ("output"), instead of the 1.x scrape of "Converted: <name></div>"
             # out of the HTML it had just built.
             for ev in _convert_to_mp3(f_p, artist, filing_id, extracted_title, do_norm, report_data):
                 if ev.get("output"):
                     success = True
                     mp3_path = f_p.parent / ev["output"]
-                yield ev
+                    actions.append(ev["text"])
+                elif ev.get("action"):
+                    actions.append(ev["text"])
+                else:
+                    yield ev
             if not success:
                 report_data['failed_targets'].append(f_p.name)
         else:
             mp3_path = _rename_existing_mp3(f_p, artist, filing_id, extracted_title)
-            yield event("detail", "Already MP3: renamed to the standard", file=mp3_path.name)
+            actions.append("Existing MP3: renamed")
 
         # 5. METADATA ENFORCEMENT
         if mp3_path:
@@ -171,13 +180,16 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             _enforce_metadata_truth(mp3_path, artist, album, extracted_title, metadata_track, category, disc_num, total_discs, is_multidisc)
 
             where = f"disc {disc_num}, track {metadata_track}" if is_multidisc else f"track {metadata_track}"
-            yield event("detail", f"Metadata cleaned: {where}", file=mp3_path.name)
+            actions.append(f"metadata cleaned ({where})")
 
             if mp3_path.name not in report_data['conversion']:
                 report_data['conversion'].append(mp3_path.name)
 
             # 6. BITSTREAM VALIDATION (mp3val runs on every resulting file)
-            if _check_mp3val(mp3_path):
+            damaged = _check_mp3val(mp3_path)
+            summary = ", ".join(actions)
+            yield event("track", summary[:1].upper() + summary[1:], file=mp3_path.name)
+            if damaged:
                 yield event("warning", "Damage found in the MP3 stream; queued for Repair", file=mp3_path.name)
 
         yield signal("progress", phase=2, current=idx, total=total_to_process)
@@ -237,9 +249,9 @@ def _convert_to_mp3(f_path, artist, filing_id, title, do_norm, report_data):
                 os.remove(f_path)
             except: pass
 
-        yield event("detail", "Converted to MP3", file=out_name, output=out_name)
+        yield event("detail", "Converted to MP3 (V0)", file=out_name, output=out_name)
         if do_norm:
-            yield event("detail", "Loudness normalized", file=out_name)
+            yield event("detail", "loudness normalized", file=out_name, action=True)
     else:
         _queue_for_repair(f_path, "FFmpeg Conversion Failure - Source Likely Corrupted")
         yield event("error", "Conversion failed; the source was kept and queued for Repair", file=f_path.name)

@@ -28,7 +28,11 @@ and its TEXT is written to MetaForge.log, and legacy marker comments
 log is complete for a whole tool immediately, and engines are converted
 one at a time with nothing breaking in between.
 
-Event kinds: step, info, detail, success, warning, error, done.
+Event kinds: step, info, detail, success, warning, error, done, track.
+  track: one entry per file (John, 2026-11-13: per-track lines must be
+  easy to tell apart). `file` is the headline, `text` says everything
+  that was done to it, e.g.
+      event("track", "Converted to MP3 (V0), metadata cleaned (track 1)", file=name)
 """
 import html as _html
 import json
@@ -36,7 +40,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-KINDS = {"step", "info", "detail", "success", "warning", "error", "done"}
+KINDS = {"step", "info", "detail", "success", "warning", "error", "done", "track"}
 
 # Plain-text prefixes for MetaForge.log (ASCII, so the log reads cleanly in
 # any editor). Steps stand out; outcomes are tagged; details are indented.
@@ -48,6 +52,7 @@ _LOG_PREFIX = {
     "warning": "  [!]  ",
     "error":   "  [X]  ",
     "done":    "DONE: ",
+    "track":   "  [ok] ",
     "html":    "  ",
 }
 
@@ -116,6 +121,8 @@ class _LogWriter:
         if not self.f or not text:
             return
         body = f"{text} ({file})" if file else text
+        if kind == "track" and file:
+            body = f"{file}: {text}"      # file first, as on screen
         if kind == "step":
             body = f"== {body}"
         self.f.write(f"{time or _now()}  {_LOG_PREFIX.get(kind, '  ')}{body}\n")

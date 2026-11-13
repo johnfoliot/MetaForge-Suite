@@ -228,7 +228,7 @@ def split_cue(root, artist, report_data):
 
                 if res.returncode == 0:
 
-                    yield event("detail", "Split", file=out_name)
+                    yield event("track", "Split from the CUE sheet", file=out_name)
                     report_data['extraction']['count'] += 1
                     success_count += 1
                     yield signal("progress", phase=1, current=n, total=total_tracks)
