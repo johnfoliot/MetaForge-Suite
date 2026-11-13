@@ -558,5 +558,57 @@ input, textarea, select {
     scrollbar-width: none;
 }
 
+/* --- SECTION 11: ACTIVITY LOG EVENTS (v2, Phase 0.3) ---
+   Rows drawn by MFEvents (metaforge_core.js) from the engine event stream.
+   Time | mark | text (+ file name in the mono face). Kind is never colour
+   alone: a glyph shows it and a hidden "Error:"/"Warning:" label speaks it. */
+.mf-ev {
+    display: grid;
+    grid-template-columns: 4.75rem 1.25rem 1fr;
+    align-items: baseline;
+    padding-block: 0.125rem;
+    font-family: var(--font-main);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--text-primary);
+}
+.mf-ev-time {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.mf-ev-mark { font-weight: 700; text-align: center; }
+.mf-ev-text { overflow-wrap: anywhere; }
+.mf-ev-file {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+.mf-ev-step {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+    font-weight: 700;
+    color: var(--mf-gold);
+}
+.mf-ev-step:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+.mf-ev-step .mf-ev-file,
+.mf-ev-step .mf-ev-time,
+.mf-ev-done .mf-ev-time { font-weight: 400; }
+.mf-ev-detail { color: var(--text-muted); }
+.mf-ev-detail .mf-ev-text { padding-left: 1rem; }
+.mf-ev-success .mf-ev-mark,
+.mf-ev-done { color: var(--status-success); }
+.mf-ev-warning,
+.mf-ev-warning .mf-ev-mark { color: var(--status-warning); }
+.mf-ev-error,
+.mf-ev-error .mf-ev-mark { color: var(--status-error); }
+.mf-ev-done {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+    font-weight: 700;
+}
+
 
 /* --- END OF FILE layout.css --- */

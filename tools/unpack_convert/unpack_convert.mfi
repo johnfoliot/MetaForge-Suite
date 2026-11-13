@@ -457,7 +457,10 @@
                 <h2 id="upk-progress-label" class="progress-text" style="font-size:1rem; border-bottom: 1px solid var(--mf-gold);background-color:var(--bg-main); margin-top:-5px;padding-top:-30px;">Standing By</h2>
 			</div>
             <div id="upk-console-outer" style="flex: 1; display: flex; min-height: 0;">
-                <div id="unpacker-console" class="unpacker-console mf-hide-native-scrollbar" aria-live="polite" style="padding:10px;">
+                <!-- v2: role="log" but NOT live (aria-live="off"). Steps,
+                     errors and the finish are spoken by the shared announcer
+                     (MFAnnounce); the full log is read on demand. -->
+                <div id="unpacker-console" class="unpacker-console mf-hide-native-scrollbar" role="log" aria-live="off" aria-label="Activity log" style="padding:10px;">
                     <div class="data-text" >Provide album details and select a source directory to begin.</div>
                 </div>
                 <!-- Custom scrollbar, shared implementation (John's report,

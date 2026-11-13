@@ -10,6 +10,8 @@ import tempfile
 import os
 from pathlib import Path
 
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
+
 # --- [ CONFIGURATION ] ---
 METADATA_JUNK = {'.ds_store', 'desktop.ini', 'thumbs.db', '__macosx', 'album_art_tips.txt'}
 AUDIO_EXT = {'.flac', '.ape', '.wav', '.m4a', '.mp3', '.ogg', '.wma', '.wv', '.dsf', '.dff'}
@@ -40,7 +42,7 @@ def extract_zip(root, report_data):
                 valid_zips.append(zip_path)
         except Exception:
             _register_failed(report_data, zip_path)
-            yield f'<div class="status-error"><span aria-hidden="true">❌</span> Archive Corrupt: {zip_path.name} — source preserved.</div>'
+            yield event("error", "Archive is corrupt; the source was kept", file=zip_path.name)
             continue
 
     if total_files_to_unpack == 0:
@@ -52,10 +54,10 @@ def extract_zip(root, report_data):
         try:
             # 1. Step 1 Header Control
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/zip.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Unzipping Original Audio Source:<br><span style="margin-left:40px; color:var(--text-output)"> {zip_path.name}</span></div>'
+                yield event("step", "Step 1: Unzipping the original audio source", file=zip_path.name)
                 report_data['extraction_occurred'] = True
             else:
-                yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Unzipping {zip_path.name}</div>'
+                yield event("info", "Additional source: unzipping", file=zip_path.name)
 
             report_data['extraction']['source'] = f"ZIP Archive: {zip_path.name}"
 
@@ -75,7 +77,7 @@ def extract_zip(root, report_data):
                     for member in file_list:
                         zip_ref.extract(member, tmp_path)
                         cumulative_extracted += 1
-                        yield f"<!-- PROGRESS:1:{cumulative_extracted}:{total_files_to_unpack} -->"
+                        yield signal("progress", phase=1, current=cumulative_extracted, total=total_files_to_unpack)
 
                 # --- [ ACR DISCOVERY & COLLISION-SAFE HOIST ] ---
                 content_root = _find_atomic_content_root(tmp_path)
@@ -111,9 +113,9 @@ def extract_zip(root, report_data):
                 # album previously left only the last one's count in the
                 # audit log.
                 report_data['extraction']['count'] += moved_count
-                yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">📂</span> {moved_count} audio items moved to album directory.</div>'
+                yield event("success", f"{moved_count} audio item{'s' if moved_count != 1 else ''} moved to the album folder")
 
-            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">✨</span> Extraction Successful: {zip_path.name}</div>'
+            yield event("success", "Extraction successful", file=zip_path.name)
 
             # 5. DELETE SOURCE (Forensic Logging)
             try:
@@ -121,13 +123,13 @@ def extract_zip(root, report_data):
                     report_data['deletions'].append(zip_path.name)
 
                 zip_path.unlink()
-                yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> ZIP source file deleted.</div>'
+                yield event("success", "ZIP source file deleted after a verified extraction")
             except Exception:
                 pass
 
         except Exception as e:
             _register_failed(report_data, zip_path)
-            yield f'<div class="status-error"><span aria-hidden="true">❌</span> ZIP Spoke Error [{zip_path.name}]: {str(e)} — source preserved.</div>'
+            yield event("error", f"ZIP extraction failed: {e}. The source was kept", file=zip_path.name)
 
 def _find_atomic_content_root(current_path):
     """

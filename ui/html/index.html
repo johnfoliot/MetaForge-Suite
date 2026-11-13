@@ -71,12 +71,18 @@
         {% endif %}
     </nav>
 
-    <main id="main-stage" role="main" aria-live="polite">
+    <main id="main-stage">
         <div id="mfi-content">
             <p class="tool_notes">Initializing MetaForge logic layers...</p>
         </div>
     </main>
 </div>
+
+    <!-- v2 shared announcer (MFAnnounce, metaforge_core.js): the app's only
+         live regions. <main> is NOT live any more: the whole tool area being
+         a live region read out every change, including whole tool screens. -->
+    <div id="mf-announcer" class="mf-visually-hidden" role="status"></div>
+    <div id="mf-announcer-urgent" class="mf-visually-hidden" role="alert"></div>
 
     <!-- v2 shared Help dialog: the ONE help panel for every tool, opened by
          MFHelp.open() (metaforge_core.js) from each tool's header Help button.

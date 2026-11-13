@@ -11,6 +11,7 @@ import base64
 from pathlib import Path
 from PIL import Image
 from common import io_bridge, tag_engine, discogs_engine, image_processor
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 
 # Gallery cards render in a 4-column grid (unpack_convert.mfi's
 # .art-selection-grid) -- realistically never wider than ~300px even on a
@@ -99,8 +100,8 @@ def finalize_cover_stream(album_path, selected_filename):
         source_path = album_path / "art" / selected_filename
 
     if not source_path.exists():
-        yield '<div class="status-error"><span aria-hidden="true">⚠️</span> Source image not found on disk.</div>'
-        yield "<!-- FINALIZE_ERROR -->"
+        yield event("error", "The chosen image isn't on disk any more", file=selected_filename)
+        yield signal("finalize_error")
         return
 
     dest_path = album_path / "folder.jpg"
@@ -109,16 +110,17 @@ def finalize_cover_stream(album_path, selected_filename):
         # 1. Enforce Archival Fit (500x500 RGB JPEG)
         res = image_processor.apply_archival_fit(source_path, dest_path)
         if res['status'] != 'success':
-            yield f'<div class="status-error"><span aria-hidden="true">⚠️</span> {res.get("message", "Archival fit failed.")}</div>'
-            yield "<!-- FINALIZE_ERROR -->"
+            yield event("error", res.get("message", "The image couldn't be resized to the archival size"))
+            yield signal("finalize_error")
             return
 
-        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-bottom:12px;"><span aria-hidden="true"><img src="/ui/images/resize.png" alt="" style="height:auto; width:32px; margin-bottom:-12px;"></span> Album art resized to {res["dims"]} - ready to apply.</div>'
+        yield event("step", "Applying the album cover", file=selected_filename)
+        yield event("success", f"Cover resized to {res['dims']}")
 
         # 2. Forensic Loop: Physical bitstream embedding
         audio_files = io_bridge.get_audio_targets(album_path, recursive=True)
         total = len(audio_files)
-        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-message); margin-left:36px;"><span aria-hidden="true">📝</span> Embedding artwork into {total} audio file(s)...</div>'
+        yield event("info", f"Adding the cover to {total} audio file{'s' if total != 1 else ''}")
 
         embedded_count = 0
         for audio in audio_files:
@@ -126,14 +128,15 @@ def finalize_cover_stream(album_path, selected_filename):
             success, msg = tag_engine.embed_artwork(audio, dest_path)
             if success:
                 embedded_count += 1
-                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:36px;"><span aria-hidden="true">🖼️</span> Embedded: {audio.name}</div>'
+                yield event("detail", "Cover added", file=audio.name)
             else:
-                yield f'<div class="status-error" style="font-size:0.7rem; margin-left:36px;"><span aria-hidden="true">⚠️</span> Failed: {audio.name} -- {msg}</div>'
+                yield event("error", f"Cover not added: {msg}", file=audio.name)
 
-        yield f"<!-- FINALIZE_DONE:{embedded_count} -->"
+        yield event("done", f"Cover added to {embedded_count} of {total} file{'s' if total != 1 else ''}. Ready for tagging")
+        yield signal("finalize_done", count=embedded_count)
     except Exception as e:
-        yield f'<div class="status-error"><span aria-hidden="true">⚠️</span> {str(e)}</div>'
-        yield "<!-- FINALIZE_ERROR -->"
+        yield event("error", f"The cover couldn't be applied: {e}")
+        yield signal("finalize_error")
 
 def trigger_discogs_fetch(album_path, artist, album_name):
     """

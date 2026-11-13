@@ -19,6 +19,10 @@ if str(ENGINES_DIR) not in sys.path:
 
 import context_engine
 from common import io_bridge
+from common.mf_events import event, signal, run_stream   # v2 event stream (Phase 0.3)
+
+TOOL_NAME = "Unpack & Convert"
+NDJSON = "application/x-ndjson"
 
 # Anything one of the Step 1/Step 2 engines can actually consume. A
 # subfolder holding any of these directly is treated as a disc (John's
@@ -41,9 +45,12 @@ def run_logic(action, tools_dir, env_path):
 
     if action == "run_unpack":
         data = request.json
+        # v2: one event stream -> the on-screen Activity log (NDJSON, drawn
+        # by MFEvents in metaforge_core.js) AND the album's MetaForge.log.
         return Response(
-            stream_with_context(_orchestrate_workflow(data, env_path)),
-            mimetype='text/html'
+            stream_with_context(run_stream(_orchestrate_workflow(data, env_path),
+                                           TOOL_NAME, log_root=data.get('path'))),
+            mimetype=NDJSON
         )
 
     # --- [ DISPATCHER: STEP 4 ART ROUTES ] ---
@@ -61,8 +68,9 @@ def run_logic(action, tools_dir, env_path):
             return jsonify({"status": "error", "message": "Missing required promotion data."})
         import art_engine
         return Response(
-            stream_with_context(art_engine.finalize_cover_stream(data.get('path'), data.get('filename'))),
-            mimetype='text/html'
+            stream_with_context(run_stream(art_engine.finalize_cover_stream(data.get('path'), data.get('filename')),
+                                           f"{TOOL_NAME}: album cover", log_root=data.get('path'))),
+            mimetype=NDJSON
         )
 
     if action == "set_locked_category":
@@ -160,12 +168,7 @@ def _orchestrate_workflow(data, env_path):
     if data.get('remember'):
         context_engine.update_consent_status(env_path, "TRUE")
 
-    # NOTE: color: doesn't work on <img> for the same reason it never did
-    # on the .upk-lock-icon (unpack_convert.mfi) -- an <img src> is an
-    # opaque resource, no page CSS reaches inside it, whether the source
-    # is a PNG or an SVG. mask-image + background-color is the proven
-    # fix already used for this exact file (John's report, 2026-08-13).
-    yield f'<div class="status-api" style="font-size:1rem;"><span aria-hidden="true" style="display:inline-block; width:36px; height:36px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url(\'/tool_asset/unpack_convert/unpack-convert.svg\'); mask-image:url(\'/tool_asset/unpack_convert/unpack-convert.svg\'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span> Starting Processing: <span style="color:var(--text-output);">{album_name}</span></div>'
+    yield event("info", f"Starting: {artist} - {album_name}", file=str(root))
 
     for msg in zip_engine.extract_zip(root, report_data): yield msg
     for msg in rar_engine.extract_rar(root, report_data): yield msg
@@ -185,8 +188,9 @@ def _orchestrate_workflow(data, env_path):
         for msg in cue_engine.split_cue(root, artist, report_data): yield msg
 
     if not report_data.get('extraction_occurred', False):
-        yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px; margin-bottom:-16px; margin-right:-8px;">📦</span> Step 1: Inspecting Original Audio Source. <br><span style="margin-left:45px; color:var(--text-output)">No archive bundles found. Unpacking not required.</span></div>'
-        yield "<!-- PROGRESS:1:1:1 -->"
+        yield event("step", "Step 1: Inspecting the original audio source")
+        yield event("info", "No archives found, so nothing needed unpacking")
+        yield signal("progress", phase=1, current=1, total=1)
 
     # 3. STEP 2: BITSTREAM & METADATA
     if disc_dirs:
@@ -197,7 +201,7 @@ def _orchestrate_workflow(data, env_path):
         is_multidisc = total_discs > 1
         linear_offset = 0
         if is_multidisc:
-            yield f'<div class="status-message" style="margin-left:50px; margin-top:5px; display:flex; align-items:center; gap:8px;"><img src="/ui/images/multi-disc.svg" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto;"> Box Set Detected: <strong>{total_discs} volume(s)</strong> found.</div>'
+            yield event("info", f"Box set detected: {total_discs} discs found")
 
         for d_idx, d_path in enumerate(disc_dirs, 1):
             for msg in bitstream_engine.process_targets(d_path, artist, album_name, category, report_data,
@@ -228,32 +232,25 @@ def _orchestrate_workflow(data, env_path):
     # 5. STEP 4: SIGNAL ART SELECTION OR ACTIVATE CLOUD FALLBACK
     if report_data.get('artwork') and len(report_data['artwork']) > 0:
         # JS picks this up and shows the gallery
-        yield "<!-- ART_READY -->"
+        yield event("step", "Step 4: Choose the album cover")
+        n_art = len(report_data['artwork'])
+        yield event("info", f"{n_art} image{'s' if n_art != 1 else ''} found. Pick one below")
+        yield signal("art_ready")
     else:
-        yield f'<div class="status-api" style="margin-top:5px; padding-top:10px;"><span aria-hidden="true" style="font-size:36px!important;">🖼️</span> Step 4: Album Cover Selection: Local artwork not found.</div>'
-        yield f'<div class="status-message" style="color:var(--text-output); margin-left:1rem; margin-left:15px;"><img src="/ui/images/cloud.png" style="height:14px; width:auto;" alt=""> Querying Discogs Archive for {album_name}...</div>'
+        yield event("step", "Step 4: Album cover")
+        yield event("info", "No cover image was found in the album folder")
+        yield event("info", f"Searching the Discogs archive for {album_name}")
 
         cloud_res = art_engine.trigger_discogs_fetch(root, artist, album_name)
 
         if cloud_res['status'] == 'success':
-            # Build 7.9.1: Inclusion of "ready for tagging." ensures injectHandoffButton triggers in JS
-            yield f'''
-            <div class="status-success" style="margin-top:10px; font-size:.8rem; overflow:hidden;">
-                <div>
-                    Cloud Recovery Successful: Archival cover fetched from <strong>{cloud_res['source']}</strong>.<br>
-                    <span style="color:var(--text-message); font-size:0.7rem;">{cloud_res['embedded_count']} files updated with archival artwork ({cloud_res['dims']}).</span><br>
-                    <span style="color:var(--mf-gold); font-weight:bold;">{album_name}</span> is now prepped and ready for tagging.
-                </div>
-            </div>'''
+            n = cloud_res['embedded_count']
+            yield event("success", f"Cover fetched from {cloud_res['source']} ({cloud_res['dims']}) "
+                                   f"and added to {n} file{'s' if n != 1 else ''}")
         else:
-            # Build 7.9.1: Inclusion of "ready for tagging." ensures injectHandoffButton triggers in JS
-            yield f'''
-            <div class="status-success" style="margin-top:10px; font-size:.8rem; overflow:hidden;">
-                <div>
-                    Processing Complete: <span style="color:var(--mf-gold); font-weight:bold;">{album_name}</span> is now prepped and ready for tagging.<br>
-                    <span style="color:var(--status-error); font-size:0.7rem;">(Note: No artwork identified locally or in cloud archives)</span>
-                </div>
-            </div>'''
+            yield event("warning", "No cover was found locally or in the cloud archives")
+        yield event("done", f"{album_name} is prepped and ready for tagging")
+        yield signal("handoff_ready")
 
     # 6. FINALIZATION & FORENSIC AUDIT
     final_audio_list = io_bridge.get_audio_targets(root, recursive=True)

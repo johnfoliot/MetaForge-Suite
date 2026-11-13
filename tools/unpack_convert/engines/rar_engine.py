@@ -12,6 +12,7 @@ import re
 import os
 from pathlib import Path
 from common.config_handler import BIN_DIR
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 
 # --- [ CONFIGURATION ] ---
 UNRAR_EXE = BIN_DIR / "unrar.exe"
@@ -70,7 +71,7 @@ def extract_rar(root, report_data):
     if not UNRAR_EXE.exists():
         for part_list in rar_sets.values():
             _register_failed(report_data, part_list)
-        yield f'<div class="status-error"><span aria-hidden="true">❌</span> System Error: unrar.exe missing. RAR source(s) preserved, not processed.</div>'
+        yield event("error", "unrar.exe is missing, so the RAR source was kept and not processed")
         return
 
     for rar_path in rar_heads:
@@ -81,10 +82,10 @@ def extract_rar(root, report_data):
         try:
             # 1. Step 1 Header Control
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/rar.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Extracting Original Audio Source:<br><span style="margin-left:43px; color:var(--text-output)"> {rar_path.name}</span></div>'
+                yield event("step", "Step 1: Extracting the original audio source", file=rar_path.name)
                 report_data['extraction_occurred'] = True
             else:
-                yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Extracting {rar_path.name}</div>'
+                yield event("info", "Additional source: extracting", file=rar_path.name)
 
             report_data['extraction']['source'] = f"RAR Archive: {rar_path.name}"
 
@@ -110,7 +111,7 @@ def extract_rar(root, report_data):
                 for line in iter(process.stdout.readline, ''):
                     perc_match = re.search(r'(\d+)%', line)
                     if perc_match:
-                        yield f"<!-- PROGRESS:1:{perc_match.group(1)}:100 -->"
+                        yield signal("progress", phase=1, current=int(perc_match.group(1)), total=100)
                     stripped = line.strip()
                     if stripped and not perc_match:
                         last_line = stripped
@@ -123,8 +124,8 @@ def extract_rar(root, report_data):
                     # the whole source set stays on disk for retry.
                     _register_failed(report_data, set_files)
                     reason = last_line or f"unrar exit code {process.returncode}"
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:40px;"><span aria-hidden="true">❌</span> RAR extraction failed: {rar_path.name} — {reason}</div>'
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:40px;"><span aria-hidden="true">⚠️</span> RAR source set preserved for retry ({len(set_files)} file(s)).</div>'
+                    yield event("error", f"RAR extraction failed: {reason}", file=rar_path.name)
+                    yield event("warning", f"The RAR source set was kept for a retry ({len(set_files)} file{'s' if len(set_files) != 1 else ''})")
                 else:
                     # --- [ ACR DISCOVERY & COLLISION-SAFE HOIST ] ---
                     content_root = _find_atomic_content_root(tmp_path)
@@ -160,13 +161,13 @@ def extract_rar(root, report_data):
                     # one album previously left only the last one's count
                     # in the audit log.
                     report_data['extraction']['count'] += moved_count
-                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:40px;"><span aria-hidden="true">📂</span> {moved_count} audio items moved to album directory.</div>'
+                    yield event("success", f"{moved_count} audio item{'s' if moved_count != 1 else ''} moved to the album folder")
                     extraction_ok = True
 
             if not extraction_ok:
                 continue
 
-            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:40px;"><span aria-hidden="true">✨</span> Extraction Successful: {rar_path.name}</div>'
+            yield event("success", "Extraction successful", file=rar_path.name)
 
             # 4. DELETE SOURCE SET (verified success only)
             for part_file in set_files:
@@ -176,11 +177,11 @@ def extract_rar(root, report_data):
                     part_file.unlink()
                 except Exception:
                     pass
-            yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:40px;"><span aria-hidden="true">🧹</span> RAR source set deleted.</div>'
+            yield event("success", "RAR source set deleted after a verified extraction")
 
         except Exception as e:
             _register_failed(report_data, set_files)
-            yield f'<div class="status-error"><span aria-hidden="true">❌</span> RAR Spoke Error [{rar_path.name}]: {str(e)} — source set preserved.</div>'
+            yield event("error", f"RAR extraction failed: {e}. The source set was kept", file=rar_path.name)
 
 def _find_atomic_content_root(current_path):
     """

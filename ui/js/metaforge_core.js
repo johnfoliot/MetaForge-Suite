@@ -428,6 +428,123 @@ window.metaforge.ui.initCommonComponents = function() {
     window.MFScrollbar.autoAttachAll();
 };
 
+// --- ENGINE: SHARED ANNOUNCER (v2, Phase 0.3) ---
+// One polite and one assertive live region for the whole app (both live in
+// index.html, outside <main>). Tools never put aria-live on their own
+// output: a run's Activity log can add hundreds of lines, and reading every
+// one aloud would bury what matters. MFEvents announces only steps, errors
+// and the finish; the full log stays readable on demand.
+window.MFAnnounce = function(message, { urgent = false } = {}) {
+    const region = document.getElementById(urgent ? 'mf-announcer-urgent' : 'mf-announcer');
+    if (!region || !message) return;
+    // Clear, then set on the next frame, so repeating the same message
+    // (e.g. two identical errors) is still spoken.
+    region.textContent = '';
+    requestAnimationFrame(() => { region.textContent = message; });
+};
+
+// --- ENGINE: EVENT STREAM RENDERER (v2, Phase 0.3) ---
+// Reads an NDJSON event stream from common/mf_events.py run_stream() and
+// draws it into a tool's Activity log. One line = one complete JSON event,
+// so nothing can be split mid-tag across network reads (the 1.x bug).
+//   kinds  : step, info, detail, success, warning, error, done -> drawn here
+//            (text only, via textContent: nothing from a file name or an
+//            error message can ever be parsed as HTML)
+//            html  -> legacy 1.x engine output, inserted as before until
+//                     that engine is converted
+//            signal -> not drawn; handed to opts.onSignal(name, data)
+// The same events are written to the album's MetaForge.log server-side.
+window.MFEvents = {
+    // Hidden prefixes so the kind isn't conveyed by colour/glyph alone.
+    LABEL: { error: 'Error: ', warning: 'Warning: ' },
+    MARK:  { success: '✓', warning: '!', error: '✕', done: '✓' },
+
+    /** Draws one event into `log`. Returns the new row (or null). */
+    render: function(log, ev) {
+        if (!log || !ev) return null;
+        if (ev.kind === 'html') {
+            log.insertAdjacentHTML('beforeend', ev.html);
+            return log.lastElementChild;
+        }
+        const row = document.createElement('div');
+        row.className = `mf-ev mf-ev-${ev.kind}`;
+
+        const time = document.createElement('span');
+        time.className = 'mf-ev-time';
+        time.textContent = ev.time || '';
+        row.append(time);
+
+        const mark = document.createElement('span');
+        mark.className = 'mf-ev-mark';
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = this.MARK[ev.kind] || '';
+        row.append(mark);
+
+        const body = document.createElement('span');
+        body.className = 'mf-ev-text';
+        if (this.LABEL[ev.kind]) {
+            const label = document.createElement('span');
+            label.className = 'mf-visually-hidden';
+            label.textContent = this.LABEL[ev.kind];
+            body.append(label);
+        }
+        body.append(ev.text || '');
+        if (ev.file) {
+            const file = document.createElement('span');
+            file.className = 'mf-ev-file';
+            file.textContent = ev.file;
+            body.append(' ', file);
+        }
+        row.append(body);
+        log.append(row);
+        return row;
+    },
+
+    /** Speaks the events that matter; everything else stays in the log. */
+    announce: function(ev) {
+        if (ev.kind === 'step' || ev.kind === 'done') window.MFAnnounce(ev.text);
+        else if (ev.kind === 'error') window.MFAnnounce(`Error: ${ev.text}${ev.file ? ` (${ev.file})` : ''}`);
+    },
+
+    /**
+     * Consume a fetch() Response.
+     *   opts.log      : the Activity log element
+     *   opts.onSignal : (name, data) => {} for progress, art_ready, ...
+     * Resolves when the stream ends. Throws on an HTTP error.
+     */
+    read: async function(response, { log, onSignal } = {}) {
+        if (!response.ok) throw new Error(`the server answered ${response.status} ${response.statusText}`);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = '';
+
+        const handle = (line) => {
+            if (!line.trim()) return;
+            let ev;
+            try { ev = JSON.parse(line); }
+            catch { ev = { kind: 'info', text: line }; }   // never drop output
+            if (ev.kind === 'signal') { onSignal?.(ev.name, ev.data || {}); return; }
+            // Keep following the newest line only if the reader was already
+            // at the bottom; don't yank them away from something they
+            // scrolled up to read.
+            const atBottom = log && (log.scrollHeight - log.scrollTop - log.clientHeight < 24);
+            this.render(log, ev);
+            this.announce(ev);
+            if (atBottom) log.scrollTop = log.scrollHeight;
+        };
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            pending += decoder.decode(value, { stream: true });
+            const lines = pending.split('\n');
+            pending = lines.pop();   // the last piece may be incomplete
+            lines.forEach(handle);
+        }
+        handle(pending + decoder.decode());
+    }
+};
+
 // --- CENTRALIZED EVENT DELEGATION & SANITIZATION ---
 
 function setupGlobalNavigationListeners() {

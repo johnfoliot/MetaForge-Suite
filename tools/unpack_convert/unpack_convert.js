@@ -234,7 +234,6 @@ window.metaforge.unpack_convert = {
         const path = document.getElementById('upk-path').value;
         const btn = document.getElementById('upk-confirm-art-btn');
         const consoleBox = document.getElementById('unpacker-console');
-        const albumName = document.getElementById('upk-album').value;
 
         if (!this.selectedArtFile) return;
         if (btn) {
@@ -257,24 +256,15 @@ window.metaforge.unpack_convert = {
                 body: JSON.stringify({ path: path, filename: this.selectedArtFile })
             });
 
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-
-                if (consoleBox) {
-                    consoleBox.insertAdjacentHTML('beforeend', chunk);
-                    consoleBox.scrollTop = consoleBox.scrollHeight;
+            // v2: events + signals via MFEvents; the "ready for tagging"
+            // line now comes from the server (and so is in MetaForge.log too).
+            await window.MFEvents.read(res, {
+                log: consoleBox,
+                onSignal: (name) => {
+                    if (name === 'finalize_done') finalized = true;
+                    if (name === 'finalize_error') hadError = true;
                 }
-
-                if (!finalized && buffer.includes('<!-- FINALIZE_DONE:')) finalized = true;
-                if (!hadError && buffer.includes('<!-- FINALIZE_ERROR -->')) hadError = true;
-            }
+            });
 
             if (finalized && !hadError) {
                 const step4Wrapper = document.getElementById('upk-step4-wrapper');
@@ -282,15 +272,6 @@ window.metaforge.unpack_convert = {
                     step4Wrapper.style.opacity = "0.5";
                     step4Wrapper.style.pointerEvents = "none";
                 }
-
-                const finalMessage = `
-                    <div class="status-success" style="margin-top:10px; font-size:.8rem; overflow:hidden;">
-                        <div>
-                            Processing Complete: <span style="color:var(--mf-gold); font-weight:bold;">${albumName}</span> has been processed and is ready for the next step.
-                        </div>
-                    </div>
-                `;
-                consoleBox.insertAdjacentHTML('beforeend', finalMessage);
                 this.injectHandoffButton(path);
                 consoleBox.scrollTop = consoleBox.scrollHeight;
             } else if (btn) {
@@ -301,7 +282,8 @@ window.metaforge.unpack_convert = {
                 btn.textContent = 'Confirm Cover';
             }
         } catch (err) {
-            if (consoleBox) consoleBox.insertAdjacentHTML('beforeend', `<div class="status-error">❌ Promotion Error: ${err.message}</div>`);
+            window.MFEvents.render(consoleBox, { kind: 'error', text: `The cover couldn't be applied: ${err.message}` });
+            window.MFAnnounce(`Error: the cover couldn't be applied: ${err.message}`, { urgent: true });
             if (btn) {
                 btn.disabled = false;
                 btn.textContent = 'Confirm Cover';
@@ -526,7 +508,7 @@ window.metaforge.unpack_convert = {
         
         if (fill) fill.style.width = '0%';
         if (label) label.innerText = 'Starting Unpack & Convert...';
-        if (consoleBox) consoleBox.innerHTML = '<div class="status-api"></div>';
+        if (consoleBox) consoleBox.replaceChildren();
         // No explicit scrollbar sync needed here -- MFScrollbar's
         // MutationObserver (metaforge_core.js) auto-detects this console
         // reset and resyncs the shared custom scrollbar itself.
@@ -554,67 +536,34 @@ window.metaforge.unpack_convert = {
                 body: JSON.stringify(payload)
             });
 
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
+            // v2 (Phase 0.3): the engines send events, not HTML. MFEvents
+            // (metaforge_core.js) draws them and hands the control signals
+            // here; the 1.x hidden-marker scanning (PROGRESS / ART_READY /
+            // "ready for tagging." text matches) is gone.
             let hasArtReady = false;
-            let buffer = '';
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                // stream:true correctly buffers a multi-byte UTF-8 character
-                // split across two reads instead of mangling it.
-                const chunk = decoder.decode(value, { stream: true });
-                // Marker checks run against the full accumulated buffer --
-                // a marker can land split across two separate reads, and
-                // checking only the latest chunk would silently miss it.
-                buffer += chunk;
-
-                // 1. Process Metadata / Non-DOM updates
-                // Real bug, found live 2026-07-20: String.match() without
-                // the /g flag always returns the FIRST match in a string --
-                // since buffer only ever grows (never trimmed, for the
-                // split-marker reason noted above), this permanently
-                // latched onto the very first PROGRESS marker of the whole
-                // run (Step 1, track 1) and never advanced again, even
-                // though the console kept scrolling through every later
-                // step correctly. matchAll + taking the last result finds
-                // every marker in the accumulated buffer and always
-                // reflects the most recent one.
-                const progMatches = [...buffer.matchAll(/<!-- PROGRESS:(\d+):(\d+):(\d+) -->/g)];
-                if (progMatches.length > 0) {
-                    const latest = progMatches[progMatches.length - 1];
-                    this.updateProgress(latest[1], latest[2], latest[3]);
+            await window.MFEvents.read(res, {
+                log: consoleBox,
+                onSignal: (name, data) => {
+                    if (name === 'progress') {
+                        this.updateProgress(data.phase, data.current, data.total);
+                    } else if (name === 'art_ready' && !hasArtReady) {
+                        hasArtReady = true;
+                        this.loadArtGallery();
+                    } else if (name === 'handoff_ready') {
+                        this.injectHandoffButton(path);
+                    }
                 }
-
-                // 2. Commit chunk to DOM (This must happen first to ensure correct vertical ordering)
-                if (consoleBox) {
-                    consoleBox.insertAdjacentHTML('beforeend', chunk);
-                }
-
-                // 3. Evaluate Workflow Triggers based on cumulative state
-                if (buffer.includes('<!-- ART_READY -->') && !hasArtReady) {
-                    hasArtReady = true;
-                    this.loadArtGallery();
-                }
-
-                if (buffer.includes('ready for tagging.')) {
-                     this.injectHandoffButton(path);
-                }
-
-                if (consoleBox) {
-                    consoleBox.scrollTop = consoleBox.scrollHeight;
-                }
-            }
+            });
 
             if (!hasArtReady && fieldset) {
                 fieldset.disabled = false;
             }
 
-        } catch (err) { 
-            if (consoleBox) consoleBox.insertAdjacentHTML('beforeend', `<div class="status-error">FAIL: ${err.message}</div>`); 
+        } catch (err) {
+            window.MFEvents.render(consoleBox, { kind: 'error', text: `The run stopped: ${err.message}` });
+            window.MFAnnounce(`Error: the run stopped: ${err.message}`, { urgent: true });
             if (fieldset) fieldset.disabled = false;
-        } finally { 
+        } finally {
             this.validate(); 
         }
     },
