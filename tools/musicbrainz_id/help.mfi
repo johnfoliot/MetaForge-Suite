@@ -1,6 +1,10 @@
 <!-- --- START OF FILE help.mfi --- -->
 <!-- --- MUSICBRAINZ IDS HELP DOCUMENTATION --- -->
 <div class="help-content-silo">
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">MusicBrainz can be a goldmine of information, but it can be a messy pool of data. Align your local files with the official tracklist to ensure forensic accuracy.</p>
+
 <h3 class="help first">What it does:</h3>
 <p class="help">Due to the way that MusicBrainz collects and stores recording data, we MUST involve a human in some early decision making: specifically, <b><i><u>which</u></i></b> album are we processing today?</p> 
 <p class="help">MusicBrainz IDs queries the MusicBrainz database, allowing you to confirm which album you have, and then collects the correct data values for the following information:</p>

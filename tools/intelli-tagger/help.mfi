@@ -1,3 +1,7 @@
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. In 1.x this text was commented out of the screen (hidden), but it is kept here so nothing is lost. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker.</p>
+
 <h3 class="white">Intelli-Tagger</h3>
 <p>Intelli-Tagger help content</p>
 

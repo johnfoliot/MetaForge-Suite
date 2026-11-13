@@ -1,3 +1,7 @@
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. In 1.x this text was commented out of the screen (hidden), but it is kept here so nothing is lost. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to AI Web Search when thin (its own grounded search already sweeps up Wikipedia/AllMusic/independent sources), with manual Wikipedia search and AllMusic paste both always available for your own follow-up. Review and edit the staged mapping before committing to the MetaForge relationship graph.</p>
+
 <h3 class="white">Biography Builder</h3>
 <p>Biography Builder help content</p>
 

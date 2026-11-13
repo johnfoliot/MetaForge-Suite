@@ -1,3 +1,7 @@
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">Reviews high-confidence corrections the resolution waterfall found that <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz's own data doesn't have yet</span>. Opening a candidate launches MusicBrainz's own editor in a companion window, pre-filled with the evidence MetaForge Studio found -- MetaForge Studio never submits anything itself, you always review and submit it yourself.</p>
+
 <h3 class="white">MusicBrainz Submit</h3>
 <p>Reviews original-release-date corrections the resolution waterfall found during Intelli-Tagger runs that differ from what MusicBrainz currently shows, and that MusicBrainz's own data doesn't already have.</p>
 <ul>

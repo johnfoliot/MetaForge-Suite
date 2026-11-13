@@ -1,3 +1,7 @@
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">Manage, update, and commit artist profiles directly to the MetaForge database ecosystem.</p>
+
 <h3>Bio Builder Help</h3>
 <p>This tool coordinates local file extraction, AI-driven narrative synthesis, and automated portrait normalization for your centralized MetaForge library archive.</p>
 

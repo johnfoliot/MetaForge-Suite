@@ -1,6 +1,10 @@
 <!-- --- START OF FILE help.mfi --- -->
 <!-- --- AUDIO REPAIR HELP DOCUMENTATION --- -->
 <div class="help-content-silo">
+<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">The Audio Repair tool fixes .mp3 audio files that have been corrupted - often during download. Corrupted MP3 files identified by the Intelli-Tagger tool are re-built from RAW data using FFMPEG to ensure "Good In, Good Out" integrity.</p>
+
 <h3 class="help first">What it does:</h3>
 <p class="help">The Audio Repair tool restores .mp3 files that have become corrupted — a common issue during file transfers or downloads.</p> 
 
