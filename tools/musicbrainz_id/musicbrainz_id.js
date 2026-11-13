@@ -88,7 +88,9 @@ window.metaforge.musicbrainz_id = {
             return;
         }
 
-        this.announceStatus("Searching MusicBrainz...", "success");
+        // Visible "in progress" row only -- not announced (an interstitial
+        // "Searching..." in the live region is just noise for NVDA users).
+        this.announceStatus("", "success");
         resultsBody.innerHTML = `<tr><td colspan="6" style="padding:20px; color:var(--mf-gold);">Consulting MusicBrainz...</td></tr>`;
 
         try {
@@ -98,8 +100,45 @@ window.metaforge.musicbrainz_id = {
                 body: JSON.stringify({ artist, album })
             });
             const data = await response.json();
-            this.renderResults(data.status === "success" ? data.results : []);
-        } catch (err) { this.announceStatus("⚠️ Search failed.", "error"); }
+            // Real bug (John, 2026-11-13): a failed search used to be passed
+            // on as an empty list and shown as "No matches found", so a busy
+            // MusicBrainz looked exactly like "nothing exists". A failure is
+            // now shown and announced as a failure, never as zero results.
+            if (data.status === "success") {
+                this.renderResults(data.results);
+                const n = (data.results || []).length;
+                this.announceStatus(
+                    n === 0 ? "No matches found." : `${n} matching release${n === 1 ? "" : "s"} found.`,
+                    "success"
+                );
+            } else {
+                this.renderSearchError(data.message || "MusicBrainz search failed.", data.reason);
+            }
+        } catch (err) {
+            this.renderSearchError("MetaForge could not complete the search (the request did not get a reply). Try again.", "failed");
+        }
+    },
+
+    renderSearchError: function(message, reason) {
+        const body = document.getElementById('mb-results-body');
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 6;
+        cell.className = 'status-error';
+        cell.style.padding = '20px';
+        cell.style.whiteSpace = 'normal';
+        const icon = document.createElement('span');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '⚠️ ';
+        cell.append(icon, document.createTextNode(message));   // text node: server text is never parsed as HTML
+        row.appendChild(cell);
+        body.replaceChildren(row);
+        this.announceStatus(
+            reason === "unavailable"
+                ? "⚠️ MusicBrainz is busy right now. Wait a few seconds and search again."
+                : "⚠️ The MusicBrainz search failed. Details are in the results list.",
+            "error"
+        );
     },
 
     renderResults: function(results) {

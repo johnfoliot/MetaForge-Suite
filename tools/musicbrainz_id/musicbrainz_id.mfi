@@ -97,7 +97,9 @@
         font-size: 0.85rem;
         font-weight: bold;
         font-family: var(--font-main);
-        white-space: nowrap;
+        /* Was nowrap, which cut longer status messages off mid-sentence
+           (2026-11-13). Wrapping keeps every message fully readable. */
+        white-space: normal;
         flex: 1;
     }
 

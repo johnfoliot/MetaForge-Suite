@@ -57,28 +57,15 @@ class MBResolutionEngine:
 
     def _get(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Controlled MusicBrainz GET wrapper with basic rate limiting.
+        Controlled MusicBrainz GET wrapper. Pacing, retries on "busy" and
+        timeouts are handled app-wide by common/mb_client.py (2026-11-13),
+        so this engine shares one request pace with every other tool
+        instead of keeping its own.
         """
+        from common import mb_client
 
-        now = time.time()
-        elapsed = now - self._last_call
-
-        if elapsed < self.rate_limit_delay:
-            time.sleep(self.rate_limit_delay - elapsed)
-
-        headers = {
-            "User-Agent": self.USER_AGENT
-        }
-
-        params = params.copy()
-        params["fmt"] = "json"
-
-        url = self.BASE_URL + endpoint
-
-        response = requests.get(url, params=params, headers=headers)
+        response = mb_client.get(endpoint, params=params, headers={"User-Agent": self.USER_AGENT})
         self._last_call = time.time()
-
-        response.raise_for_status()
         return response.json()
 
     # ----------------------------------------------------------

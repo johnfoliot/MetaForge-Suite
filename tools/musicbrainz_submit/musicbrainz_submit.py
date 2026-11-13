@@ -289,13 +289,13 @@ def _fetch_primary_artist_credit(mb_recording_id):
     raises into the caller.
     """
     try:
-        res = requests.get(
-            f"https://musicbrainz.org/ws/2/recording/{mb_recording_id}",
-            params={"inc": "artist-credits", "fmt": "json"},
+        from common import mb_client
+        res = mb_client.get(
+            f"recording/{mb_recording_id}",
+            params={"inc": "artist-credits"},
             headers={"User-Agent": MB_API_USER_AGENT},
             timeout=10,
         )
-        res.raise_for_status()
         credits = res.json().get("artist-credit") or []
         if not credits:
             return None
@@ -1088,13 +1088,13 @@ def _fetch_artist_by_name(name):
     else in this tool. Returns None on no match or any failure.
     """
     try:
-        res = requests.get(
-            "https://musicbrainz.org/ws/2/artist",
-            params={"query": name, "fmt": "json", "limit": 1},
+        from common import mb_client
+        res = mb_client.get(
+            "artist",
+            params={"query": name, "limit": 1},
             headers={"User-Agent": MB_API_USER_AGENT},
             timeout=10,
         )
-        res.raise_for_status()
         artists = res.json().get("artists") or []
         if not artists:
             return None

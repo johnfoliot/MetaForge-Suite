@@ -15,10 +15,11 @@ from flask import request, jsonify
 from mutagen.id3 import ID3, TXXX, UFID, TYER, TRCK, ID3NoHeaderError
 
 from common import io_bridge
+from common import mb_client
 
-session = requests.Session()
-BASE_URL = "https://musicbrainz.org/ws/2"
-MB_DELAY = 1.1
+# All MusicBrainz traffic goes through common/mb_client.py (shared pace,
+# retries on "busy", timeouts). Only the per-user User-Agent lives here.
+_mb_headers = {}
 
 
 # =========================================================
@@ -58,7 +59,7 @@ def get_mb_headers(env_path):
 # ENTRYPOINT
 # =========================================================
 def run_logic(action, tools_dir, env_path):
-    session.headers.update(get_mb_headers(env_path))
+    _mb_headers.update(get_mb_headers(env_path))
 
     if action == "search":
         return search_musicbrainz()
@@ -125,13 +126,11 @@ def search_musicbrainz():
     clean_query = f'artist:({" ".join(scrubbed_artist.split())}) AND release:({" ".join(scrubbed_album.split())})'
 
     try:
-        time.sleep(MB_DELAY)
-
-        res = session.get(
-            f"{BASE_URL}/release",
-            params={"query": clean_query, "fmt": "json", "limit": 25}
+        res = mb_client.get(
+            "release",
+            params={"query": clean_query, "limit": 25},
+            headers=_mb_headers,
         )
-        res.raise_for_status()
         result = res.json()
 
         releases = []
@@ -161,8 +160,12 @@ def search_musicbrainz():
 
         return jsonify({"status": "success", "results": releases})
 
+    except mb_client.MusicBrainzUnavailable as e:
+        # Distinct from "no matches": the UI must never show a failed
+        # search as an empty result (John's report, 2026-11-13).
+        return jsonify({"status": "error", "reason": "unavailable", "message": str(e)})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+        return jsonify({"status": "error", "reason": "failed", "message": f"MusicBrainz search failed: {e}"})
 
 
 # =========================================================
@@ -174,16 +177,11 @@ def get_release_details():
     local_path = Path(data.get("local_path"))
 
     try:
-        time.sleep(MB_DELAY)
-
-        res = session.get(
-            f"{BASE_URL}/release/{release_id}",
-            params={
-                "inc": "recordings+artist-credits+release-groups+work-rels+labels",
-                "fmt": "json"
-            }
+        res = mb_client.get(
+            f"release/{release_id}",
+            params={"inc": "recordings+artist-credits+release-groups+work-rels+labels"},
+            headers=_mb_headers,
         )
-        res.raise_for_status()
 
         release = res.json()
 
@@ -266,12 +264,7 @@ def get_release_details():
         mb_artist_country = ""
         if mb_artist_id:
             try:
-                time.sleep(MB_DELAY)
-                artist_res = session.get(
-                    f"{BASE_URL}/artist/{mb_artist_id}",
-                    params={"fmt": "json"}
-                )
-                artist_res.raise_for_status()
+                artist_res = mb_client.get(f"artist/{mb_artist_id}", headers=_mb_headers)
                 mb_artist_country = (artist_res.json().get("country") or "").upper()
             except Exception:
                 pass
