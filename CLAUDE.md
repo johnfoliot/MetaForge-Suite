@@ -4,7 +4,7 @@
 
 Use the `modern-web-guidance` skill before writing or changing any user-facing markup, CSS or client-side JS. That includes HTML generated inside Python files (engine log output, f-string templates), not just `.html`/`.css`/`.js` files. Pay particular attention to accessibility (WCAG, COGA).
 
-**Desktop only:** MetaForge is a desktop tool with a minimum window width of 1240px. Don't design or test phone/tablet layouts; do make sure everything fits at 1240px.
+**Desktop only:** MetaForge is a desktop tool with a minimum window width of 1240px. Don't design or test phone/tablet layouts; do make sure everything fits at 1240px. Height matters too: John runs Windows at ~150% scaling, so test layouts at an effective **1280×690** window. The app shell doesn't scroll as a whole; regions that can outgrow the window (like the left rail's tool list) must scroll on their own.
 
 **Enter submits (native-app feel):** any group of fields that ends in an action button must run that action when Enter is pressed in a field. Use a real `<form>` with the action button as `type="submit"` and handle the `submit` event (`preventDefault()`); every other button in the group is `type="button"`. No per-field Enter key handlers.
 
