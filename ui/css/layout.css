@@ -229,6 +229,10 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
     font-weight: normal !important;
 }
 .mf-toolbar .nav-item:hover { background: var(--bg-accent) !important; filter: none; }
+/* Toolbar buttons sit only ~2px apart, so the global ring (3px, offset 2px
+   outward) spilled onto neighbouring buttons. Drawn just inside the button
+   instead; still 3px and 3:1+ against the toolbar in both themes. */
+.mf-toolbar .nav-item:focus-visible { outline-offset: -3px; }
 .mf-toolbar .nav-item[aria-current="page"] { background: var(--bg-accent) !important; }
 /* Current tool: an underline bar (a shape), not colour alone (WCAG 1.4.1) */
 .mf-toolbar .nav-item[aria-current="page"]::after {
@@ -293,7 +297,11 @@ html[data-toolbar-labels="on"] .mf-toolbar.mf-tips-dismissed .mf-nav-label {
     color: var(--text-message); background: none; border: 0;
 }
 html[data-toolbar-labels="on"] .mf-toolbar .mf-nav-label::before { content: none; }
-html[data-toolbar-labels="on"] .mf-toolbar .nav-item[aria-current="page"] .mf-nav-label { color: var(--text-output); font-weight: 700; }
+/* The open tool's name gets brighter text only. NOT bold: bold text is wider,
+   which resized that button and shifted every icon beside it whenever the
+   open tool changed (John, 2026-11-13). Nothing on hover, focus or the
+   current state may change a button's size. */
+html[data-toolbar-labels="on"] .mf-toolbar .nav-item[aria-current="page"] .mf-nav-label { color: var(--text-output); }
 
 /* 4. MAIN WORKING STAGE */
 main { 
