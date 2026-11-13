@@ -23,10 +23,23 @@
     font-weight: normal; font-style: normal;
 }
 
+/* Atkinson Hyperlegible Next (v2 UI font). Variable fonts: one file covers
+   every weight 200-800. SIL Open Font License 1.1 (OFL-AtkinsonHyperlegibleNext.txt
+   in /data/fonts); source github.com/google/fonts, ofl/atkinsonhyperlegiblenext. */
+@font-face {
+    font-family: 'Atkinson Hyperlegible Next';
+    src: url('/data/fonts/AtkinsonHyperlegibleNext-Variable.ttf') format('truetype');
+    font-weight: 200 800; font-style: normal; font-display: swap;
+}
+@font-face {
+    font-family: 'Atkinson Hyperlegible Next';
+    src: url('/data/fonts/AtkinsonHyperlegibleNext-Italic-Variable.ttf') format('truetype');
+    font-weight: 200 800; font-style: italic; font-display: swap;
+}
+
 /* v2 (2026-11-13): UI text uses Atkinson Hyperlegible Next (designed for
    low-vision readers); Cascadia Mono stays for paths, file names, IDs and
-   logs. Until the Atkinson files are bundled in /data/fonts, the stack
-   falls back to Segoe UI. */
+   logs. */
 :root {
     --font-main: 'Atkinson Hyperlegible Next', 'Segoe UI', system-ui, sans-serif;
     --font-mono: 'Cascadia Mono', Consolas, monospace;
