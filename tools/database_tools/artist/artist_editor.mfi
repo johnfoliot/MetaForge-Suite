@@ -1,10 +1,12 @@
 <div id="panel-artist" class="database-panel" style="display:flex; flex-direction:column; padding: 0 20px; flex: 1; overflow-y: auto;">
     
-    <div style="padding: 0.5rem 0; border-bottom: 1px solid var(--mf-gold); display: flex; align-items: center; justify-content: flex-start; gap: 15px; margin-bottom: 10px;">
+    <!-- v2: a real <form> so Enter in the field runs the search (native-app feel). -->
+    <form role="search" aria-label="Search artists" onsubmit="event.preventDefault(); window.metaforge.database_tools.artist_editor.search();"
+          style="padding: 0.5rem 0; border-bottom: 1px solid var(--mf-gold); display: flex; align-items: center; justify-content: flex-start; gap: 15px; margin-bottom: 10px;">
         <label for="search-artist" class="mf-card-label" style="font-size: 1.1rem; color: var(--mf-gold);">Search by Artist</label>
         <input type="text" id="search-artist" class="mb-input-text" style="width: 250px; background: var(--input-background2); color: var(--input-foreground2);">
-        <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.search()">Search</button>
-    </div>
+        <button type="submit" class="mf-button-gold-fixed">Search</button>
+    </form>
 
     <div id="multiple-matches-container" style="display: none; padding: 5px 0; color: var(--mf-gold);">
         <h2 style="font-size: 1.1rem; margin-bottom: 10px;">Matches identified. Select target identity:</h2>

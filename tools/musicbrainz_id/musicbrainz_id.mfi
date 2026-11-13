@@ -277,11 +277,13 @@
             <!-- div class="status-api" style="font-size:1rem; color:var(--mf-gold); padding:5px 0;">
                 <img src="/ui/images/musicbrainz.svg" style="height:16px; vertical-align:middle;" alt=""> Getting MusicBrainz Ids
             </div -->
-            <div class="mb-input-panel">
+            <!-- v2: a real <form> so Enter in Album or Artist runs the search
+                 (native-app feel). Browse is type="button" so Enter never opens it. -->
+            <form class="mb-input-panel" role="search" aria-label="Search MusicBrainz" onsubmit="event.preventDefault(); metaforge.musicbrainz_id.search();">
                 <div class="mb-field-row">
                     <label for="mb-local-path" class="mb-label">Local Source</label>
                     <input type="text" id="mb-local-path" class="mb-input-text" style="color:var(--input-foreground2);" readonly style="background:var(--bg-accent); color:var(--text-message);">
-                    <button class="mf-button-gold-fixed" onclick="metaforge.musicbrainz_id.selectFolder()">Browse</button>
+                    <button type="button" class="mf-button-gold-fixed" onclick="metaforge.musicbrainz_id.selectFolder()">Browse</button>
                 </div>
                 <div class="mb-field-row">
                     <label for="mb-album-input" class="mb-label">Album</label>
@@ -294,10 +296,10 @@
                     <input type="text" id="mb-local-track-count" class="mb-input-text" style="width:20px!important; text-align:center; color:var(--input-foreground2);" readonly value="--">
                 </div>
                 <div class="mb-action-row">
-                    <button onclick="metaforge.musicbrainz_id.search()">Search <br>MusicBrainz</button>
+                    <button type="submit">Search <br>MusicBrainz</button>
                     <div id="mb-status-announcer" aria-live="polite"></div>
                 </div>
-            </div>
+            </form>
 
             <div style="flex: 1; display: flex; min-height: 0;">
                 <div id="mb-results-viewport" class="mb-results-viewport mf-hide-native-scrollbar">

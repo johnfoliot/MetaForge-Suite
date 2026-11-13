@@ -26,11 +26,16 @@
                 <label for="p-local-path" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Source Directory:</label>
                 <input type="text" id="p-local-path" class="mb-input-text" placeholder="Select album folder..." 
                        style="background: var(--input-background2); color: var(--input-foreground2);">
-                <button class="mf-button-gold-fixed" onclick="window.metaforge.personnel.selectFolder()">Browse</button>
+                <button type="button" class="mf-button-gold-fixed" onclick="window.metaforge.personnel.selectFolder()">Browse</button>
             </div>
 
             <hr style="border: 0; border-top: 1px solid #333; margin: 5px 0;">
 
+            <!-- v2: a real <form> (display:contents, so the layout is unchanged) so
+                 Enter in Artist, Album or Year runs the default action, Search
+                 Wikipedia (native-app feel). The browser "clicks" the submit
+                 button, so its existing onclick runs; the form never navigates. -->
+            <form style="display: contents;" aria-label="Album identity" onsubmit="event.preventDefault();">
             <!-- IDENTITY CONTEXT BLOCK -->
             <div style="display: flex; flex-direction: column; gap: 8px;">
                 <div style="display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: center;">
@@ -57,7 +62,7 @@
                     </div>
                     <div class="p-scout-source">
                         <img src="/ui/images/wikipedia.png" alt="" class="p-scout-logo">
-                        <button id="p-src-wiki-btn" class="mf-button-gold-fixed p-scout-btn" onclick="window.metaforge.personnel.searchWikipedia()" title="Wikipedia doesn't offer structed data queries - this requires some manual intervention.">Search Wikipedia&nbsp;</button>
+                        <button type="submit" id="p-src-wiki-btn" class="mf-button-gold-fixed p-scout-btn" onclick="window.metaforge.personnel.searchWikipedia()" title="Wikipedia doesn't offer structed data queries - this requires some manual intervention.">Search Wikipedia&nbsp;</button>
                         <span id="p-src-wiki-check" class="p-scout-check"></span>
                     </div>
                     <div class="p-scout-source">
@@ -66,12 +71,13 @@
                     </div>
                     <div class="p-scout-source">
                         <img src="/ui/images/AllMusic.png" alt="" class="p-scout-logo">
-                        <button id="p-src-allmusic-btn" class="mf-button-gold-fixed p-scout-btn"
+                        <button type="button" id="p-src-allmusic-btn" class="mf-button-gold-fixed p-scout-btn"
                                 onclick="window.metaforge.personnel.checkAllMusic()" title="Last resort: opens an AllMusic search in a companion tab -- you copy the credits table yourself, MetaForge never fetches AllMusic directly.">&nbsp;Search AllMusic&nbsp;</button>
                         <span id="p-src-allmusic-check" class="p-scout-check"></span>
                     </div>
                 </div>
             </div>
+            </form>
 
             <!-- CANDIDATE TABLE: FIXED HEIGHT (Directive: UI Stability) -->
             <div style="height: 155px; flex-shrink: 0; display: flex;">

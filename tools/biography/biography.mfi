@@ -19,10 +19,13 @@
             <div class="bio-form-group">
                 <label for="bio-artist" class="bio-label">Artist</label>
 				<p>Search to confirm that this artist has content in the database.</p>
-                <div class="bio-input-row">
+                <!-- v2: a real <form> so Enter in the field runs the search (native-app
+                     feel). The browser "clicks" the submit button, so the existing
+                     click listener in biography.js runs; the form never navigates. -->
+                <form class="bio-input-row" role="search" aria-label="Search artists" onsubmit="event.preventDefault();">
                     <input type="text" id="bio-artist" class="bio-input-field" placeholder="Artist Name">
-                    <button type="button" id="btn-search-artist" class="bio-btn-amber">Search</button>
-                </div>
+                    <button type="submit" id="btn-search-artist" class="bio-btn-amber">Search</button>
+                </form>
                 <!-- Populated only when a search matches more than one artist
                      and none of them is an exact name match -- see
                      performSearch()'s "Real bug" comment in biography.js for
