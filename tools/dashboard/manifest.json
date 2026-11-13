@@ -1,7 +1,6 @@
 {
   "name": "Dashboard",
   "id": "dashboard",
-  "group": "home",
   "version": "1.0.0",
   "description": "MetaForge Dashboard",
   "entry_point": "dashboard.py",

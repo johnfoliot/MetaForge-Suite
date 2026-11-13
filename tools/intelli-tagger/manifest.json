@@ -1,7 +1,5 @@
 {
   "id": "intelli-tagger",
-  "group": "pipeline",
-  "step": 3,
   "name": "Intelli-Tagger",
   "version": "4.0.6",
   "author": "MetaForge Studio",

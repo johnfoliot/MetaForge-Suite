@@ -8,6 +8,8 @@ from flask import jsonify, request
 
 # --- SETTINGS TOOLBAR ENGINE ---
 
+V2_LAYOUT = "toolbar_layout_v2.json"
+
 def discover(tools_dir, data_dir):
     """
     Scans the tools directory to aggregate manifests and loads the layout state.
@@ -29,14 +31,18 @@ def discover(tools_dir, data_dir):
                     except Exception as e:
                         print(f"Toolbar Engine: Skipping malformed manifest in {folder.name}")
 
-    # 2. Pass 2: Load the user's saved layout/order state
+    # 2. Pass 2: Load the user's saved layout/order state.
+    # v2 keeps its own file (toolbar_layout_v2.json), which can hold
+    # separators that the 1.x build's Settings screen can't read. Until v2
+    # saves one, it starts from the 1.x layout (toolbar_layout.json).
     layout = []
-    layout_path = data_dir / "toolbar_layout.json"
-    if layout_path.exists():
-        try:
-            layout = json.loads(layout_path.read_text(encoding='utf-8'))
-        except:
-            layout = []
+    for layout_path in (data_dir / V2_LAYOUT, data_dir / "toolbar_layout.json"):
+        if layout_path.exists():
+            try:
+                layout = json.loads(layout_path.read_text(encoding='utf-8'))
+                break
+            except Exception:
+                layout = []
             
     return jsonify({
         "manifests": manifests, 
@@ -47,7 +53,7 @@ def save(data_dir):
     """
     Commits the normalized toolbar sequence to the physical JSON file.
     """
-    layout_path = data_dir / "toolbar_layout.json"
+    layout_path = data_dir / V2_LAYOUT   # v2 only; the 1.x file is never written by v2
     try:
         if not data_dir.exists():
             data_dir.mkdir(parents=True, exist_ok=True)

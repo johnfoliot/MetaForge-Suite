@@ -37,6 +37,10 @@ DATA_DIR        = config_handler.DATA_DIR
 LOGS_DIR        = config_handler.LOGS_DIR
 DB_PATH         = config_handler.DB_PATH
 LAYOUT_PATH     = DATA_DIR / "toolbar_layout.json"
+# v2 keeps its own toolbar layout (it can hold separators, which the 1.x
+# build's Settings screen can't read). Until v2 saves one, it starts from
+# the 1.x layout. The 1.x build never touches the v2 file.
+LAYOUT_PATH_V2  = DATA_DIR / "toolbar_layout_v2.json"
 
 UI_ROOT   = PROJECT_ROOT / "ui"
 HTML_DIR  = UI_ROOT / "html"
@@ -150,7 +154,7 @@ def initialize_database():
     conn.commit()
     conn.close()
 
-def get_dynamic_toolbar():
+def _discover_tools():
     discovered_tools = {}
     if TOOLS_DIR.exists():
         for folder in TOOLS_DIR.iterdir():
@@ -160,43 +164,52 @@ def get_dynamic_toolbar():
                     with open(manifest_path, 'r', encoding='utf-8') as f:
                         m = json.load(f); discovered_tools[m['id']] = m
                 except: pass
-    layout_state =[]
-    if LAYOUT_PATH.exists():
-        try:
-            with open(LAYOUT_PATH, 'r', encoding='utf-8') as f: layout_state = json.load(f)
-        except: layout_state = []
-    final_toolbar =[]
-    for entry in layout_state:
-        tid = entry['id']
+    return discovered_tools
+
+def _load_layout():
+    for path in (LAYOUT_PATH_V2, LAYOUT_PATH):
+        if path.exists():
+            try:
+                with open(path, 'r', encoding='utf-8') as f: return json.load(f)
+            except: pass
+    return []
+
+def get_dynamic_toolbar():
+    """Visible tools in the user's saved order (separators skipped)."""
+    discovered_tools = _discover_tools()
+    final_toolbar = []
+    for entry in _load_layout():
+        if entry.get('type') == 'separator': continue
+        tid = entry.get('id')
         if tid in discovered_tools:
             tool_data = discovered_tools[tid]
             tool_data['visible'] = True if tid in ["dashboard", "settings"] else entry.get('visible', True)
             if tool_data['visible']: final_toolbar.append(tool_data)
     return final_toolbar
 
-# v2 grouped toolbar (2026-11-13). Each tool's manifest.json names its
-# "group" (and pipeline tools a "step"). Groups always appear in this order;
-# inside a group, tools keep the user's own order and visibility from
-# Settings > Toolbar customization (toolbar_layout.json), unchanged. A tool
-# with an unknown or missing group lands in "More" rather than disappearing.
-TOOLBAR_GROUPS = [("home", "Home"), ("pipeline", "Pipeline"), ("enrich", "Enrich"), ("library", "Library")]
-
-def group_toolbar(tools):
-    by_group = {gid: [] for gid, _ in TOOLBAR_GROUPS}
-    settings_tool, other = None, []
-    for tool in tools:
-        group = tool.get('group')
-        if tool['id'] == 'settings' or group == 'system':
-            settings_tool = tool
-        elif group in by_group:
-            by_group[group].append(tool)
-        else:
-            other.append(tool)
-    groups = [{"id": gid, "label": label, "tools": by_group[gid]}
-              for gid, label in TOOLBAR_GROUPS if by_group[gid]]
-    if other:
-        groups.append({"id": "more", "label": "More", "tools": other})
-    return groups, settings_tool
+def get_rail_segments():
+    """
+    v2 left rail (John, 2026-11-13): tools in the user's own order from
+    Settings > Toolbar customization, split into runs at the separators the
+    user placed there. No fixed groups or labels (they'd contradict the user's
+    own ordering). Settings is returned separately (pinned to the rail's
+    bottom). Leading, trailing and doubled separators are dropped.
+    """
+    discovered_tools = _discover_tools()
+    segments, current, settings_tool = [], [], None
+    for entry in _load_layout():
+        if entry.get('type') == 'separator':
+            if current: segments.append(current); current = []
+            continue
+        tid = entry.get('id')
+        tool = discovered_tools.get(tid)
+        if not tool: continue
+        if tid == 'settings':
+            settings_tool = tool; continue
+        if tid != 'dashboard' and not entry.get('visible', True): continue
+        current.append(tool)
+    if current: segments.append(current)
+    return segments, settings_tool
 
 # --- [ SECTION 5: CORE UI ROUTES ] ---
 @app.route('/')
@@ -208,11 +221,10 @@ def home():
         conn.close()
     except sqlite3.Error:
         track_count = "0"
-    tools = get_dynamic_toolbar()
-    tool_groups, settings_tool = group_toolbar(tools)
+    rail_segments, settings_tool = get_rail_segments()
     return render_template('index.html', track_count=track_count, version_id=time.time(),
-                           tools=tools, tool_groups=tool_groups, settings_tool=settings_tool,
-                           alerts=dashboard_alerts)
+                           tools=get_dynamic_toolbar(), rail_segments=rail_segments,
+                           settings_tool=settings_tool, alerts=dashboard_alerts)
 
 @app.route('/favicon.ico')
 def favicon():

@@ -1,7 +1,6 @@
 {
   "name": "MusicBrainz Submit",
   "id": "musicbrainz_submit",
-  "group": "enrich",
   "version": "1.0.0",
   "description": "Review and submit original-release-date corrections back to MusicBrainz.",
   "entry_point": "musicbrainz_submit.py",

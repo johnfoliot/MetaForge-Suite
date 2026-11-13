@@ -1,7 +1,6 @@
 {
   "name": "Intelligent Playlist Maker",
   "id": "playlist_generator",
-  "group": "library",
   "version": "1.0.0",
   "description": "Rule-based playlist generation engine.",
   "entry_point": "playlist_generator.py",

@@ -202,6 +202,15 @@
     .sub-nav-btn.active { background: var(--bg-stage); border-color: var(--bg-accent); color: var(--mf-gold); position: relative; z-index: 5; }
 	
 	#toolbar-customizer-grid { font-size: 75%; }
+    /* v2 user-placed toolbar separators */
+    .tb-sep-line { display: inline-block; width: 18px; border-top: 2px solid var(--border-ui); }
+    .tb-sep-remove {
+        font-family: var(--font-main) !important; font-size: 0.8rem !important; font-weight: normal !important;
+        padding: 0.15rem 0.6rem !important;
+        color: var(--text-output) !important; background: transparent !important;
+        border: 1px solid var(--border-ui) !important; border-radius: 4px;
+    }
+    .tb-sep-actions { display: grid; gap: 0.35rem; justify-items: start; margin-top: 0.75rem; max-width: 60ch; }
     /* v2 toolbar-names preference */
     .mf-pref-row { display: grid; gap: 0.3rem; margin: 0 0 1.25rem; max-width: 60ch; }
     .mf-pref-control { display: flex; align-items: center; gap: 0.6rem; }

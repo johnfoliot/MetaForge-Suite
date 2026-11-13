@@ -53,37 +53,29 @@ window.metaforge.settings.toolbar = {
     },
 
     /**
-     * Renders the matrix table using global primitives.
-     * Adheres to WCAG 2.2 AA (SC 1.3.1).
+     * Renders the toolbar list: tools (show / order) and the user's own
+     * separators (order / Remove). v2 (2026-11-13): separators replace the
+     * fixed group labels; they're stored as {id:"separator", type:"separator"}
+     * in toolbar_layout_v2.json.
      */
     render: function(data) {
         const grid = document.getElementById('toolbar-customizer-grid');
+        const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
         let html = `
-            <table class="meta-table">
+            <table class="meta-table" id="toolbar-customizer-table">
+                <caption class="mf-visually-hidden">Toolbar tools and separators, in order</caption>
                 <thead>
                     <tr style="text-align:left; color:var(--mf-gold); border-bottom:1px solid var(--bg-accent);">
-                        <th style="padding:8px; font-size:0.75rem;">Show</th>
-                        <th style="padding:8px; font-size:0.75rem;">Tool component</th>
-                        <th style="padding:8px; font-size:0.75rem; text-align:center;">Order</th>
+                        <th scope="col" style="padding:8px; font-size:0.75rem;">Show</th>
+                        <th scope="col" style="padding:8px; font-size:0.75rem;">Item</th>
+                        <th scope="col" style="padding:8px; font-size:0.75rem; text-align:center;">Order</th>
                     </tr>
                 </thead>
-                <tbody>`;
+                <tbody id="toolbar-customizer-rows">`;
 
-        let visibleCounter = 1;
-
-        // "Plug and play" discovery was previously scan-only: the backend
-        // (toolbar_engine.py's discover()) re-scans tools_dir for
-        // manifests on every load, but nothing ever reconciled a newly
-        // found tool folder into the SAVED layout this render() actually
-        // iterates -- so a brand-new tool directory was invisible here
-        // (and therefore in the main toolbar, which only shows what's in
-        // the saved layout too) until someone hand-edited
-        // toolbar_layout.json. Any manifest id not already in data.layout
-        // gets appended here, defaulting to visible only if the manifest
-        // itself declares required:true. Still needs one Save click to
-        // actually persist into toolbar_layout.json, same as any other
-        // layout change.
+        // Newly found tool folders that aren't in the saved layout yet are
+        // appended (visible only if the manifest says required:true), as before.
         const knownIds = new Set(data.layout.map(e => e.id));
         const effectiveLayout = data.layout.concat(
             Object.keys(data.manifests)
@@ -91,72 +83,110 @@ window.metaforge.settings.toolbar = {
                 .map(id => ({ id, visible: !!data.manifests[id].required }))
         );
 
+        let order = 1;
         effectiveLayout.forEach((entry) => {
+            if (entry.type === 'separator') { html += this.separatorRow(order++); return; }
             if (["dashboard", "settings"].includes(entry.id)) return;
-
             const tool = data.manifests[entry.id];
+            if (!tool) return;   // saved layout names a tool folder that no longer exists
+            const name = esc(tool.name || entry.id);
             const iconPath = `/tool_asset/${entry.id}/${tool.icon || 'default.svg'}`;
             const isVisible = entry.visible ? 'checked' : '';
-            const isRequired = (tool && tool.required) ? 'disabled checked' : '';
-
+            const isRequired = tool.required ? 'disabled checked' : '';
             html += `
                 <tr style="border-bottom:1px solid var(--bg-main);">
                     <td style="padding:8px;">
-                        <input type="checkbox" class="tool-toggle" data-id="${entry.id}" ${isVisible} ${isRequired} aria-label="Toggle visibility for ${tool ? tool.name : entry.id}">
+                        <input type="checkbox" class="tool-toggle" data-id="${entry.id}" ${isVisible} ${isRequired} aria-label="Show ${name}">
                     </td>
                     <td style="padding:8px; display:flex; align-items:center; gap:10px;">
                         <div class="mf-icon-mask" style="-webkit-mask-image: url('${iconPath}'); mask-image: url('${iconPath}'); width:18px; height:18px; background-color: var(--mf-gold);"></div>
-                        <span class="data-text" style="font-size:0.85rem;">${tool ? tool.name : entry.id}</span>
+                        <span class="data-text" style="font-size:0.85rem;">${name}</span>
                     </td>
                     <td style="padding:8px; text-align:center;">
-                        <input type="number" class="tool-order" data-id="${entry.id}" value="${visibleCounter}" aria-label="Order for ${tool ? tool.name : entry.id}">
+                        <input type="number" class="tool-order" data-id="${entry.id}" value="${order++}" aria-label="Order for ${name}">
                     </td>
                 </tr>`;
-            visibleCounter++;
         });
 
-        html += '</tbody></table>';
+        html += `</tbody></table>
+            <div class="tb-sep-actions">
+                <button type="button" onclick="metaforge.settings.toolbar.addSeparator()">Add separator</button>
+                <p class="mf-pref-hint">Separators draw a line between tools in the toolbar. Give a separator the order number of the tool it should sit above (1 puts it straight after Dashboard). Dashboard always stays at the top and Settings at the bottom.</p>
+            </div>`;
         grid.innerHTML = html;
     },
 
+    separatorRow: function(order) {
+        return `
+                <tr class="tb-sep-row" style="border-bottom:1px solid var(--bg-main);">
+                    <td style="padding:8px;"></td>
+                    <td style="padding:8px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span class="tb-sep-line" aria-hidden="true"></span>
+                            <span class="data-text" style="font-size:0.85rem;">Separator</span>
+                            <button type="button" class="tb-sep-remove" onclick="metaforge.settings.toolbar.removeSeparator(this)">Remove<span class="mf-visually-hidden"> this separator</span></button>
+                        </div>
+                    </td>
+                    <td style="padding:8px; text-align:center;">
+                        <input type="number" class="tool-order" data-kind="separator" value="${order}" aria-label="Order for separator">
+                    </td>
+                </tr>`;
+    },
+
+    addSeparator: function() {
+        const rows = document.getElementById('toolbar-customizer-rows');
+        if (!rows) return;
+        const highest = Math.max(0, ...Array.from(rows.querySelectorAll('.tool-order')).map(i => parseInt(i.value) || 0));
+        rows.insertAdjacentHTML('beforeend', this.separatorRow(highest + 1));
+        const input = rows.lastElementChild.querySelector('.tool-order');
+        input.focus(); input.select();
+        this.say(`Separator added at position ${highest + 1}. Change its order number to move it, then choose Update toolbar.`);
+    },
+
+    removeSeparator: function(btn) {
+        const row = btn.closest('tr');
+        const next = row.nextElementSibling || row.previousElementSibling;
+        row.remove();
+        const target = next && next.querySelector('input, button');
+        if (target) target.focus();
+        this.say('Separator removed. Choose Update toolbar to save.');
+    },
+
+    say: function(msg) {
+        const status = document.getElementById('save-status');
+        if (status) status.textContent = msg;
+    },
+
     /**
-     * Normalization Logic: Resolves conflicts and re-indexes the entire set.
-     * Implements Surgical Emoji Scrub for AT status reporting.
+     * Normalization: sort everything (tools and separators) by order number.
+     * A separator given the same number as a tool takes that position, i.e.
+     * it lands just BEFORE that tool ("put a separator at 1" = right after
+     * Dashboard). Other ties keep their on-screen order. Dashboard first,
+     * Settings last.
      */
     save: async function() {
         const status = document.getElementById('save-status');
-        const orderInputs = Array.from(document.querySelectorAll('.tool-order'));
-        
-        // 1. Map user inputs
-        const userLayout = orderInputs.map(input => {
+        const orderInputs = Array.from(document.querySelectorAll('#toolbar-customizer-rows .tool-order'));
+
+        const items = orderInputs.map((input, index) => {
+            const userValue = parseInt(input.value) || 99;
+            if (input.dataset.kind === 'separator') return { kind: 'separator', userValue, index };
             const tid = input.getAttribute('data-id');
             const toggle = document.querySelector(`.tool-toggle[data-id="${tid}"]`);
-            return {
-                id: tid,
-                userValue: parseInt(input.value) || 99,
-                visible: toggle ? toggle.checked : true
-            };
+            return { kind: 'tool', id: tid, userValue, index, visible: toggle ? toggle.checked : true };
         });
+        const sepFirst = (x) => (x.kind === 'separator' ? 0 : 1);
+        items.sort((a, b) => (a.userValue - b.userValue) || (sepFirst(a) - sepFirst(b)) || (a.index - b.index));
 
-        // 2. Conflict Resolution
-        userLayout.sort((a, b) => {
-            if (a.userValue !== b.userValue) return a.userValue - b.userValue;
-            return a.id.localeCompare(b.id);
-        });
-
-        // 3. Normalization
         const finalLayout = [
             { id: "dashboard", visible: true },
-            ...userLayout.map((item, index) => ({
-                id: item.id,
-                visible: item.visible,
-                order: index + 1
-            })),
+            ...items.map((item, i) => item.kind === 'separator'
+                ? { id: "separator", type: "separator", order: i + 1 }
+                : { id: item.id, visible: item.visible, order: i + 1 }),
             { id: "settings", visible: true }
         ];
 
-        // 4. Commitment
-        status.innerHTML = "<span class='data-text'>Normalizing Matrix...</span>";
+        status.textContent = 'Saving the toolbar...';
         try {
             const res = await fetch('/run_tool_logic/settings/save_toolbar', {
                 method: 'POST',
@@ -165,13 +195,13 @@ window.metaforge.settings.toolbar = {
             });
             const result = await res.json();
             if (result.status === 'success') {
-                // Applied aria-hidden to the checkmark symbol
-                status.innerHTML = "<span style='color:var(--status-success);'><span aria-hidden='true'>✓</span> Matrix re-aligned.</span>";
-                // Trigger hot-reload
+                status.innerHTML = "<span style='color:var(--status-success);'><span aria-hidden='true'>✓</span> Toolbar saved. Reloading to apply it...</span>";
                 setTimeout(() => { location.reload(); }, 1200);
+            } else {
+                throw new Error(result.message || 'unknown error');
             }
         } catch (e) {
-            status.innerHTML = "<span style='color:var(--status-error);'>Save failure.</span>";
+            status.innerHTML = `<span style='color:var(--status-error);'>The toolbar couldn't be saved: ${e.message}</span>`;
         }
     }
 };

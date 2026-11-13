@@ -29,16 +29,15 @@
 {#- v2 left rail (John, 2026-11-13). Each tool is a real <button> whose text
     is its name: shown beside the icon when the rail is expanded, and as a
     hover/focus tooltip when it is collapsed (the default). The open tool has
-    aria-current="page". Groups come from each tool's manifest; order within a
-    group follows Settings > Toolbar customization. The rail toggle, Ctrl+B
+    aria-current="page". Order and separators come from Settings > Toolbar
+    customization (toolbar_layout_v2.json). The rail toggle, Ctrl+B
     and the Settings checkbox all switch one saved preference (toolbar_labels). -#}
 {% macro tool_button(tool) -%}
 <button type="button" class="nav-item" id="mode-{{ tool.id }}" data-mode="{{ tool.id }}">
-    {%- if tool.step %}<span class="mf-step" aria-hidden="true">{{ tool.step }}</span>{% endif %}
     <span class="mf-icon-mask" aria-hidden="true"
           style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
                  mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');"></span>
-    <span class="mf-nav-label">{% if tool.step %}<span class="mf-visually-hidden">Step {{ tool.step }}: </span>{% endif %}{{ tool.name }}</span>
+    <span class="mf-nav-label">{{ tool.name }}</span>
 </button>
 {%- endmacro %}
 
@@ -54,13 +53,13 @@
         </button>
         </div>
         <div class="mf-rail-scroll" id="mf-rail-scroll">
-        {% for group in tool_groups %}
-        <div class="mf-nav-group" role="group" aria-labelledby="mf-grp-{{ group.id }}">
-            <span class="mf-group-label" id="mf-grp-{{ group.id }}">{{ group.label }}</span>
-            <ul class="mf-nav-list">
-                {% for tool in group.tools %}<li>{{ tool_button(tool) }}</li>{% endfor %}
-            </ul>
-        </div>
+        {#- The user's own order and separators (Settings > Toolbar customization).
+            A separator is a real <hr>, announced as "separator" by screen readers. -#}
+        {% for segment in rail_segments %}
+        {% if not loop.first %}<hr class="mf-rail-sep">{% endif %}
+        <ul class="mf-nav-list">
+            {% for tool in segment %}<li>{{ tool_button(tool) }}</li>{% endfor %}
+        </ul>
         {% endfor %}
         </div>
         {% if settings_tool %}
