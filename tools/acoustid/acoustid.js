@@ -69,65 +69,6 @@ window.metaforge.acoustid = {
         container.scrollTop = container.scrollHeight;
     },
 
-    // --- 2. HELP PANEL & FOCUS ENGINE ---
-
-    openHelp: async function() {
-        const panel = document.getElementById('acoustid-help-panel');
-        const body = document.getElementById('acoustid-help-body');
-        const title = document.getElementById('panel-title');
-        
-        this.lastTrigger = document.activeElement;
-        if (!panel || !body) return;
-
-        try {
-            const response = await fetch('/tool_asset/acoustid/help.mfi');
-            if (!response.ok) throw new Error("Could not load help documentation.");
-            
-            const html = await response.text();
-            body.innerHTML = html;
-            
-            panel.style.display = 'flex';
-
-            setTimeout(() => {
-                if (title) {
-                    title.setAttribute('tabindex', '-1');
-                    title.focus();
-                }
-                document.addEventListener('keydown', this.trapFocus);
-            }, 20);
-
-        } catch (err) {
-            body.innerHTML = `<p style="color:var(--status-error);">Error: ${err.message}</p>`;
-            panel.style.display = 'flex';
-        }
-    },
-
-    trapFocus: function(e) {
-        if (e.key !== 'Tab') return;
-        const panel = document.getElementById('acoustid-help-panel');
-        if (!panel || panel.style.display === 'none') return;
-
-        const focusables = panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-        if (focusables.length === 0) return;
-
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-
-        if (e.shiftKey) { 
-            if (document.activeElement === first) { last.focus(); e.preventDefault(); }
-        } else { 
-            if (document.activeElement === last) { first.focus(); e.preventDefault(); }
-        }
-    },
-
-    closeHelp: function() {
-        const panel = document.getElementById('acoustid-help-panel');
-        if (panel) {
-            panel.style.display = 'none';
-            document.removeEventListener('keydown', this.trapFocus);
-            if (this.lastTrigger) this.lastTrigger.focus();
-        }
-    }
 };
 
 console.log("MetaForge AcoustID: Logic Bridge Build 1.1.0 Synchronized.");

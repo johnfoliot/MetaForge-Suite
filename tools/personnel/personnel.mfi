@@ -1,9 +1,8 @@
 <!-- --- START OF FILE personnel.mfi --- -->
-<h1 class="main" tabindex="-1">Personnel Scout</h1>
-<p class="tool_notes"><!--
-    Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to AI Web Search when thin (its own grounded search already sweeps up Wikipedia/AllMusic/independent sources), with manual Wikipedia search and AllMusic paste both always available for your own follow-up.
-    Review and edit the staged mapping before committing to the MetaForge relationship graph. -->
-</p>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">Album Personnel</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="personnel" data-mf-help-name="Album Personnel">Help</button>
+</div>
 
 <div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
 

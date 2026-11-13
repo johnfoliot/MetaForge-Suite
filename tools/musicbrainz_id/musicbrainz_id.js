@@ -360,20 +360,7 @@ window.metaforge.musicbrainz_id = {
         el.className = (type === "success") ? "status-success" : "status-error";
     },
 
-    openHelp: async function() {
-        const body = document.getElementById('mb-help-body');
-        try {
-            const res = await fetch('/tool_asset/musicbrainz_id/help.mfi');
-            body.innerHTML = await res.text();
-            document.getElementById('mb-help-panel').style.display = 'flex';
-        } catch (e) {
-            body.innerHTML = "Help unavailable.";
-        }
-    },
 
-    closeHelp: function() {
-        document.getElementById('mb-help-panel').style.display = 'none';
-    }
 };
 
 window.metaforge.musicbrainz_id.init();

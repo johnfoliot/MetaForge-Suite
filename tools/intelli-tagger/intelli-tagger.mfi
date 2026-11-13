@@ -228,20 +228,10 @@ text-align: right;
 display: none;
 }
 </style>
-<h1 id="it-header" class="main" tabindex="-1">Intelli-tagger</h1>
-
-<section class="intelli_tagger-description" aria-labelledby="intelli_tagger-info-label">
-    <h2 id="intelli_tagger-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-		<p class="data-text tool_notes"><!-- The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker. --></p>
-        <button class="mf-button-gold-fixed" 
-                style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
-                onclick="metaforge.intelli_tagger.openHelp()"  
-                aria-label="Open Intelli-Tagger help documentation">
-            Help
-        </button>
-    </div>
-</section>
+<div class="mf-page-head">
+    <h1 id="it-header" class="main" tabindex="-1">Intelli-Tagger</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="intelli-tagger" data-mf-help-name="Intelli-Tagger">Help</button>
+</div>
 
 <div class="active_stage">
 <div class="it-workbench-wrapper">
@@ -336,13 +326,6 @@ display: none;
     </main>
 
 </div>
-</div>
-<div id="it-help-panel" class="mf-help-panel" role="dialog" aria-labelledby="it-help-title" style="display: none;">
-<div class="mf-panel-header">
-<h2 id="it-help-title">Help: Intelli-Tagger</h2>
-<button class="mf-panel-close" onclick="metaforge.intelli_tagger.closeHelp()" aria-label="Close help panel">×</button>
-</div>
-<div id="it-help-body" class="mf-panel-body"></div>
 </div>
 <script>
 (function awakener() {

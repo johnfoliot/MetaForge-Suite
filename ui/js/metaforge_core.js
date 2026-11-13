@@ -98,6 +98,43 @@ window.mfAdvanceWorkflow = function(targetToolId, contextPath = null) {
     window.mfSwitchMode(targetToolId);
 };
 
+// --- ENGINE: SHARED HELP DIALOG (v2, 2026-11-13) ---
+/**
+ * One Help dialog for every tool (replaces the 8 per-tool help panels).
+ * Each tool's standard header has:
+ *   <button type="button" class="mf-help-btn" data-mf-help="tool_id"
+ *           data-mf-help-name="Tool Name">Help</button>
+ * and the single click listener below opens that tool's help.mfi in the
+ * native <dialog> in index.html. No per-tool help code is needed: the
+ * browser handles Esc, click-outside, focus containment and focus return.
+ */
+window.MFHelp = {
+    open: async function(toolId, toolName) {
+        const dialog = document.getElementById('mf-help-dialog');
+        const title = document.getElementById('mf-help-title');
+        const body = document.getElementById('mf-help-body');
+        if (!dialog || !title || !body) return;
+
+        title.textContent = `Help: ${toolName || toolId}`;
+        try {
+            const response = await fetch(`/tool_asset/${encodeURIComponent(toolId)}/help.mfi?v=${Date.now()}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            // help.mfi is MetaForge's own local documentation file, not user or
+            // remote data, so it is inserted as HTML.
+            body.innerHTML = await response.text();
+        } catch (err) {
+            body.textContent = "Help for this tool isn't available yet.";
+        }
+        body.scrollTop = 0;
+        if (!dialog.open) dialog.showModal();
+    }
+};
+
+document.addEventListener('click', function(e) {
+    const trigger = e.target.closest('[data-mf-help]');
+    if (trigger) window.MFHelp.open(trigger.dataset.mfHelp, trigger.dataset.mfHelpName);
+});
+
 // --- ENGINE: TOOL LOADER ---
 
 /**

@@ -1,6 +1,7 @@
-<h1 class="main">Youtube to MP3</h1>
-
-<p class="tool_notes">Tool Notes go here</p>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">YouTube to MP3</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="youtube_mp3" data-mf-help-name="YouTube to MP3">Help</button>
+</div>
 
 <div class="active_stage">
 <p class="data-text">function output goes here.</p>

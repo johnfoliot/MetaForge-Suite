@@ -1,5 +1,7 @@
-<h1 class="main">Dashboard</h1>
-<p class="tool_notes">Tool Notes go here</p>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">Dashboard</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="dashboard" data-mf-help-name="Dashboard">Help</button>
+</div>
 
 <div class="active_stage">
 <p class="data-text">function output goes here.</p>

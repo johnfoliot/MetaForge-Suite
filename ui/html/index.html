@@ -49,6 +49,18 @@
         </div>
     </main>
 
+    <!-- v2 shared Help dialog: the ONE help panel for every tool, opened by
+         MFHelp.open() (metaforge_core.js) from each tool's header Help button.
+         Native modal <dialog>: Esc / click outside close it, focus is held
+         inside while open and returns to the Help button on close. -->
+    <dialog id="mf-help-dialog" class="mf-help-dialog" aria-labelledby="mf-help-title" closedby="any">
+        <div class="mf-help-head">
+            <h2 id="mf-help-title">Help</h2>
+            <form method="dialog"><button type="submit" class="mf-help-close" value="close" autofocus>Close</button></form>
+        </div>
+        <div class="mf-help-body" id="mf-help-body"></div>
+    </dialog>
+
     <footer role="contentinfo" style="display: flex; justify-content: flex-end; padding: 0 15px;">
         <span class="data-text" style="font-size: 0.6rem; margin-bottom:3px;">
             Your library currently has <span style="color: var(--mf-gold); font-weight: bold;">{{ track_count }}</span> .mp3 files | &copy; 2026 MetaForge Studio 

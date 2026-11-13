@@ -208,48 +208,6 @@ window.metaforge.sharing = {
         fetch('/run_tool_logic/music-sharing/open_folder');
     },
 
-    // --- 2. HELP PANEL & FOCUS ENGINE ---
-
-    openHelp: async function() {
-        const panel = document.getElementById('sharing-help-panel');
-        const body = document.getElementById('sharing-help-body');
-        const title = document.getElementById('sharing-help-title');
-        this.lastTrigger = document.activeElement;
-
-        try {
-            const response = await fetch('/tool_asset/music-sharing/help.mfi');
-            body.innerHTML = await response.text();
-            panel.style.display = 'flex';
-            setTimeout(() => {
-                if (title) { title.setAttribute('tabindex', '-1'); title.focus(); }
-                document.addEventListener('keydown', this.trapFocus);
-            }, 20);
-        } catch (err) { console.error("Help Load Error", err); }
-    },
-
-    trapFocus: function(e) {
-        if (e.key !== 'Tab') return;
-        const panel = document.getElementById('sharing-help-panel');
-        if (!panel || panel.style.display === 'none') return;
-        const focusables = panel.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
-        if (focusables.length === 0) return;
-        const first = focusables[0], last = focusables[focusables.length - 1];
-
-        if (e.shiftKey && document.activeElement === first) {
-            last.focus(); e.preventDefault();
-        } else if (!e.shiftKey && document.activeElement === last) {
-            first.focus(); e.preventDefault();
-        }
-    },
-
-    closeHelp: function() {
-        const panel = document.getElementById('sharing-help-panel');
-        if (panel) {
-            panel.style.display = 'none';
-            document.removeEventListener('keydown', this.trapFocus);
-            if (this.lastTrigger) this.lastTrigger.focus();
-        }
-    }
 };
 
 // Start the SPA observer/initialization

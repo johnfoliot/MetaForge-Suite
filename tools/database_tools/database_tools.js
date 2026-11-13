@@ -92,50 +92,7 @@ window.metaforge.database_tools.showPanel = async function(panelId, element) {
 };
 
 
-// --- DOCUMENTATION & HELP MANAGEMENT ---
-window.metaforge.database_tools.lastTrigger = null;
 
-window.metaforge.database_tools.openHelp = async function() {
-    const panel = document.getElementById('database-panel');
-    const body = document.getElementById('upk-help-body');
-    const title = document.getElementById('database-title');
-    this.lastTrigger = document.activeElement;
-    if (!panel || !body) return;
-		
-	try {
-        const response = await fetch('/tool_asset/database_tools/help.mfi');
-        const html = await response.text();
-        body.innerHTML = html;
-        panel.style.display = 'flex';
-        setTimeout(() => {
-            if (title) {
-                title.setAttribute('tabindex', '-1');
-                title.focus();
-            }
-        }, 20);
-    } catch (err) {
-        body.innerHTML = `<p style="color:red; padding:15px;">Error: ${err.message}</p>`;	
-        panel.style.display = 'flex';
-    }
-};
-
-window.metaforge.database_tools.closeHelp = function() {
-    const panel = document.getElementById('database-panel');
-    if (panel) {
-        panel.style.display = 'none';
-        if (this.lastTrigger) this.lastTrigger.focus();
-    }
-};
-
-// Global shorthand breakout namespace routing synchronization map
-window.metaforge.database = {
-    openHelp: function() {
-        window.metaforge.database_tools.openHelp();
-    },
-    closeHelp: function() {
-        window.metaforge.database_tools.closeHelp();
-    }
-};
 
 // Auto-boot sequence initialization on load
 (async () => {

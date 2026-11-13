@@ -358,20 +358,10 @@
     }
 </style>
 
-<h1 id="unpack-header" class="main" tabindex="-1">Unpack &amp; Convert</h1>
-
-<section class="unpack_convert-description" aria-labelledby="unpack_convert-info-label">
-    <h2 id="unpack_convert-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
-		<p class="data-text tool_notes">&nbsp;</p>
-        <button class="mf-button-gold-fixed" 
-                style="font-size:80%;margin-left:1.5rem; margin-right: 5rem;"
-                onclick="metaforge.unpack_convert.openHelp()" 
-                aria-label="Open Unpack &amp; Convert help documentation">
-            Help
-        </button>
-    </div>
-</section>
+<div class="mf-page-head">
+    <h1 id="unpack-header" class="main" tabindex="-1">Unpack &amp; Convert</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="unpack_convert" data-mf-help-name="Unpack &amp; Convert">Help</button>
+</div>
 
 <div class="active_stage">
     <div class="unpacker-stage-wrapper">
@@ -488,14 +478,6 @@
 </div>
 
 <!-- FLOATING HELP PANEL -->
-<div id="upk-help-panel" class="mf-help-panel" role="dialog" aria-labelledby="upk-panel-title" style="display: none;">
-    <div class="mf-panel-header">
-        <h2 id="upk-panel-title">Help: Unpack &amp; Convert</h2>
-        <button class="mf-panel-close" onclick="metaforge.unpack_convert.closeHelp()" aria-label="Close help panel">×</button>
-    </div>
-    <div id="upk-help-body" class="mf-panel-body"></div>
-</div>
-
 <script>
     (function fragmentAwakener() {
         if (window.metaforge?.unpack_convert?.init) { 

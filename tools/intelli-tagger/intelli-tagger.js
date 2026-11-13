@@ -404,39 +404,6 @@ window.metaforge.intelli_tagger = {
         }
     },
 
-    // --- DOCUMENTATION & FOCUS ---
-
-    openHelp: async function() {
-        const panel = document.getElementById('it-help-panel');
-        const body = document.getElementById('it-help-body');
-        const title = document.getElementById('it-help-title');
-        this.state.lastTrigger = document.activeElement;
-        if (!panel || !body) return;
-
-        try {
-            const response = await fetch('/tool_asset/intelli-tagger/help.mfi');
-            body.innerHTML = await response.text();
-            panel.style.display = 'flex';
-            setTimeout(() => { 
-                if (title) { 
-                    title.setAttribute('tabindex', '-1'); 
-                    title.focus(); 
-                } 
-            }, 20);
-        } catch (err) {
-            body.innerHTML = "Documentation offline.";
-            panel.style.display = 'flex';
-        }
-    },
-
-    closeHelp: function() {
-        const panel = document.getElementById('it-help-panel');
-        if (panel) {
-            panel.style.display = 'none';
-            if (this.state.lastTrigger) this.state.lastTrigger.focus();
-        }
-    },
-
     setupReentryWatcher: function() {
         if (this.state.observer) this.state.observer.disconnect();
         const stage = document.getElementById('mfi-content');

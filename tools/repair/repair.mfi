@@ -4,23 +4,10 @@
      Build 7.4.5: Global Help CSS Integration & Repair Grid Preservation.
      Accessibility: WCAG 2.2 AA Compliance
      ====================================================================== -->
-<h1 class="main" tabindex="-1">Audio Repair</h1>
-
-<section class="repair-description" aria-labelledby="repair-info-label">
-    <h2 id="repair-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-        <p class="data-text tool_notes" style="margin: 0; max-width: 80%;">
-            The Audio Repair tool fixes .mp3 audio files that have been corrupted - often during download.
-            Corrupted MP3 files identified by the Intelli-Tagger tool are re-built from RAW data using FFMPEG to ensure "Good In, Good Out" integrity.
-        </p>
-        <button class="mf-button-gold-fixed" 
-                style="font-size:85%; margin-right: 5rem;"
-                onclick="metaforge.repair.openHelp()" 
-                aria-label="Open Audio Repair help documentation">
-            Help
-        </button>
-    </div>
-</section>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">Audio Repair</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="repair" data-mf-help-name="Audio Repair">Help</button>
+</div>
 
 <div class="active_stage" id="repair-stage">
     <div class="repair-grid" style="display: grid; grid-template-columns: 30% 1fr; gap: 30px; min-height: 450px; width: 100%;">
@@ -86,20 +73,6 @@
 </div>
 
 <!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
-<div id="repair-help-panel" 
-     class="mf-help-panel" 
-     role="dialog" 
-     aria-labelledby="repair-help-title" 
-     style="display: none;">
-    <div class="mf-panel-header">
-        <h2 id="repair-help-title" style="margin: 0; font-size: 0.85rem;">Help: Audio Repair</h2>
-        <button class="mf-panel-close" onclick="metaforge.repair.closeHelp()" aria-label="Close help panel">×</button>
-    </div>
-    <div id="repair-help-body" class="mf-panel-body">
-        <!-- Content injected via JS -->
-    </div>
-</div>
-
 <style>
     /* LOCALIZED TOOL STYLES: repair */
     #repair-stage { position: relative; }

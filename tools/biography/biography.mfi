@@ -1,6 +1,8 @@
 <!-- --- START OF FILE biography.mfi --- -->
-<h1 class="main">Bio Builder</h1>
-<p class="tool_notes">Manage, update, and commit artist profiles directly to the MetaForge database ecosystem.</p>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">Bio Builder</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="biography" data-mf-help-name="Bio Builder">Help</button>
+</div>
 
 <div id="bio-container-main" class="active_stage">
     <!-- Processing Overlay -->

@@ -1,5 +1,5 @@
 {
-  "name": "Unpack / Convert",
+  "name": "Unpack & Convert",
   "id": "unpack_convert",
   "version": "1.0.0",
   "description": "Extracts ZIP/RAR archives, CUE bundles, SACD ISOs and DSD (.dsf/.dff) files when present. Converts all audio formats to .mp3 VBR(V0), and renames files to MetaForge standard. Does file directory sanitation: moves all graphic assets to an 'art' folder, deletes legacy cruft, and preserves any source file it could not process.",

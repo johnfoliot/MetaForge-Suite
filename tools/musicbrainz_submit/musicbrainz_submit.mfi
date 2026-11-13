@@ -1,11 +1,8 @@
 <!-- --- START OF FILE musicbrainz_submit.mfi --- -->
-<h1 class="main" tabindex="-1">MusicBrainz Submit</h1>
-<p class="tool_notes">
-    Reviews high-confidence corrections the resolution waterfall found that
-    <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz's own data doesn't have yet</span>.
-    Opening a candidate launches MusicBrainz's own editor in a companion window, pre-filled with the evidence
-    MetaForge Studio found -- MetaForge Studio never submits anything itself, you always review and submit it yourself.
-</p>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">MusicBrainz Submit</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="musicbrainz_submit" data-mf-help-name="MusicBrainz Submit">Help</button>
+</div>
 
 <div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
 

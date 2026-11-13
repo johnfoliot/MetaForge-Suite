@@ -4,22 +4,10 @@
      Build 7.4.3: Global Help CSS Integration.
      Accessibility: WCAG 2.2 AA Compliance
      ====================================================================== -->
-<h1 class="main" tabindex="-1">AcoustID Manager</h1>
-<section class="acoustid-description" aria-labelledby="acoustid-info-label">
-    <h2 id="acoustid-info-label" class="mf-grid-heading" style="display:none;">Tool Description</h2>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
-        <p class="data-text tool_notes" style="margin: 0; max-width: 80%;">
-            Manage the AcoustID fingerprinting lifecycle. Submit unknown tracks to the global database, 
-            or check previously submitted tracks to resolve and finalize their identifiers.
-        </p>
-        <button class="mf-button-gold-fixed" 
-                style="font-size:85%; margin-right: 5rem;"
-                onclick="metaforge.acoustid.openHelp()" 
-                aria-label="Open AcoustID help documentation">
-            Help
-        </button>
-    </div>
-</section>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">AcoustID Manager</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="acoustid" data-mf-help-name="AcoustID Manager">Help</button>
+</div>
 
 <div class="active_stage" id="acoustid-stage">
     <section class="acoustid-controls" aria-labelledby="acoustid-actions-label">
@@ -62,20 +50,6 @@
 </div>
 
 <!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
-<div id="acoustid-help-panel" 
-     class="mf-help-panel" 
-     role="dialog" 
-     aria-labelledby="panel-title" 
-     style="display: none;">
-    <div class="mf-panel-header">
-        <h2 id="panel-title" style="margin: 0; font-size: 0.85rem;">Help: AcoustID Manager</h2>
-        <button class="mf-panel-close" onclick="metaforge.acoustid.closeHelp()" aria-label="Close help panel">×</button>
-    </div>
-    <div id="acoustid-help-body" class="mf-panel-body">
-        <!-- Content injected via JS -->
-    </div>
-</div>
-
 <style>
     /* LOCALIZED TOOL STYLES: acoustid */
     #acoustid-stage { display: flex; flex-direction: column; gap: 20px; position: relative; }

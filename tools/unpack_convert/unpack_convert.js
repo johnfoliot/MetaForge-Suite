@@ -619,25 +619,7 @@ window.metaforge.unpack_convert = {
         }
     },
 
-    openHelp: async function() {
-        const panel = document.getElementById('upk-help-panel');
-        const body = document.getElementById('upk-help-body');
-        const title = document.getElementById('upk-panel-title');
-        this.lastTrigger = document.activeElement;
-        if (!panel || !body) return;
-        try {
-            const response = await fetch('/tool_asset/unpack_convert/help.mfi');
-            const html = await response.text();
-            body.innerHTML = html;
-            panel.style.display = 'flex';
-            setTimeout(() => { if (title) { title.setAttribute('tabindex', '-1'); title.focus(); } }, 20);
-        } catch (err) { body.innerHTML = `<p style="color:red; padding:15px;">Error: ${err.message}</p>`; panel.style.display = 'flex'; }
-    },
 
-    closeHelp: function() {
-        const panel = document.getElementById('upk-help-panel');
-        if (panel) { panel.style.display = 'none'; if (this.lastTrigger) this.lastTrigger.focus(); }
-    }
     // Custom scrollbar for #unpacker-console is no longer wired here --
     // it now uses the shared MFScrollbar utility (metaforge_core.js),
     // auto-attached via unpack_convert.mfi's .mf-custom-scrollbar markup.

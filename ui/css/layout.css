@@ -80,6 +80,36 @@ body, button, .nav-item { cursor: default; }
 h1.main { color: var(--mf-gold); }
 h1.main:focus { outline:none!important; }
 
+/* v2 STANDARD SCREEN HEADER (2026-11-13): every tool's screen starts with
+   exactly this: the tool's <h1> and the shared Help button, nothing else.
+   Any former header prose now lives at the top of the tool's help.mfi. */
+.mf-page-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.75rem;
+}
+.mf-page-head h1.main {
+    margin: 0;
+    font-size: 1.625rem;
+    line-height: 1.2;
+    font-family: var(--font-main);
+}
+/* Quiet outlined button; overrides the global gold-filled `button` look,
+   which is set with !important in section 2. */
+.mf-help-btn {
+    font-family: var(--font-main) !important;
+    font-size: 0.9375rem !important;
+    min-block-size: 2.25rem;
+    padding: 0.3rem 1rem !important;
+    color: var(--mf-gold) !important;
+    background: transparent !important;
+    border: 1px solid var(--mf-gold) !important;
+    border-radius: 5px;
+}
+.mf-help-btn:hover { background: var(--bg-accent) !important; filter: none; }
+
 /* 2. GLOBAL COMPONENT PRIMITIVES */
 
 /* --- THE TAB METAPHOR --- */

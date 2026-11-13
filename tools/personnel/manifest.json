@@ -1,5 +1,5 @@
 {
-  "name": "Personnel",
+  "name": "Album Personnel",
   "id": "personnel",
   "version": "1.0.0",
   "description": "Scrape Wikipedia for Album Personnel and map relationship edges.",

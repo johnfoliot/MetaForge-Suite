@@ -1,6 +1,9 @@
 <!-- --- START OF FILE settings.mfi --- -->
 <!-- --- SETTINGS TOOL UI --- -->
-<h1 class="main" tabindex="-1" style="margin-bottom:.5rem;">Settings</h1>
+<div class="mf-page-head">
+    <h1 class="main" tabindex="-1">Settings</h1>
+    <button type="button" class="mf-help-btn" data-mf-help="settings" data-mf-help-name="Settings">Help</button>
+</div>
 
 <div class="active_stage" id="settings-stage">
     <!-- Main Settings Navigation -->

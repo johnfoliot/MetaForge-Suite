@@ -8,19 +8,8 @@
     window.metaforge = window.metaforge || {};
 
     const UI = {
-        /**
-         * Initializes a help modal with scoped cleanup.
-         */
-        initHelpModal: function(panelId) {
-            const panel = document.getElementById(panelId);
-            const closeBtn = panel ? panel.querySelector('.mf-panel-close') : null;
-            
-            if (panel && closeBtn) {
-                // Use a standard reference to avoid anonymous function binding issues
-                closeBtn.onclick = () => { panel.style.display = 'none'; };
-                console.log(`MetaForge UI: Help Modal [${panelId}] initialized.`);
-            }
-        },
+        // (v2: initHelpModal removed -- every tool now uses the one shared
+        // Help <dialog>, see MFHelp in ui/js/metaforge_core.js.)
 
         /**
          * Standardized File Picker invocation via Bridge
