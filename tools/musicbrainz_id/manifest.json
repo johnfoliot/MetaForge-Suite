@@ -1,6 +1,8 @@
 {
   "name": "MusicBrainz IDs",
   "id": "musicbrainz_id",
+  "group": "pipeline",
+  "step": 2,
   "version": "1.0.0",
   "description": "Fetches MusicBrainz Artist ID, Album ID and Track IDs",
   "entry_point": "musicbrainz_id.py",

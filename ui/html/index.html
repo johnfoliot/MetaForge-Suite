@@ -18,30 +18,44 @@
 <body>
 
 <header role="banner">
-    <nav class="global-nav" aria-label="Global Navigation">
-        <img src="/ui/images/logo.svg?v={{ version_id }}" 
-             id="mf-main-logo" 
-             class="mf-logo" 
+    <div class="global-nav">
+        <img src="/ui/images/logo.svg?v={{ version_id }}"
+             id="mf-main-logo"
+             class="mf-logo"
              alt="MetaForge Studio">
 
-        {% for tool in tools %}
-        <div class="nav-item" 
-             id="mode-{{ tool.id }}" 
-             role="button" 
-             tabindex="0"
-             aria-pressed="false" 
-             onclick="switchMode('{{ tool.id }}')"
-             onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); switchMode('{{ tool.id }}'); }"
-             title="{{ tool.name }}">
-            
-            <div class="mf-icon-mask" 
-                 style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}'); 
-                        mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
-                        background-color: var(--mf-gold);">
+        {#- v2 grouped toolbar (2026-11-13). Each tool is a real <button> whose
+            text is its name: shown under the icon when Settings > "Show names
+            under toolbar icons" is on, and as a hover/focus tooltip when it is
+            off (the default). The current tool carries aria-current="page".
+            Groups come from each tool's manifest; order within a group follows
+            Settings > Toolbar customization. -#}
+        {% macro tool_button(tool) -%}
+        <button type="button" class="nav-item" id="mode-{{ tool.id }}" data-mode="{{ tool.id }}">
+            {%- if tool.step %}<span class="mf-step" aria-hidden="true">{{ tool.step }}</span>{% endif %}
+            <span class="mf-icon-mask" aria-hidden="true"
+                  style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
+                         mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');"></span>
+            <span class="mf-nav-label">{% if tool.step %}<span class="mf-visually-hidden">Step {{ tool.step }}: </span>{% endif %}{{ tool.name }}</span>
+        </button>
+        {%- endmacro %}
+
+        <nav class="mf-toolbar" aria-label="Tools">
+            {% for group in tool_groups %}
+            <div class="mf-nav-group" role="group" aria-labelledby="mf-grp-{{ group.id }}">
+                <span class="mf-group-label" id="mf-grp-{{ group.id }}">{{ group.label }}</span>
+                <ul class="mf-nav-list">
+                    {% for tool in group.tools %}<li>{{ tool_button(tool) }}</li>{% endfor %}
+                </ul>
             </div>
-        </div>
-        {% endfor %}
-    </nav>
+            {% endfor %}
+            {% if settings_tool %}
+            <ul class="mf-nav-list mf-nav-end">
+                <li>{{ tool_button(settings_tool) }}</li>
+            </ul>
+            {% endif %}
+        </nav>
+    </div>
 </header>
 <main id="main-stage" role="main" aria-live="polite">
         <div id="mfi-content">
@@ -66,19 +80,7 @@
             Your library currently has <span style="color: var(--mf-gold); font-weight: bold;">{{ track_count }}</span> .mp3 files | &copy; 2026 MetaForge Studio 
         </span>
     </footer>
-
-    <script>
-    /**
-     * LOCAL BRIDGE
-     * Connects UI triggers to the mfSwitchMode engine in core.js
-     */
-    function switchMode(mode) {
-        if (typeof window.mfSwitchMode === 'function') {
-            window.mfSwitchMode(mode);
-        } else {
-            console.error("MetaForge Error: Global engine (mfSwitchMode) not registered.");
-        }
-    }
-    </script>
+    <!-- v2: the 1.x inline switchMode() bridge was removed; toolbar buttons are
+         wired by one delegated listener in metaforge_core.js. -->
 </body>
 </html>

@@ -1,6 +1,7 @@
 {
   "name": "Album Personnel",
   "id": "personnel",
+  "group": "enrich",
   "version": "1.0.0",
   "description": "Scrape Wikipedia for Album Personnel and map relationship edges.",
   "entry_point": "personnel.mfi",

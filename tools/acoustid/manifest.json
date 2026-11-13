@@ -1,6 +1,7 @@
 {
   "name": "AcoustID Manager",
   "id": "acoustid",
+  "group": "enrich",
   "version": "1.0.1",
   "description": "Forensic fingerprint submission and resolution engine.",
   "entry_point": "acoustid.py",

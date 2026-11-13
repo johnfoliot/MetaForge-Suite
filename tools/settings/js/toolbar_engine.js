@@ -10,6 +10,7 @@ window.metaforge.settings.toolbar = {
      * Entry Point: Fetches tool manifests and saved layout from Python.
      */
     load: async function() {
+        this.initLabelsPref();
         const grid = document.getElementById('toolbar-customizer-grid');
         if(!grid) return;
 
@@ -22,6 +23,41 @@ window.metaforge.settings.toolbar = {
         } catch (e) {
             grid.innerHTML = `<p class="error-text">Discovery failure: ${e.message}</p>`;
         }
+    },
+
+    /**
+     * v2 (2026-11-13): "Show names under toolbar icons". Saved as
+     * toolbar_labels in preferences.json (default off) and applied
+     * immediately via mfApplyToolbarLabels (metaforge_core.js).
+     */
+    initLabelsPref: async function() {
+        const box = document.getElementById('pref-toolbar-labels');
+        const status = document.getElementById('pref-toolbar-labels-status');
+        if (!box || box.dataset.wired) return;
+        box.dataset.wired = 'true';
+
+        try {
+            const prefs = await (await fetch('/run_tool_logic/settings/get_prefs')).json();
+            box.checked = prefs.toolbar_labels === true;
+        } catch (e) { /* default stays off */ }
+
+        box.addEventListener('change', async () => {
+            const on = box.checked;
+            window.mfApplyToolbarLabels(on);
+            try {
+                const res = await fetch('/run_tool_logic/settings/save_prefs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ toolbar_labels: on })
+                });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message || 'unknown error');
+                status.textContent = on ? 'Saved. Names now show under the toolbar icons.'
+                                        : 'Saved. The toolbar now shows icons only.';
+            } catch (e) {
+                status.textContent = `The setting is applied for now but couldn't be saved: ${e.message}`;
+            }
+        });
     },
 
     /**

@@ -55,6 +55,17 @@
             <!-- Sub-Pane: Toolbar Layout -->
             <div id="sub-panel-toolbar" class="personalization-sub-panel" style="display:none;">
                 <h2 class="mf-grid-heading" tabindex="-1">Workbench toolbar</h2>
+                <!-- v2 (2026-11-13): toolbar names preference. Default off. A native
+                     checkbox carrying the `switch` attribute: it renders as a switch
+                     where the browser supports that, and as a normal checkbox elsewhere. -->
+                <div class="mf-pref-row">
+                    <div class="mf-pref-control">
+                        <input type="checkbox" switch id="pref-toolbar-labels" aria-describedby="pref-toolbar-labels-hint">
+                        <label for="pref-toolbar-labels">Show names under toolbar icons</label>
+                    </div>
+                    <p class="mf-pref-hint" id="pref-toolbar-labels-hint">Off by default. When it's off, a tool's name appears when you point at its icon or move to it with the keyboard. Changes apply right away.</p>
+                    <p class="mf-pref-status" id="pref-toolbar-labels-status" role="status"></p>
+                </div>
                 <div id="toolbar-customizer-grid">
                     <p class="tool_notes">Loading tool manifests...</p>
                 </div>
@@ -191,6 +202,13 @@
     .sub-nav-btn.active { background: var(--bg-stage); border-color: var(--bg-accent); color: var(--mf-gold); position: relative; z-index: 5; }
 	
 	#toolbar-customizer-grid { font-size: 75%; }
+    /* v2 toolbar-names preference */
+    .mf-pref-row { display: grid; gap: 0.3rem; margin: 0 0 1.25rem; max-width: 60ch; }
+    .mf-pref-control { display: flex; align-items: center; gap: 0.6rem; }
+    .mf-pref-control input { width: 1.2rem; height: 1.2rem; margin: 0; accent-color: var(--mf-gold); }
+    .mf-pref-control label { font-size: 0.9375rem; font-weight: 600; color: var(--text-output); }
+    .mf-pref-hint { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+    .mf-pref-status { margin: 0; font-size: 0.875rem; color: var(--text-message); min-height: 1.2em; }
 
     /* --- TAXONOMY DRAWER ENGINE --- */
     .mf-drawer { display: flex; flex-direction: column; }

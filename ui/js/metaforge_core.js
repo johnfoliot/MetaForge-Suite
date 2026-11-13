@@ -45,6 +45,7 @@ window.initializeMetaForgeBranding = async function() {
             const prefs = await response.json();
             document.documentElement.setAttribute('data-theme', prefs.theme_file ? prefs.theme_file.replace('_theme.css', '') : 'dark');
             if (prefs.theme_file) window.applyThemeFile(prefs.theme_file);
+            window.mfApplyToolbarLabels(prefs.toolbar_labels === true);
             const mainLogo = document.getElementById('mf-main-logo');
             if (mainLogo && prefs.theme_file) {
                 mainLogo.src = (prefs.theme_file.includes('light')) ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
@@ -69,17 +70,55 @@ document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 // --- ENGINE: MODE SWITCHER ---
 
 window.mfSwitchMode = function(mode) {
-    const items = document.querySelectorAll('.nav-item, .settings-btn');
-    items.forEach(el => {
+    // v2: the current tool is marked with aria-current="page" (announced as
+    // "current page"), styled from that attribute so the visual and the
+    // accessible state can't disagree. The 1.x aria-pressed is removed:
+    // these are navigation buttons, not on/off toggles.
+    document.querySelectorAll('.nav-item').forEach(el => {
         el.classList.remove('active');
-        el.setAttribute('aria-pressed', 'false');
+        el.removeAttribute('aria-current');
+        el.removeAttribute('aria-pressed');
     });
     const activeEl = document.getElementById('mode-' + mode);
-    if(activeEl) {
+    if (activeEl) {
         activeEl.classList.add('active');
-        activeEl.setAttribute('aria-pressed', 'true');
+        activeEl.setAttribute('aria-current', 'page');
     }
     window.loadTool(mode);
+};
+
+// v2 toolbar: one delegated listener for every tool button (no inline handlers).
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.mf-toolbar [data-mode]');
+    if (btn) window.mfSwitchMode(btn.dataset.mode);
+});
+
+// v2 toolbar names as tooltips (labels off): WCAG 1.4.13 requires they can be
+// dismissed without moving the pointer or focus. Esc hides them until the
+// pointer or focus moves to another toolbar button.
+(function() {
+    let dismissedOn = null;
+    const toolbar = () => document.querySelector('.mf-toolbar');
+    document.addEventListener('keydown', function(e) {
+        const bar = toolbar();
+        if (e.key !== 'Escape' || !bar) return;
+        const over = bar.querySelector('.nav-item:hover') || (bar.contains(document.activeElement) ? document.activeElement : null);
+        if (over) { bar.classList.add('mf-tips-dismissed'); dismissedOn = over; }
+    });
+    const reset = function(e) {
+        const bar = toolbar();
+        const item = e.target.closest && e.target.closest('.nav-item');
+        if (bar && item && item !== dismissedOn) { bar.classList.remove('mf-tips-dismissed'); dismissedOn = null; }
+    };
+    document.addEventListener('pointerover', reset);
+    document.addEventListener('focusin', reset);
+})();
+
+// v2: "Show names under toolbar icons" (Settings > Toolbar customization).
+// Stored as toolbar_labels in preferences.json; default off.
+window.mfApplyToolbarLabels = function(on) {
+    if (on) document.documentElement.setAttribute('data-toolbar-labels', 'on');
+    else document.documentElement.removeAttribute('data-toolbar-labels');
 };
 
 /**

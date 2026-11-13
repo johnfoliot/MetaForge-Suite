@@ -174,6 +174,30 @@ def get_dynamic_toolbar():
             if tool_data['visible']: final_toolbar.append(tool_data)
     return final_toolbar
 
+# v2 grouped toolbar (2026-11-13). Each tool's manifest.json names its
+# "group" (and pipeline tools a "step"). Groups always appear in this order;
+# inside a group, tools keep the user's own order and visibility from
+# Settings > Toolbar customization (toolbar_layout.json), unchanged. A tool
+# with an unknown or missing group lands in "More" rather than disappearing.
+TOOLBAR_GROUPS = [("home", "Home"), ("pipeline", "Pipeline"), ("enrich", "Enrich"), ("library", "Library")]
+
+def group_toolbar(tools):
+    by_group = {gid: [] for gid, _ in TOOLBAR_GROUPS}
+    settings_tool, other = None, []
+    for tool in tools:
+        group = tool.get('group')
+        if tool['id'] == 'settings' or group == 'system':
+            settings_tool = tool
+        elif group in by_group:
+            by_group[group].append(tool)
+        else:
+            other.append(tool)
+    groups = [{"id": gid, "label": label, "tools": by_group[gid]}
+              for gid, label in TOOLBAR_GROUPS if by_group[gid]]
+    if other:
+        groups.append({"id": "more", "label": "More", "tools": other})
+    return groups, settings_tool
+
 # --- [ SECTION 5: CORE UI ROUTES ] ---
 @app.route('/')
 def home():
@@ -184,8 +208,11 @@ def home():
         conn.close()
     except sqlite3.Error:
         track_count = "0"
+    tools = get_dynamic_toolbar()
+    tool_groups, settings_tool = group_toolbar(tools)
     return render_template('index.html', track_count=track_count, version_id=time.time(),
-                           tools=get_dynamic_toolbar(), alerts=dashboard_alerts)
+                           tools=tools, tool_groups=tool_groups, settings_tool=settings_tool,
+                           alerts=dashboard_alerts)
 
 @app.route('/favicon.ico')
 def favicon():
