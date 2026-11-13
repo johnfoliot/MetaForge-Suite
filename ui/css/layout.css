@@ -182,61 +182,91 @@ button:hover, .mf-button-gold-fixed:hover {
     color: var(--input-foreground) !important;
 }
 
-/* 3. HEADER & NAVIGATION (v2 grouped toolbar, 2026-11-13)
-   Groups: Home / Pipeline (steps 1-3) / Enrich / Library, Settings at the end.
-   Each tool button's text is its name. Default (labels off): the name is
-   visually hidden but stays the button's accessible name, and appears as a
-   tooltip on hover or keyboard focus (hoverable; Esc dismisses it, WCAG
-   1.4.13). With Settings > "Show names under toolbar icons" on
-   (html[data-toolbar-labels="on"]) names and group labels show permanently. */
+/* 3. HEADER & NAVIGATION: v2 LEFT RAIL (John, 2026-11-13)
+   The logo sits in a slim top bar; the tools sit in a rail down the left
+   edge, grouped Home / Pipeline (steps 1-3) / Enrich / Library, with
+   Settings pinned to the bottom. Tools stack downward, so spacing is always
+   even and new tools never run out of room.
+   - Collapsed (default): a narrow icon rail. Each button's name is visually
+     hidden but stays its accessible name, and appears as a tooltip to the
+     right on hover or keyboard focus (hoverable; Esc dismisses it, WCAG 1.4.13).
+   - Expanded (html[data-toolbar-labels="on"]): a wider rail, icon + name.
+   Toggled by the >> / << button at the top of the rail, by Ctrl+B, or by
+   Settings > "Show names under toolbar icons" (all one saved preference).
+   Nothing on hover, focus or the open-tool state may change a button's size. */
 .mf-visually-hidden {
     position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 
 header { background-color: var(--bg-main); border-bottom: 1px solid var(--border-subtle); padding: 4px 12px; }
-.global-nav { display: flex; align-items: center; gap: 1rem; min-height: 48px; }
-.mf-logo { height: 32px; width: auto; display: block; margin-right: 0.5rem; }
+.global-nav { display: flex; align-items: center; min-height: 44px; }
+.mf-logo { height: 32px; width: auto; display: block; }
 
-/* Everything is top-aligned (John, 2026-11-13): group labels line up along
-   the top, every icon lines up on one row below them, and every button is
-   the same height so the current-tool underline sits on one line. */
-.mf-toolbar { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 0.5rem; }
+/* Shell: rail on the left, the tool stage on the right */
+.mf-shell { flex: 1; display: flex; min-height: 0; }
+
+.mf-rail {
+    --rail-w: 4.5rem;
+    flex: none;
+    width: var(--rail-w);
+    display: flex; flex-direction: column; gap: 0.4rem;
+    padding: 0.5rem 0.4rem;
+    background: var(--bg-main);
+    border-inline-end: 1px solid var(--border-subtle);
+    /* Left visible (not a scroll box) so tooltips can extend into the stage.
+       ~14 tools fit at an 800px-tall window; revisit if the suite outgrows it. */
+    overflow: visible;
+    position: relative; z-index: 20;
+}
+html[data-toolbar-labels="on"] .mf-rail { --rail-w: 13.5rem; }
+
+/* Expand / collapse toggle (top of the rail). Small icon, full-size target. */
+.mf-rail-toggle {
+    display: grid !important; place-items: center;
+    width: 2.6rem; height: 2.25rem;
+    margin: 0 auto 0.1rem;
+    padding: 0 !important;
+    color: var(--text-muted) !important;
+    background: transparent !important;
+    border: 1px solid var(--border-ui) !important;
+    border-radius: 5px;
+}
+html[data-toolbar-labels="on"] .mf-rail-toggle { margin-inline: 0.2rem auto; }
+.mf-rail-toggle:hover { color: var(--text-output) !important; background: var(--bg-accent) !important; filter: none; }
+.mf-rail-toggle svg { width: 0.8rem; height: 0.8rem; transition: rotate 0.15s; }
+.mf-rail-toggle[aria-expanded="true"] svg { rotate: 180deg; }
+
 .mf-nav-group { display: flex; flex-direction: column; gap: 0.1rem; }
-.mf-nav-group > .mf-nav-list { flex: 1; }
-.mf-nav-group + .mf-nav-group { border-inline-start: 1px solid var(--border-subtle); padding-inline-start: 0.5rem; }
-.mf-nav-group.mf-nav-end { border-inline-start: 0; padding-inline-start: 0; }
-.mf-group-spacer { visibility: hidden; }
-.mf-group-label { /* hidden unless labels are on; still names its group for screen readers */
+.mf-nav-group + .mf-nav-group { border-top: 1px solid var(--border-subtle); padding-top: 0.4rem; }
+.mf-nav-group.mf-nav-end { margin-top: auto; }
+.mf-group-label { /* hidden when collapsed; always names its group for screen readers */
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-.mf-nav-list { display: flex; align-items: stretch; gap: 0.15rem; list-style: none; margin: 0; padding: 0; }
-.mf-nav-list > li { display: flex; }
-.mf-nav-end { margin-inline-start: auto; }
+.mf-nav-list { display: flex; flex-direction: column; gap: 0.1rem; list-style: none; margin: 0; padding: 0; }
 
 /* Tool buttons. Overrides the global gold-filled `button` look (section 2,
-   which uses !important). */
+   which uses !important). Every row is the same height in both states. */
 .mf-toolbar .nav-item {
     position: relative;
-    display: grid; justify-items: center; align-content: start; gap: 0.15rem;
-    min-width: 2.6rem;
-    padding: 0.3rem 0.35rem 0.4rem !important;
+    display: grid; grid-template-columns: 28px; justify-content: center; align-items: center; gap: 0.7rem;
+    width: 100%; min-height: 2.75rem;
+    padding: 0.4rem !important;
     color: var(--mf-gold) !important;
     background: transparent !important;
     border: 1px solid transparent !important;
     border-radius: 5px;
     font-family: var(--font-main) !important;
     font-weight: normal !important;
+    text-align: start;
 }
 .mf-toolbar .nav-item:hover { background: var(--bg-accent) !important; filter: none; }
-/* Toolbar buttons sit only ~2px apart, so the global ring (3px, offset 2px
-   outward) spilled onto neighbouring buttons. Drawn just inside the button
-   instead; still 3px and 3:1+ against the toolbar in both themes. */
-.mf-toolbar .nav-item:focus-visible { outline-offset: -3px; }
+/* Buttons sit close together, so the focus ring is drawn just inside each one */
+.mf-toolbar .nav-item:focus-visible, .mf-rail-toggle:focus-visible { outline-offset: -3px; }
 .mf-toolbar .nav-item[aria-current="page"] { background: var(--bg-accent) !important; }
-/* Current tool: an underline bar (a shape), not colour alone (WCAG 1.4.1) */
+/* Open tool: a bar on the rail's inner edge (a shape, not colour alone, WCAG 1.4.1) */
 .mf-toolbar .nav-item[aria-current="page"]::after {
-    content: ""; position: absolute; inset: auto 0.35rem 0; border-block-end: 3px solid var(--mf-gold);
+    content: ""; position: absolute; inset: 0.45rem auto 0.45rem 0; border-inline-start: 3px solid var(--mf-gold);
 }
 
 .mf-icon-mask {
@@ -247,9 +277,10 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
     mask-repeat: no-repeat; mask-position: center;
 }
 
-/* Pipeline step badge (1-2-3): the recommended order, never a lock */
+/* Pipeline step badge (1-2-3): the recommended order, never a lock.
+   Sits on the icon's top-right corner in both states. */
 .mf-step {
-    position: absolute; top: 0; inset-inline-end: 0;
+    position: absolute; top: 0.2rem; inset-inline-start: calc(50% + 0.45rem);
     display: grid; place-items: center;
     width: 0.95rem; height: 0.95rem;
     border: 1px solid currentColor; border-radius: 50%;
@@ -257,9 +288,9 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
     font-size: 0.625rem; font-weight: 700; line-height: 1;
 }
 
-/* Name as a tooltip (labels off) */
+/* Collapsed: the name is a tooltip to the right of the icon */
 .mf-toolbar .mf-nav-label {
-    position: absolute; top: calc(100% + 6px); left: 50%; translate: -50% 0;
+    position: absolute; left: calc(100% + 0.6rem); top: 50%; translate: 0 -50%;
     z-index: 1000;
     padding: 0.2rem 0.55rem;
     white-space: nowrap;
@@ -272,7 +303,7 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
     pointer-events: none;
 }
 .mf-toolbar .mf-nav-label::before { /* bridge across the gap so the tooltip stays hoverable */
-    content: ""; position: absolute; inset: -8px 0 auto; height: 8px;
+    content: ""; position: absolute; inset: 0 auto 0 -0.8rem; width: 0.8rem;
 }
 .mf-toolbar .nav-item:hover .mf-nav-label,
 .mf-toolbar .nav-item:focus-visible .mf-nav-label {
@@ -280,28 +311,33 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
     pointer-events: auto;
 }
 .mf-toolbar.mf-tips-dismissed .nav-item .mf-nav-label { clip-path: inset(50%); pointer-events: none; }
-.mf-nav-end .mf-nav-label { left: auto; right: 0; translate: none; }
 
-/* Labels on (Settings preference) */
+/* Expanded (labels on): icon + name side by side */
 html[data-toolbar-labels="on"] .mf-group-label {
     position: static; width: auto; height: auto; overflow: visible; clip-path: none;
-    padding-inline-start: 0.35rem;
+    padding: 0.1rem 0.5rem 0.15rem;
     font-size: 0.75rem; color: var(--text-muted);
 }
-html[data-toolbar-labels="on"] .mf-toolbar .nav-item { min-width: 4.1rem; }
+html[data-toolbar-labels="on"] .mf-toolbar .nav-item {
+    grid-template-columns: 28px minmax(0, 1fr); justify-content: stretch;
+    padding: 0.4rem 0.6rem !important;
+}
+html[data-toolbar-labels="on"] .mf-step { inset-inline-start: 1.9rem; }
 html[data-toolbar-labels="on"] .mf-toolbar .mf-nav-label,
 html[data-toolbar-labels="on"] .mf-toolbar.mf-tips-dismissed .mf-nav-label {
     position: static; translate: none; clip-path: none; pointer-events: auto;
-    max-width: 5.6rem; padding: 0; white-space: normal; text-align: center;
-    font-size: 0.75rem; font-weight: normal; line-height: 1.2;
+    padding: 0; white-space: normal;
+    font-size: 0.875rem; font-weight: normal; line-height: 1.25;
     color: var(--text-message); background: none; border: 0;
 }
 html[data-toolbar-labels="on"] .mf-toolbar .mf-nav-label::before { content: none; }
-/* The open tool's name gets brighter text only. NOT bold: bold text is wider,
-   which resized that button and shifted every icon beside it whenever the
-   open tool changed (John, 2026-11-13). Nothing on hover, focus or the
-   current state may change a button's size. */
+/* The open tool's name gets brighter text only (never bold: bold resizes) */
 html[data-toolbar-labels="on"] .mf-toolbar .nav-item[aria-current="page"] .mf-nav-label { color: var(--text-output); }
+
+@media (prefers-reduced-motion: reduce) { .mf-rail-toggle svg { transition: none; } }
+@media (forced-colors: active) {
+    .mf-toolbar .nav-item[aria-current="page"]::after { border-color: Highlight; }
+}
 
 /* 4. MAIN WORKING STAGE */
 main { 

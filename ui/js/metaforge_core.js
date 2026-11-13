@@ -114,12 +114,55 @@ document.addEventListener('click', function(e) {
     document.addEventListener('focusin', reset);
 })();
 
-// v2: "Show names under toolbar icons" (Settings > Toolbar customization).
-// Stored as toolbar_labels in preferences.json; default off.
+// v2: tool names in the rail. ONE saved preference (toolbar_labels in
+// preferences.json, default off) switched three ways: the >> / << button at
+// the top of the rail, Ctrl+B anywhere, and Settings > "Show names under
+// toolbar icons". mfApplyToolbarLabels keeps all three in sync.
 window.mfApplyToolbarLabels = function(on) {
     if (on) document.documentElement.setAttribute('data-toolbar-labels', 'on');
     else document.documentElement.removeAttribute('data-toolbar-labels');
+    const toggle = document.getElementById('mf-rail-toggle');
+    if (toggle) {
+        toggle.setAttribute('aria-expanded', String(!!on));
+        toggle.title = (on ? 'Hide tool names' : 'Show tool names') + ' (Ctrl+B)';
+    }
+    const box = document.getElementById('pref-toolbar-labels');   // Settings, when open
+    if (box) box.checked = !!on;
 };
+
+/** Apply AND save. Resolves to true if saved, false if only applied. */
+window.mfSetToolbarLabels = async function(on) {
+    window.mfApplyToolbarLabels(on);
+    try {
+        const res = await fetch('/run_tool_logic/settings/save_prefs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ toolbar_labels: !!on })
+        });
+        const result = await res.json();
+        return result.status === 'success';
+    } catch (e) {
+        console.warn('MetaForge: toolbar_labels not saved', e);
+        return false;
+    }
+};
+
+window.mfToggleToolbarLabels = function() {
+    return window.mfSetToolbarLabels(!document.documentElement.hasAttribute('data-toolbar-labels'));
+};
+
+document.addEventListener('click', function(e) {
+    if (e.target.closest('#mf-rail-toggle')) window.mfToggleToolbarLabels();
+});
+
+// Ctrl+B toggles tool names from anywhere (not while editing rich text, and
+// not with Alt/Shift/Win, so other shortcuts are untouched).
+document.addEventListener('keydown', function(e) {
+    if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey || e.key.toLowerCase() !== 'b') return;
+    if (e.target && e.target.isContentEditable) return;
+    e.preventDefault();
+    window.mfToggleToolbarLabels();
+});
 
 /**
  * ENGINE: WORKFLOW ORCHESTRATOR (Build 4.9.3)

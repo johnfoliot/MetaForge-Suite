@@ -43,20 +43,12 @@ window.metaforge.settings.toolbar = {
 
         box.addEventListener('change', async () => {
             const on = box.checked;
-            window.mfApplyToolbarLabels(on);
-            try {
-                const res = await fetch('/run_tool_logic/settings/save_prefs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ toolbar_labels: on })
-                });
-                const result = await res.json();
-                if (result.status !== 'success') throw new Error(result.message || 'unknown error');
-                status.textContent = on ? 'Saved. Names now show under the toolbar icons.'
-                                        : 'Saved. The toolbar now shows icons only.';
-            } catch (e) {
-                status.textContent = `The setting is applied for now but couldn't be saved: ${e.message}`;
-            }
+            // Same shared path as the rail toggle and Ctrl+B (metaforge_core.js)
+            const saved = await window.mfSetToolbarLabels(on);
+            status.textContent = !saved
+                ? "The setting is applied for now but couldn't be saved."
+                : on ? 'Saved. Tool names now show in the toolbar.'
+                     : 'Saved. The toolbar now shows icons only.';
         });
     },
 

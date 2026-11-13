@@ -23,50 +23,55 @@
              id="mf-main-logo"
              class="mf-logo"
              alt="MetaForge Studio">
-
-        {#- v2 grouped toolbar (2026-11-13). Each tool is a real <button> whose
-            text is its name: shown under the icon when Settings > "Show names
-            under toolbar icons" is on, and as a hover/focus tooltip when it is
-            off (the default). The current tool carries aria-current="page".
-            Groups come from each tool's manifest; order within a group follows
-            Settings > Toolbar customization. -#}
-        {% macro tool_button(tool) -%}
-        <button type="button" class="nav-item" id="mode-{{ tool.id }}" data-mode="{{ tool.id }}">
-            {%- if tool.step %}<span class="mf-step" aria-hidden="true">{{ tool.step }}</span>{% endif %}
-            <span class="mf-icon-mask" aria-hidden="true"
-                  style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
-                         mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');"></span>
-            <span class="mf-nav-label">{% if tool.step %}<span class="mf-visually-hidden">Step {{ tool.step }}: </span>{% endif %}{{ tool.name }}</span>
-        </button>
-        {%- endmacro %}
-
-        <nav class="mf-toolbar" aria-label="Tools">
-            {% for group in tool_groups %}
-            <div class="mf-nav-group" role="group" aria-labelledby="mf-grp-{{ group.id }}">
-                <span class="mf-group-label" id="mf-grp-{{ group.id }}">{{ group.label }}</span>
-                <ul class="mf-nav-list">
-                    {% for tool in group.tools %}<li>{{ tool_button(tool) }}</li>{% endfor %}
-                </ul>
-            </div>
-            {% endfor %}
-            {% if settings_tool %}
-            {#- Settings has no group; the invisible spacer is the height of a
-                group label so its icon lines up with every other icon. -#}
-            <div class="mf-nav-group mf-nav-end">
-                <span class="mf-group-label mf-group-spacer" aria-hidden="true">&nbsp;</span>
-                <ul class="mf-nav-list">
-                    <li>{{ tool_button(settings_tool) }}</li>
-                </ul>
-            </div>
-            {% endif %}
-        </nav>
     </div>
 </header>
-<main id="main-stage" role="main" aria-live="polite">
+
+{#- v2 left rail (John, 2026-11-13). Each tool is a real <button> whose text
+    is its name: shown beside the icon when the rail is expanded, and as a
+    hover/focus tooltip when it is collapsed (the default). The open tool has
+    aria-current="page". Groups come from each tool's manifest; order within a
+    group follows Settings > Toolbar customization. The rail toggle, Ctrl+B
+    and the Settings checkbox all switch one saved preference (toolbar_labels). -#}
+{% macro tool_button(tool) -%}
+<button type="button" class="nav-item" id="mode-{{ tool.id }}" data-mode="{{ tool.id }}">
+    {%- if tool.step %}<span class="mf-step" aria-hidden="true">{{ tool.step }}</span>{% endif %}
+    <span class="mf-icon-mask" aria-hidden="true"
+          style="-webkit-mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');
+                 mask-image: url('/tool_asset/{{ tool.id }}/{{ tool.icon }}?v={{ version_id }}');"></span>
+    <span class="mf-nav-label">{% if tool.step %}<span class="mf-visually-hidden">Step {{ tool.step }}: </span>{% endif %}{{ tool.name }}</span>
+</button>
+{%- endmacro %}
+
+<div class="mf-shell">
+    <nav class="mf-toolbar mf-rail" id="mf-rail" aria-label="Tools">
+        <button type="button" class="mf-rail-toggle" id="mf-rail-toggle"
+                aria-label="Tool names" aria-expanded="false" aria-controls="mf-rail"
+                aria-keyshortcuts="Control+B" title="Show tool names (Ctrl+B)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l6 6-6 6M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        {% for group in tool_groups %}
+        <div class="mf-nav-group" role="group" aria-labelledby="mf-grp-{{ group.id }}">
+            <span class="mf-group-label" id="mf-grp-{{ group.id }}">{{ group.label }}</span>
+            <ul class="mf-nav-list">
+                {% for tool in group.tools %}<li>{{ tool_button(tool) }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endfor %}
+        {% if settings_tool %}
+        <div class="mf-nav-group mf-nav-end">
+            <ul class="mf-nav-list">
+                <li>{{ tool_button(settings_tool) }}</li>
+            </ul>
+        </div>
+        {% endif %}
+    </nav>
+
+    <main id="main-stage" role="main" aria-live="polite">
         <div id="mfi-content">
             <p class="tool_notes">Initializing MetaForge logic layers...</p>
         </div>
     </main>
+</div>
 
     <!-- v2 shared Help dialog: the ONE help panel for every tool, opened by
          MFHelp.open() (metaforge_core.js) from each tool's header Help button.

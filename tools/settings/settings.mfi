@@ -61,9 +61,9 @@
                 <div class="mf-pref-row">
                     <div class="mf-pref-control">
                         <input type="checkbox" switch id="pref-toolbar-labels" aria-describedby="pref-toolbar-labels-hint">
-                        <label for="pref-toolbar-labels">Show names under toolbar icons</label>
+                        <label for="pref-toolbar-labels">Show tool names in the toolbar</label>
                     </div>
-                    <p class="mf-pref-hint" id="pref-toolbar-labels-hint">Off by default. When it's off, a tool's name appears when you point at its icon or move to it with the keyboard. Changes apply right away.</p>
+                    <p class="mf-pref-hint" id="pref-toolbar-labels-hint">Off by default. When it's off, a tool's name appears when you point at its icon or move to it with the keyboard. Changes apply right away. Tip: <kbd>Ctrl+B</kbd>, or the » button at the top of the toolbar, switches this from anywhere.</p>
                     <p class="mf-pref-status" id="pref-toolbar-labels-status" role="status"></p>
                 </div>
                 <div id="toolbar-customizer-grid">
