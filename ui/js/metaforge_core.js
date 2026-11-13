@@ -114,6 +114,31 @@ document.addEventListener('click', function(e) {
     document.addEventListener('focusin', reset);
 })();
 
+// v2 rail tooltips (collapsed rail): the name label is position:fixed, so it
+// can't be clipped by the scrolling tool list. Place it just to the right of
+// its button, vertically centred, whenever the button is hovered or focused,
+// and again if the list scrolls or the window resizes while it's showing.
+(function() {
+    let current = null;
+    function place(btn) {
+        const label = btn && btn.querySelector('.mf-nav-label');
+        if (!label) return;
+        const r = btn.getBoundingClientRect();
+        label.style.setProperty('--tip-x', `${Math.round(r.right + 10)}px`);
+        label.style.setProperty('--tip-y', `${Math.round(r.top + r.height / 2)}px`);
+        current = btn;
+    }
+    const pick = (e) => {
+        const btn = e.target.closest && e.target.closest('.mf-toolbar .nav-item');
+        if (btn) place(btn);
+    };
+    document.addEventListener('pointerover', pick);
+    document.addEventListener('focusin', pick);
+    const refresh = () => { if (current && current.isConnected) place(current); };
+    document.addEventListener('scroll', refresh, true);   // capture: catches the rail's own scroll
+    window.addEventListener('resize', refresh);
+})();
+
 // v2: tool names in the rail. ONE saved preference (toolbar_labels in
 // preferences.json, default off) switched three ways: the >> / << button at
 // the top of the rail, Ctrl+B anywhere, and Settings > "Show names under

@@ -44,11 +44,16 @@
 
 <div class="mf-shell">
     <nav class="mf-toolbar mf-rail" id="mf-rail" aria-label="Tools">
+        {#- Three parts: toggle fixed at the top, the tool groups scrolling on
+            their own when they don't fit the window, Settings fixed at the bottom. -#}
+        <div class="mf-rail-top">
         <button type="button" class="mf-rail-toggle" id="mf-rail-toggle"
                 aria-label="Tool names" aria-expanded="false" aria-controls="mf-rail"
                 aria-keyshortcuts="Control+B" title="Show tool names (Ctrl+B)">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l6 6-6 6M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
+        </div>
+        <div class="mf-rail-scroll" id="mf-rail-scroll">
         {% for group in tool_groups %}
         <div class="mf-nav-group" role="group" aria-labelledby="mf-grp-{{ group.id }}">
             <span class="mf-group-label" id="mf-grp-{{ group.id }}">{{ group.label }}</span>
@@ -57,6 +62,7 @@
             </ul>
         </div>
         {% endfor %}
+        </div>
         {% if settings_tool %}
         <div class="mf-nav-group mf-nav-end">
             <ul class="mf-nav-list">

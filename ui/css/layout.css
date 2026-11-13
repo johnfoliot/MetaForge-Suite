@@ -207,39 +207,59 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
 .mf-shell { flex: 1; display: flex; min-height: 0; }
 
 .mf-rail {
-    --rail-w: 4.5rem;
+    --rail-w: 5rem;
     flex: none;
     width: var(--rail-w);
-    display: flex; flex-direction: column; gap: 0.4rem;
-    padding: 0.5rem 0.4rem;
+    display: flex; flex-direction: column;
+    padding: 0.4rem 0 0.4rem 0.4rem;
     background: var(--bg-main);
     border-inline-end: 1px solid var(--border-subtle);
-    /* Left visible (not a scroll box) so tooltips can extend into the stage.
-       ~14 tools fit at an 800px-tall window; revisit if the suite outgrows it. */
-    overflow: visible;
+    overflow: hidden;              /* never taller than the window */
     position: relative; z-index: 20;
 }
-html[data-toolbar-labels="on"] .mf-rail { --rail-w: 13.5rem; }
+html[data-toolbar-labels="on"] .mf-rail { --rail-w: 14rem; }
+
+/* Toggle fixed at the top, Settings fixed at the bottom, the tool groups in
+   between scroll on their own when they don't fit (John, 2026-11-13: at 150%
+   Windows scaling the window is only ~690px tall). All three parts reserve the
+   same scrollbar gutter, so the icons stay in one straight column whether or
+   not a scrollbar is showing. Tabbing to a tool scrolls it into view. */
+.mf-rail-top, .mf-rail-scroll, .mf-rail > .mf-nav-end {
+    scrollbar-gutter: stable;
+    padding-inline-end: 0.4rem;
+}
+.mf-rail-top, .mf-rail > .mf-nav-end { flex: none; overflow-y: hidden; }
+.mf-rail-scroll {
+    flex: 1; min-height: 0;
+    overflow-y: auto; overflow-x: hidden;
+    display: flex; flex-direction: column; gap: 0.35rem;
+    padding-block: 0.35rem;
+    border-block: 1px solid var(--border-subtle);
+}
+.mf-rail > .mf-nav-end { padding-top: 0.35rem; }
 
 /* Expand / collapse toggle (top of the rail). Small icon, full-size target. */
+/* Same width as the tool buttons when collapsed, and centred on the icon
+   column when expanded, so the chevron lines up exactly with the icons. */
 .mf-rail-toggle {
     display: grid !important; place-items: center;
-    width: 2.6rem; height: 2.25rem;
-    margin: 0 auto 0.1rem;
+    width: 100%; height: 2.25rem;
+    margin: 0 0 0.35rem;
     padding: 0 !important;
     color: var(--text-muted) !important;
     background: transparent !important;
     border: 1px solid var(--border-ui) !important;
     border-radius: 5px;
 }
-html[data-toolbar-labels="on"] .mf-rail-toggle { margin-inline: 0.2rem auto; }
+/* Expanded: a 2.6rem button whose centre sits on the icon column
+   (tool button's 1px border + 0.6rem padding + half the 28px icon) */
+html[data-toolbar-labels="on"] .mf-rail-toggle { width: 2.6rem; margin-inline-start: calc(1px + 0.6rem + 14px - 1.3rem); }
 .mf-rail-toggle:hover { color: var(--text-output) !important; background: var(--bg-accent) !important; filter: none; }
 .mf-rail-toggle svg { width: 0.8rem; height: 0.8rem; transition: rotate 0.15s; }
 .mf-rail-toggle[aria-expanded="true"] svg { rotate: 180deg; }
 
 .mf-nav-group { display: flex; flex-direction: column; gap: 0.1rem; }
 .mf-nav-group + .mf-nav-group { border-top: 1px solid var(--border-subtle); padding-top: 0.4rem; }
-.mf-nav-group.mf-nav-end { margin-top: auto; }
 .mf-group-label { /* hidden when collapsed; always names its group for screen readers */
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
@@ -250,8 +270,8 @@ html[data-toolbar-labels="on"] .mf-rail-toggle { margin-inline: 0.2rem auto; }
 .mf-toolbar .nav-item {
     position: relative;
     display: grid; grid-template-columns: 28px; justify-content: center; align-items: center; gap: 0.7rem;
-    width: 100%; min-height: 2.75rem;
-    padding: 0.4rem !important;
+    width: 100%; min-height: 2.5rem;
+    padding: 0.3rem 0.4rem !important;
     color: var(--mf-gold) !important;
     background: transparent !important;
     border: 1px solid transparent !important;
@@ -290,7 +310,9 @@ html[data-toolbar-labels="on"] .mf-rail-toggle { margin-inline: 0.2rem auto; }
 
 /* Collapsed: the name is a tooltip to the right of the icon */
 .mf-toolbar .mf-nav-label {
-    position: absolute; left: calc(100% + 0.6rem); top: 50%; translate: 0 -50%;
+    /* position:fixed + coordinates set by metaforge_core.js (positionRailTip),
+       so the scrolling list can't clip the tooltip */
+    position: fixed; left: var(--tip-x, 0px); top: var(--tip-y, 0px); translate: 0 -50%;
     z-index: 1000;
     padding: 0.2rem 0.55rem;
     white-space: nowrap;
@@ -320,7 +342,7 @@ html[data-toolbar-labels="on"] .mf-group-label {
 }
 html[data-toolbar-labels="on"] .mf-toolbar .nav-item {
     grid-template-columns: 28px minmax(0, 1fr); justify-content: stretch;
-    padding: 0.4rem 0.6rem !important;
+    padding: 0.3rem 0.6rem !important;
 }
 html[data-toolbar-labels="on"] .mf-step { inset-inline-start: 1.9rem; }
 html[data-toolbar-labels="on"] .mf-toolbar .mf-nav-label,
