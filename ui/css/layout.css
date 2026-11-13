@@ -23,32 +23,44 @@
     font-weight: normal; font-style: normal;
 }
 
+/* v2 (2026-11-13): UI text uses Atkinson Hyperlegible Next (designed for
+   low-vision readers); Cascadia Mono stays for paths, file names, IDs and
+   logs. Until the Atkinson files are bundled in /data/fonts, the stack
+   falls back to Segoe UI. */
 :root {
-    --font-main: 'Cascadia Code', 'Segoe UI Mono', sans-serif;
-    --font-mono: 'Cascadia Mono', monospace;
+    --font-main: 'Atkinson Hyperlegible Next', 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'Cascadia Mono', Consolas, monospace;
 }
 
 /* 1. NATIVE INTERACTION DE-WEBIFIERS */
-* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+/* v2: user-select is no longer disabled on everything. Blocking it on all
+   content stopped users copying paths, titles and error messages, and
+   breaks assistive "read from here" features. It stays off only on
+   interface chrome (buttons, navigation, tabs, scroll controls). */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button, .nav-item, [role="tab"], .sub-nav-btn, .mf-scroll-btn, .mf-scroll-track {
+    user-select: none; -webkit-user-select: none;
+}
 :focus:not(:focus-visible) { outline: none !important; }
 
-/* WCAG compliant Focus Indicator */
+/* WCAG compliant Focus Indicator: 3px, theme-aware, 3:1+ on every surface */
 :focus-visible {
-    outline: 2px solid var(--mf-gold) !important;
-    outline-offset: 3px;
-    position: relative; 
-    z-index: 999 !important; 
+    outline: 3px solid var(--focus-ring) !important;
+    outline-offset: 2px;
 }
 
 body {
     font-family: var(--font-main);
-    background-color: var(--bg-main); 
+    background-color: var(--bg-main);
     height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     color: var(--text-message);
-    font-size: 70%;
+    /* v2: was 70% (about 11px base text). 100% follows the user's Windows
+       text-size setting. */
+    font-size: 100%;
+    line-height: 1.45;
 }
 
 body, button, .nav-item { cursor: default; }
@@ -186,36 +198,39 @@ div.active_stage {
 /* 6. DATA TABLES & INPUT PRIMITIVES */
 .meta-table { width: auto; border-collapse: collapse; }
 
-/* Global Input / Placeholder Handling */
+/* Global Input / Placeholder Handling (v2: theme tokens, 4.5:1 placeholder text) */
 input::placeholder, textarea::placeholder {
-    color: #666666;
-    opacity: 0.7; /* Ensures legibility while distinguishing from active input */
+    color: var(--text-muted);
+    opacity: 1;
 }
 
-input, textarea {
-    background-color: var(--input-background);
-    color: var(--input-foreground);
-    border: 1px solid #000;
+input, textarea, select {
+    background-color: var(--input-background2);
+    color: var(--input-foreground2);
+    border: 1px solid var(--border-ui);
+    font-family: inherit;
 }
 
 .tool-toggle {
     appearance: none; -webkit-appearance: none; width: 20px; height: 20px;
-    background-color: var(--input-background) !important; border: 1px solid #000; border-radius: 3px;
+    background-color: var(--input-background) !important; border: 1px solid var(--border-ui); border-radius: 3px;
     cursor: pointer; position: relative; display: flex; align-items: center; justify-content: center;
 }
 .tool-toggle:checked::after { content: '✔'; color: var(--input-foreground) !important; font-size: 14px; font-weight: 900; }
-.tool-order { width: 3rem !important; height: 1.5rem; background: var(--input-background) !important; color: var(--input-foreground) !important; border: 1px solid #000; text-align: center; font-size: 0.8rem; font-weight: bold; border-radius: 3px; }
+.tool-order { width: 3rem !important; height: 1.5rem; background: var(--input-background) !important; color: var(--input-foreground) !important; border: 1px solid var(--border-ui); text-align: center; font-size: 0.8rem; font-weight: bold; border-radius: 3px; }
 
 /* 7. SCROLLBARS (Structural) */
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: var(--bg-main); }
-::-webkit-scrollbar-thumb { border-radius: 4px; border: 2px solid var(--bg-main); background: #374151; }
+/* v2: the standard scrollbar-color replaces the old ::-webkit-scrollbar
+   rules, at normal width (thin scrollbars are too small a target for some
+   users). Thumb vs track contrast is 3:1+ in both themes. Regions that use
+   the shared MFScrollbar (section 10) hide the native bar instead. */
+:root { scrollbar-color: var(--border-ui) var(--bg-main); }
 
 /* 8. FORMS */
     .mb-input-text {
-        background: #fff;
-        border: 1px solid #444;
-        color: var(--text-output);
+        background: var(--input-background2);
+        border: 1px solid var(--border-ui);
+        color: var(--input-foreground2);
         padding: 6px;
         font-family: var(--font-mono);
         font-size: 0.8rem;
@@ -351,9 +366,11 @@ input, textarea {
 }
 /* Hides the native scrollbar on whatever element this is applied to --
    add alongside the element's own scroll class, e.g.
-   `<div id="my-list" class="my-list-styles mf-hide-native-scrollbar">`. */
-.mf-hide-native-scrollbar::-webkit-scrollbar {
-    display: none;
+   `<div id="my-list" class="my-list-styles mf-hide-native-scrollbar">`.
+   Only for regions that have an MFScrollbar: that is the accessible
+   alternative that makes hiding the native bar acceptable. */
+.mf-hide-native-scrollbar {
+    scrollbar-width: none;
 }
 
 
