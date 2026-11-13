@@ -423,9 +423,13 @@ input, textarea, select {
 /* 7. SCROLLBARS (Structural) */
 /* v2: the standard scrollbar-color replaces the old ::-webkit-scrollbar
    rules, at normal width (thin scrollbars are too small a target for some
-   users). Thumb vs track contrast is 3:1+ in both themes. Regions that use
-   the shared MFScrollbar (section 10) hide the native bar instead. */
-:root { scrollbar-color: var(--border-ui) var(--bg-main); }
+   users). Regions that use the shared MFScrollbar (section 10) hide the
+   native bar instead.
+   John, 2026-11-13: every scrollbar uses the brand colour, matching the
+   MFScrollbar thumbs: #CC9900 in the default theme, the blue pivot in the
+   light theme (--mf-gold carries both). Thumb vs track: 7.25:1 (gold on
+   #121212) and 8.69:1 (blue on #eef0f3). */
+:root { scrollbar-color: var(--mf-gold) var(--bg-main); }
 
 /* 8. FORMS */
     .mb-input-text {

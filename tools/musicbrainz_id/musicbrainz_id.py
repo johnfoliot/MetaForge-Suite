@@ -408,6 +408,21 @@ def commit_ids_to_files(data):
     stats = {"success": 0, "failed": 0}
     total = len(mapping)
 
+    # John, 2026-11-13 (option b): when the user REORDERED the files on
+    # screen, the filename's number prefix follows the new position, but
+    # keeps the disc hundreds (a disc-2 file placed 3rd on its disc ->
+    # "203"). Without a reorder the prefix is left exactly as Unpack &
+    # Convert wrote it (the July 2026 box-set rule below), gaps and all.
+    renumbered = {}
+    if data.get("renumber"):
+        per_disc = {}
+        for i, item in enumerate(mapping):
+            m = re.match(r'^(\d+)', Path(item["current_filename"]).stem)
+            old = int(m.group(1)) if m else 0
+            disc = old // 100 if old >= 100 else 0
+            per_disc[disc] = per_disc.get(disc, 0) + 1
+            renumbered[i] = str(disc * 100 + per_disc[disc]) if disc else str(per_disc[disc])
+
     yield event("step", "Writing MusicBrainz IDs and renaming files", file=release_title)
     if not mapping:
         yield event("error", "There are no files to update. Choose the album folder, then a release")
@@ -487,7 +502,10 @@ def commit_ids_to_files(data):
         # this tool's -- so it's preserved as-is from whatever the file
         # is already named, not recomputed from track_num.
         existing_prefix_match = re.match(r'^(\d+)', old_path.stem)
-        filing_prefix = existing_prefix_match.group(1) if existing_prefix_match else str(item["track_num"])
+        if renumbered:
+            filing_prefix = renumbered[idx - 1]
+        else:
+            filing_prefix = existing_prefix_match.group(1) if existing_prefix_match else str(item["track_num"])
         item["_filing_prefix"] = filing_prefix
 
         # Real per-track performer (e.g. from MB's own recording-level

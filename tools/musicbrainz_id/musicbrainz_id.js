@@ -312,6 +312,9 @@ window.metaforge.musicbrainz_id = {
                     remoteTracks: data.remote_tracks || [],
                     localFiles: data.local_tracks || []
                 });
+                // The folder's own order, so the commit knows whether the
+                // user reordered (and so whether to renumber the prefixes).
+                this.state.originalOrder = this.state.localFiles.map(f => f.filename);
 
                 summary.replaceChildren(
                     document.createTextNode(`${data.release_title || 'Release'}: ${data.format || 'format unknown'}, ${data.release_year}, ${this.countryName(data.country_code)}`)
@@ -529,6 +532,9 @@ window.metaforge.musicbrainz_id = {
                     mb_catalog_number: this.state.mbCatalogNumber,
                     release_title: this.state.currentReleaseTitle,
                     format: this.state.currentFormat,
+                    // Reordered on screen? Then the filename numbers follow
+                    // the new order (disc hundreds kept). John, 2026-11-13.
+                    renumber: this.state.localFiles.some((f, i) => f.filename !== (this.state.originalOrder || [])[i]),
                     mapping: mapping
                 })
             });
