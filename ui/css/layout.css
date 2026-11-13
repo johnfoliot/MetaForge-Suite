@@ -177,6 +177,16 @@ button:hover, .mf-button-gold-fixed:hover {
     filter: brightness(1.2);
 }
 
+/* v2: one shared disabled look. Before this, a disabled button looked
+   exactly like a live one unless its tool styled it (e.g. the cover
+   picker's Confirm). Disabled controls are exempt from WCAG contrast, but
+   they must still look unavailable. */
+button:disabled, .mf-button-gold-fixed:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: none;
+}
+
 .mf-btn-danger {
     background-color: var(--status-error) !important;
     color: var(--input-foreground) !important;

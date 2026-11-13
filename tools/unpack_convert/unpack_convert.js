@@ -41,16 +41,16 @@ window.metaforge.unpack_convert = {
 
         if (toolHeader.getAttribute('data-synced') === 'true') return;
         toolHeader.setAttribute('data-synced', 'true');
+        this.wireForm();
 
         setTimeout(async () => {
-            const progLabel = document.getElementById('upk-progress-label');
             const enhancedPanel = document.getElementById('enhanced-section');
             const select = document.getElementById('upk-category');
             const consentGate = document.getElementById('upk-consent-gate');
             const fieldset = document.getElementById('upk-fieldset');
 
-            if (!progLabel) return;
-            if (fieldset) fieldset.disabled = false;
+            if (!fieldset) return;
+            fieldset.disabled = false;
             
             try {
                 const res = await fetch(`/run_tool_logic/unpack_convert/get_interview_data?t=${Date.now()}`);
@@ -58,13 +58,11 @@ window.metaforge.unpack_convert = {
                 
                 const data = await res.json();
                 
-                if (progLabel) {
-                    const formattedPolicy = this.toTitleCase(data.policy);
-                    progLabel.innerText = `📚 Library Type: ${formattedPolicy}`;
-                }
-
+                // v2: the library type is no longer shown here (John,
+                // 2026-11-13: it's a set-and-forget setting, changed in
+                // Settings); it only decides whether Filing Category shows.
                 if (data.policy === "ENHANCED") {
-                    if (enhancedPanel) enhancedPanel.style.display = 'flex';
+                    if (enhancedPanel) enhancedPanel.hidden = false;
                     this.populateSelect(select, data.categories);
                     if (select) {
                         select.required = true;
@@ -83,7 +81,7 @@ window.metaforge.unpack_convert = {
                     }
                     this.applyCategoryLockState();
                 } else {
-                    if (enhancedPanel) enhancedPanel.style.display = 'none';
+                    if (enhancedPanel) enhancedPanel.hidden = true;
                 }
 
                 // Restore the Filing Artist lock the same way Filing
@@ -100,11 +98,11 @@ window.metaforge.unpack_convert = {
                 this.applyArtistLockState();
 
                 if (data.stored_consent === true) {
-                    if (consentGate) consentGate.style.display = 'none';
+                    if (consentGate) consentGate.hidden = true;
                     const consentCheckbox = document.getElementById('upk-consent');
                     if (consentCheckbox) consentCheckbox.checked = true;
                 } else {
-                    if (consentGate) consentGate.style.display = 'flex';
+                    if (consentGate) consentGate.hidden = false;
                     const consentCheckbox = document.getElementById('upk-consent');
                     if (consentCheckbox) consentCheckbox.checked = false;
                 }
@@ -116,6 +114,28 @@ window.metaforge.unpack_convert = {
                 if (toolHeader) toolHeader.removeAttribute('data-synced');
             }
         }, 10);
+    },
+
+    /**
+     * v2: wiring that used to be inline onclick/oninput attributes. The
+     * Start button is the form's submit button, so Enter in any field
+     * starts the run (CLAUDE.md: Enter submits); it stays disabled, and so
+     * Enter does nothing, until every required field is filled in.
+     */
+    wireForm: function() {
+        const form = document.getElementById('unpacker-interview-form');
+        if (!form || form.dataset.wired) return;
+        form.dataset.wired = 'true';
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!document.getElementById('upk-start-btn')?.disabled) this.run();
+        });
+        form.addEventListener('input', () => this.validate());
+        form.addEventListener('change', () => this.validate());
+        document.getElementById('upk-browse-btn')?.addEventListener('click', () => this.pickFolder());
+        document.getElementById('upk-artist-lock')?.addEventListener('click', () => this.toggleArtistLock());
+        document.getElementById('upk-category-lock')?.addEventListener('click', () => this.toggleCategoryLock());
     },
 
     setupReentryWatcher: function() {
@@ -153,8 +173,7 @@ window.metaforge.unpack_convert = {
 
         if (btn) {
             const isReady = (artist && album && path && consent && isCatReady);
-            btn.disabled = !isReady;
-            btn.style.opacity = isReady ? "1" : "0.5";
+            btn.disabled = !isReady;   // look comes from the shared button:disabled style
         }
     },
 
@@ -337,6 +356,7 @@ window.metaforge.unpack_convert = {
     setProgressLabel: function(text) {
         const label = document.getElementById('upk-progress-label');
         if (label) label.innerText = text;
+        document.getElementById('upk-progress-container')?.setAttribute('aria-valuetext', text);
     },
 
     updateProgress: function(phase, current, total) {
@@ -355,8 +375,12 @@ window.metaforge.unpack_convert = {
         const actionText = (phaseNum === 1) ? "Unpacking" : "Converting";
 
         if (fill) fill.style.width = `${globalPercent}%`;
-        if (label) label.innerText = `${actionText} | ${curNum}/${totNum} (${phasePercent}%)`;
-        if (container) container.setAttribute('aria-valuenow', Math.round(globalPercent));
+        const status = `${actionText}: ${curNum} of ${totNum} (${phasePercent}%)`;
+        if (label) label.innerText = status;
+        if (container) {
+            container.setAttribute('aria-valuenow', Math.round(globalPercent));
+            container.setAttribute('aria-valuetext', status);
+        }
     },
 
     /**
