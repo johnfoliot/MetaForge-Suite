@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 
 # --- [ CONFIGURATION ] ---
 ART_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf', '.tiff', '.bmp'}
@@ -54,7 +55,7 @@ def execute_cleanup(root, report_data):
        retried.
     3. Performs a final discovery of the /art folder to signal Step 4.
     """
-    yield '<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cleaned.png" alt="" aria-hidden="true" style="margin-left:3px; height:34px; width:auto; margin-bottom:-12px;"> Step 3: Cleaning Album Folder...</div>'
+    yield event("step", "Step 3: Cleaning the album folder")
 
     if 'artwork' not in report_data:
         report_data['artwork'] = []
@@ -162,15 +163,22 @@ def execute_cleanup(root, report_data):
     # 4. REPORTING
     total_art_discovered = len(report_data['artwork'])
     if total_art_discovered > 0:
-        yield f'<div class="status-message" style="color:var(--text-output); margin-left: 36px;"><span aria-hidden="true" style="font-size:16px;">🖼️</span> Art Discovery: {total_art_discovered} image(s) available in /art.</div>'
+        yield event("info", f"{total_art_discovered} image{'s' if total_art_discovered != 1 else ''} available in the art folder")
 
-    yield f'<div class="status-message" style="color:var(--text-message); margin-left: 36px;"><span aria-hidden="true">🧹</span> Cleanup: {len(report_data["deletions"])} legacy files deleted.</div>'
+    n_del = len(report_data["deletions"])
+    yield event("success", f"Cleanup done: {n_del} file{'s' if n_del != 1 else ''} deleted in this run")
 
     if preserved_failed > 0:
-        yield f'<div class="status-error" style="margin-top:5px;"><span aria-hidden="true">⚠️</span> SAFETY ALERT: {preserved_failed} source file(s) were preserved because conversion failed. Check MetaForge.log.</div>'
+        one = preserved_failed == 1
+        yield event("warning", f"{preserved_failed} source file{'' if one else 's'} {'was' if one else 'were'} kept "
+                               f"because processing failed. The summary in MetaForge.log lists {'it' if one else 'them'}")
 
     if unprocessed_sources:
-        listing = "<br>".join(f'<span style="margin-left:20px;">{p}</span>' for p in sorted(unprocessed_sources))
-        yield f'<div class="status-error" style="margin-top:5px;"><span aria-hidden="true">⚠️</span> SAFETY ALERT: {len(unprocessed_sources)} unprocessed source file(s) preserved (no engine converted them):<br>{listing}</div>'
+        n_unproc = len(unprocessed_sources)
+        one = n_unproc == 1
+        yield event("warning", f"{n_unproc} source file{'' if one else 's'} {'was' if one else 'were'} kept "
+                               f"because no engine processed {'it' if one else 'them'}")
+        for p in sorted(unprocessed_sources):
+            yield event("detail", "Kept", file=p)
 
 # --- END OF FILE janitor_engine.py ---

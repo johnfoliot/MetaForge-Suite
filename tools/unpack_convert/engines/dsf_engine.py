@@ -10,6 +10,7 @@
 import re
 import subprocess
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from common.config_handler import FFMPEG_EXE
 
 # Same decimation target sacd_engine already uses (88.2kHz / 24-bit in a
@@ -165,7 +166,7 @@ def process_dsf(root, artist, report_data):
     if not FFMPEG_EXE.exists():
         for f in dsd_files:
             _register_failed(report_data, f)
-        yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> DSD file(s) found ({len(dsd_files)}) but ffmpeg is not present -- source(s) preserved, not processed.</div>'
+        yield event("error", f"ffmpeg is missing, so {len(dsd_files)} DSD file%s kept and not processed" % ("s were" if len(dsd_files) != 1 else " was"))
         return
 
     monolithic = _cue_referenced_dsd(root, dsd_files)
@@ -173,10 +174,10 @@ def process_dsf(root, artist, report_data):
     total = len(dsd_files)
 
     if not report_data.get('extraction_occurred', False):
-        yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/DSF.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Decoding DSD Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {total} DSD file(s) found</span></div>'
+        yield event("step", f"Step 1: Decoding the DSD audio source ({total} file{'s' if total != 1 else ''})")
         report_data['extraction_occurred'] = True
     else:
-        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Decoding {total} DSD file(s)</div>'
+        yield event("info", f"Additional source: decoding {total} DSD file{'s' if total != 1 else ''}")
 
     report_data['extraction']['source'] = f"DSD Files: {total}"
 
@@ -189,15 +190,15 @@ def process_dsf(root, artist, report_data):
         out_path = src.with_suffix('.flac')
         if out_path.exists():
             _register_failed(report_data, src)
-            yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> {out_path.name} already exists -- DSD source preserved, not overwritten: {src.name}</div>'
-            yield f"<!-- PROGRESS:1:{done}:{total} -->"
+            yield event("warning", f"{out_path.name} already exists, so the DSD source was kept, not overwritten", file=src.name)
+            yield signal("progress", phase=1, current=done, total=total)
             continue
 
-        yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">💿</span> Decoding monolithic DSD for CUE split: {src.name}...</div>'
+        yield event("info", "Decoding a single-file DSD rip for the CUE splitter", file=src.name)
         ok, err = _decode(src, out_path)
         if ok:
             success_count += 1
-            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">📤</span> Decoded: {out_path.name} (handed to CUE splitter)</div>'
+            yield event("success", "Decoded and handed to the CUE splitter", file=out_path.name)
             try:
                 if src.name not in report_data['deletions']:
                     report_data['deletions'].append(src.name)
@@ -206,8 +207,8 @@ def process_dsf(root, artist, report_data):
                 pass
         else:
             _register_failed(report_data, src)
-            yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> DSD decode failed: {src.name} — {err}</div>'
-        yield f"<!-- PROGRESS:1:{done}:{total} -->"
+            yield event("error", f"DSD decode failed: {err}. The source was kept", file=src.name)
+        yield signal("progress", phase=1, current=done, total=total)
 
     # --- 2. DISCRETE TRACKS ---
     for i, src in enumerate(discrete, 1):
@@ -219,15 +220,15 @@ def process_dsf(root, artist, report_data):
 
         if out_path.exists():
             _register_failed(report_data, src)
-            yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> {out_name} already exists -- DSD source preserved, not overwritten: {src.name}</div>'
-            yield f"<!-- PROGRESS:1:{done}:{total} -->"
+            yield event("warning", f"{out_name} already exists, so the DSD source was kept, not overwritten", file=src.name)
+            yield signal("progress", phase=1, current=done, total=total)
             continue
 
         ok, err = _decode(src, out_path)
         if ok:
             success_count += 1
             report_data['extraction']['count'] += 1
-            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:36px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
+            yield event("detail", "Decoded", file=out_name)
             try:
                 if src.name not in report_data['deletions']:
                     report_data['deletions'].append(src.name)
@@ -236,12 +237,12 @@ def process_dsf(root, artist, report_data):
                 pass
         else:
             _register_failed(report_data, src)
-            yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> DSD decode failed: {src.name} — {err}</div>'
-        yield f"<!-- PROGRESS:1:{done}:{total} -->"
+            yield event("error", f"DSD decode failed: {err}. The source was kept", file=src.name)
+        yield signal("progress", phase=1, current=done, total=total)
 
     if success_count < total:
-        yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> Only {success_count}/{total} DSD file(s) decoded successfully — failed source(s) preserved for retry.</div>'
+        yield event("warning", f"Only {success_count} of {total} DSD files decoded; the failed sources were kept for a retry")
     else:
-        yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> DSD source file(s) deleted.</div>'
+        yield event("success", "DSD source files deleted after verified decodes")
 
 # --- END OF FILE dsf_engine.py ---

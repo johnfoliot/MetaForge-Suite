@@ -8,6 +8,7 @@ import re
 import os
 import subprocess
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from common.config_handler import FFMPEG_EXE
 
 # Audio extensions that qualify as "Discrete Tracks"
@@ -114,8 +115,9 @@ def split_cue(root, artist, report_data):
 
     if discrete_count >= 2:
         if not report_data.get('extraction_occurred', False):
-            yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px;">📦</span> Step 1: Discrete tracks detected ({discrete_count}). Unpacking not required.</div>'
-            yield "<!-- PROGRESS:1:1:1 -->"
+            yield event("step", "Step 1: Inspecting the original audio source")
+            yield event("info", f"{discrete_count} separate tracks found, so no CUE splitting is needed")
+            yield signal("progress", phase=1, current=1, total=1)
             report_data['extraction_occurred'] = True
         return
 
@@ -133,7 +135,7 @@ def split_cue(root, artist, report_data):
             # without a trace instead of telling the user why nothing
             # happened.
             if not file_refs:
-                yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> No FILE reference found in CUE, skipped: {cue_path.name}</div>'
+                yield event("info", "CUE sheet skipped: it doesn't name an audio file", file=cue_path.name)
                 continue
 
             for ref in file_refs:
@@ -142,23 +144,23 @@ def split_cue(root, artist, report_data):
 
             found = [p for p in sources.values() if p]
             if not found:
-                yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> Ghost CUE ignored: {cue_path.name} (Blob missing).</div>'
+                yield event("info", "CUE sheet ignored: the audio file it names isn't here", file=cue_path.name)
                 continue
 
             source_names = ", ".join(p.name for p in found)
 
             # Header Control with Accessibility Guard
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/cue.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Splitting Original Audio Source:<br><span style="margin-left:42px; color:var(--text-output)"> {source_names}</span></div>'
+                yield event("step", "Step 1: Splitting the original audio source", file=source_names)
                 report_data['extraction_occurred'] = True
             else:
-                yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Splitting {source_names}</div>'
+                yield event("info", "Additional source: splitting", file=source_names)
 
             report_data['extraction']['source'] = f"CUE Bundle: {source_names}"
 
             missing = [ref for ref, p in sources.items() if p is None]
             for ref in missing:
-                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> CUE references a file not on disk: {ref}</div>'
+                yield event("error", "The CUE sheet names a file that isn't on disk", file=ref)
 
             # Build 7.4.1 (John's report, 2026-10-01): the previous wording
             # ("split points may be off by up to ~1 second") read as though
@@ -166,7 +168,7 @@ def split_cue(root, artist, report_data):
             # the next begins, so an off timestamp only moves a boundary
             # between neighbouring tracks. Say that plainly.
             if bad_frames:
-                yield f'<div class="status-message" style="font-size:0.7rem; color:var(--mf-gold); margin-left:20px;"><span aria-hidden="true">⚠️</span> CUE has {bad_frames} out-of-spec timestamp(s); track boundaries may shift by a fraction of a second. No audio is lost.</div>'
+                yield event("warning", f"The CUE sheet has {bad_frames} out-of-spec timestamp{'s' if bad_frames != 1 else ''}; track boundaries may shift by a fraction of a second. No audio is lost")
 
             # 3. PARSE & SPLIT
             audio_positions = [i for i, t in enumerate(all_tracks) if t['type'] == 'AUDIO']
@@ -174,7 +176,7 @@ def split_cue(root, artist, report_data):
             success_count = 0
 
             if total_tracks == 0:
-                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> No AUDIO tracks found in CUE: {cue_path.name}</div>'
+                yield event("error", "No audio tracks found in the CUE sheet", file=cue_path.name)
 
             for n, pos in enumerate(audio_positions, 1):
                 track = all_tracks[pos]
@@ -185,12 +187,12 @@ def split_cue(root, artist, report_data):
                 out_path = cue_path.parent / out_name
 
                 if not track['start']:
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — CUE has no INDEX 01 for track {track_id}</div>'
+                    yield event("error", f"Split failed: the CUE sheet has no INDEX 01 for track {track_id}", file=out_name)
                     continue
 
                 source_audio = sources.get(track['file'])
                 if not source_audio:
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — source file missing: {track["file"]}</div>'
+                    yield event("error", f"Split failed: source file missing ({track['file']})", file=out_name)
                     continue
 
                 t_start = _format_ts(track['start'])
@@ -225,18 +227,18 @@ def split_cue(root, artist, report_data):
                 )
 
                 if res.returncode == 0:
-                    # FIX: Wrapped Outbox emoji in aria-hidden span
-                    yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:36px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
+
+                    yield event("detail", "Split", file=out_name)
                     report_data['extraction']['count'] += 1
                     success_count += 1
-                    yield f"<!-- PROGRESS:1:{n}:{total_tracks} -->"
+                    yield signal("progress", phase=1, current=n, total=total_tracks)
                 else:
                     # Real bug, found live 2026-07-20: a failed split used to
                     # be completely silent (no message at all) -- the user
                     # had no way to know a track failed short of noticing
                     # the final file count didn't match.
                     err_line = (res.stderr or "").strip().splitlines()[-1] if (res.stderr or "").strip() else "unknown error"
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> Split failed: {out_name} — {err_line}</div>'
+                    yield event("error", f"Split failed: {err_line}", file=out_name)
 
             # 4. DELETE SOURCES -- only when EVERY track split successfully
             # AND every referenced FILE was found. Real bug, found live
@@ -256,8 +258,9 @@ def split_cue(root, artist, report_data):
                     if cue_path.name not in report_data['deletions']:
                         report_data['deletions'].append(cue_path.name)
                     cue_path.unlink()
-                    label = "Monolithic source deleted." if len(found) == 1 else f"{len(found)} source files deleted."
-                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> {label}</div>'
+                    label = ("Single-file source deleted after every track split" if len(found) == 1
+                             else f"{len(found)} source files deleted after every track split")
+                    yield event("success", label)
                 except Exception:
                     pass
             else:
@@ -270,7 +273,7 @@ def split_cue(root, artist, report_data):
                         report_data['failed_targets'].append(src.name)
                 if cue_path.name not in report_data['failed_targets']:
                     report_data['failed_targets'].append(cue_path.name)
-                yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> Only {success_count}/{total_tracks} tracks split successfully — source(s) and CUE sheet preserved for retry.</div>'
+                yield event("warning", f"Only {success_count} of {total_tracks} tracks split, so the source and CUE sheet were kept for a retry")
 
         except Exception as e:
             # Real bug, found live 2026-07-20: this used to be a bare
@@ -284,7 +287,7 @@ def split_cue(root, artist, report_data):
             for src in sources.values():
                 if src and src.name not in report_data['failed_targets']:
                     report_data['failed_targets'].append(src.name)
-            yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> CUE processing error on {cue_path.name}: {e}</div>'
+            yield event("error", f"CUE processing error: {e}. The sources were kept", file=cue_path.name)
             continue
 
 def _find_audio_source(directory, filename):

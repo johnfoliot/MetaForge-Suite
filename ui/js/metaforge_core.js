@@ -432,8 +432,8 @@ window.metaforge.ui.initCommonComponents = function() {
 // One polite and one assertive live region for the whole app (both live in
 // index.html, outside <main>). Tools never put aria-live on their own
 // output: a run's Activity log can add hundreds of lines, and reading every
-// one aloud would bury what matters. MFEvents announces only steps, errors
-// and the finish; the full log stays readable on demand.
+// one aloud would bury what matters. MFEvents announces only steps, errors,
+// warnings and the finish; the full log stays readable on demand.
 window.MFAnnounce = function(message, { urgent = false } = {}) {
     const region = document.getElementById(urgent ? 'mf-announcer-urgent' : 'mf-announcer');
     if (!region || !message) return;
@@ -500,10 +500,13 @@ window.MFEvents = {
         return row;
     },
 
-    /** Speaks the events that matter; everything else stays in the log. */
+    /** Speaks steps, errors, warnings and the finish; everything else stays in the log. */
     announce: function(ev) {
         if (ev.kind === 'step' || ev.kind === 'done') window.MFAnnounce(ev.text);
-        else if (ev.kind === 'error') window.MFAnnounce(`Error: ${ev.text}${ev.file ? ` (${ev.file})` : ''}`);
+        else if (ev.kind === 'error' || ev.kind === 'warning') {
+            // Warnings carry the "source kept" safety alerts: always spoken.
+            window.MFAnnounce(`${this.LABEL[ev.kind]}${ev.text}${ev.file ? ` (${ev.file})` : ''}`);
+        }
     },
 
     /**

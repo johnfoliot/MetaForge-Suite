@@ -96,7 +96,7 @@ def handle_interview_fetch(env_path):
         "locked_artist": locked_artist
     })
 
-def write_audit_log(root, report_data):
+def write_audit_log(root, report_data, inside_run=False):
     """
     Writes or Appends to the forensic MetaForge.log.
     Build 7.4.0: Maintained forensic track count logging.
@@ -111,13 +111,20 @@ def write_audit_log(root, report_data):
     """
     log_path = root / "MetaForge.log"
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-    
-    log_content = [
-        f"\n{'='*60}",
-        f"METAFORGE AUDIT LOG | {timestamp}",
-        f"MetaForge Process: {report_data.get('phase', 'Unpack & Convert')}",
-        f"{'-'*60}"
-    ]
+
+    if inside_run:
+        # v2 (Phase 0.3): the run already has its own block in the log
+        # (common/mf_events.run_stream writes the header, every event, and
+        # the "Finished" footer), so the summary sits inside it as a
+        # sub-section instead of opening a second banner of its own.
+        log_content = ["", "SUMMARY"]
+    else:
+        log_content = [
+            f"\n{'='*60}",
+            f"METAFORGE AUDIT LOG | {timestamp}",
+            f"MetaForge Process: {report_data.get('phase', 'Unpack & Convert')}",
+            f"{'-'*60}"
+        ]
 
     # Forensic Track Count Persistence
     final_count = report_data.get('final_track_count', 0)
@@ -157,8 +164,8 @@ def write_audit_log(root, report_data):
         for f in preserved:
             log_content.append(f"  [?] {f}")
 
-    log_content.append(f"{'='*60}\n")
-    
+    log_content.append("" if inside_run else f"{'='*60}\n")
+
     try:
         with open(log_path, 'a', encoding='utf-8') as f:
             f.write("\n".join(log_content))

@@ -10,6 +10,7 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from common.config_handler import FFMPEG_EXE, SACD_EXTRACT_EXE
 
 # DSD64's native rate is an exact 64x multiple of the 44.1kHz family --
@@ -85,7 +86,7 @@ def process_sacd(root, artist, report_data):
 
     cdda_isos = _cue_referenced_isos(root, iso_files)
     for iso_path in sorted(cdda_isos):
-        yield f'<div class="status-message" style="font-size:0.7rem; color:#888;"><span aria-hidden="true">ℹ️</span> CD-DA image referenced by CUE sheet, handing off to CUE splitter: {iso_path.name}</div>'
+        yield event("info", "CD audio image named in a CUE sheet; the CUE splitter will handle it", file=iso_path.name)
 
     iso_files = [iso for iso in iso_files if iso not in cdda_isos]
     if not iso_files:
@@ -99,7 +100,7 @@ def process_sacd(root, artist, report_data):
             report_data.setdefault('failed_targets', [])
             if iso_path.name not in report_data['failed_targets']:
                 report_data['failed_targets'].append(iso_path.name)
-        yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> SACD ISO found ({len(iso_files)}) but sacd_extract.exe is not present in /bin -- source(s) preserved, not processed.</div>'
+        yield event("error", f"sacd_extract.exe is missing from /bin, so {len(iso_files)} SACD image%s kept and not processed" % ("s were" if len(iso_files) != 1 else " was"))
         return
 
     for iso_path in iso_files:
@@ -108,10 +109,10 @@ def process_sacd(root, artist, report_data):
                 tmp_dir = Path(tmp_dir_str)
 
                 if not report_data.get('extraction_occurred', False):
-                    yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><span aria-hidden="true" style="font-size:32px; margin-bottom:-12px;">💿</span> Step 1: Extracting SACD Source:<br><span style="margin-left:25px; color:var(--text-output)"> {iso_path.name}</span></div>'
+                    yield event("step", "Step 1: Extracting the SACD source", file=iso_path.name)
                     report_data['extraction_occurred'] = True
                 else:
-                    yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">💿</span> Additional Source: Extracting {iso_path.name}</div>'
+                    yield event("info", "Additional source: extracting", file=iso_path.name)
 
                 report_data['extraction']['source'] = f"SACD ISO: {iso_path.name}"
 
@@ -137,8 +138,8 @@ def process_sacd(root, artist, report_data):
                 for kind, payload in _run_sacd_extract(iso_path, tmp_dir):
                     if kind == 'progress':
                         current, total = payload
-                        yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">💿</span> Extracting track {current}/{total}...</div>'
-                        yield f"<!-- PROGRESS:1:{current}:{max(total, 1)} -->"
+                        yield event("detail", f"Extracting track {current} of {total}")
+                        yield signal("progress", phase=1, current=current, total=max(total, 1))
                     else:
                         extract_returncode, extract_err = payload
 
@@ -149,7 +150,7 @@ def process_sacd(root, artist, report_data):
                     report_data.setdefault('failed_targets', [])
                     if iso_path.name not in report_data['failed_targets']:
                         report_data['failed_targets'].append(iso_path.name)
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> SACD extraction failed: {iso_path.name} — {err_line}</div>'
+                    yield event("error", f"SACD extraction failed: {err_line}. The source was kept", file=iso_path.name)
                     continue
 
                 # 2. RESOLVE TRACK NUMBERS + TITLES
@@ -172,13 +173,13 @@ def process_sacd(root, artist, report_data):
                     )
 
                     if conv_res.returncode == 0:
-                        yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">📤</span> Unpacked: {out_name}</div>'
+                        yield event("detail", "Extracted", file=out_name)
                         report_data['extraction']['count'] += 1
                         success_count += 1
-                        yield f"<!-- PROGRESS:1:{i}:{total_tracks} -->"
+                        yield signal("progress", phase=1, current=i, total=total_tracks)
                     else:
                         err_line = (conv_res.stderr or "").strip().splitlines()[-1] if (conv_res.stderr or "").strip() else "unknown error"
-                        yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> DSD-to-FLAC conversion failed: {out_name} — {err_line}</div>'
+                        yield event("error", f"DSD to FLAC conversion failed: {err_line}", file=out_name)
                         # A partially-written FLAC from a failed ffmpeg run
                         # shouldn't linger and confuse Step 2's track count.
                         try:
@@ -196,14 +197,14 @@ def process_sacd(root, artist, report_data):
                         if iso_path.name not in report_data['deletions']:
                             report_data['deletions'].append(iso_path.name)
                         iso_path.unlink()
-                        yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> SACD source deleted.</div>'
+                        yield event("success", "SACD source deleted after every track converted")
                     except Exception:
                         pass
                 else:
                     report_data.setdefault('failed_targets', [])
                     if iso_path.name not in report_data['failed_targets']:
                         report_data['failed_targets'].append(iso_path.name)
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> Only {success_count}/{total_tracks} tracks converted successfully — SACD source preserved for retry.</div>'
+                    yield event("warning", f"Only {success_count} of {total_tracks} tracks converted, so the SACD source was kept for a retry")
 
         except Exception as e:
             # Same "never silent" principle cue_engine.py's own exception
@@ -213,7 +214,7 @@ def process_sacd(root, artist, report_data):
             report_data.setdefault('failed_targets', [])
             if iso_path.name not in report_data['failed_targets']:
                 report_data['failed_targets'].append(iso_path.name)
-            yield f'<div class="status-error" style="font-size:0.75rem;"><span aria-hidden="true">❌</span> SACD processing error on {iso_path.name}: {e}</div>'
+            yield event("error", f"SACD processing error: {e}. The source was kept", file=iso_path.name)
             continue
 
 

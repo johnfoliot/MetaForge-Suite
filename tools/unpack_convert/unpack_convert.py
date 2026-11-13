@@ -256,7 +256,7 @@ def _orchestrate_workflow(data, env_path):
     final_audio_list = io_bridge.get_audio_targets(root, recursive=True)
     report_data["final_track_count"] = len(final_audio_list)
 
-    context_engine.write_audit_log(root, report_data)
+    context_engine.write_audit_log(root, report_data, inside_run=True)
 
     manifest_category = category if category else "None Provided"
     context_engine.generate_manifest(

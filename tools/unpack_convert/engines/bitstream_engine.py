@@ -8,6 +8,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from mutagen.id3 import ID3, ID3NoHeaderError, TXXX, TPE1, TALB, TIT2, TRCK, TPOS
 from common.config_handler import FFMPEG_EXE, MP3VAL_EXE, DATA_DIR
 
@@ -63,7 +64,8 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
     that fails to convert still holds its slot. Album-wide numbering then
     stays aligned with the real disc layout once that track is repaired.
     """
-    yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/conversion.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 2: Format Conversion &amp; Metadata Cleaning...</div>'
+    disc_note = f" (disc {disc_num} of {total_discs})" if is_multidisc else ""
+    yield event("step", f"Step 2: Converting to MP3 and cleaning metadata{disc_note}")
 
     if 'failed_targets' not in report_data:
         report_data['failed_targets'] = []
@@ -79,7 +81,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
 
     if not all_files:
         report_data['disc_track_counts'][disc_num] = 0
-        yield "<!-- PROGRESS:2:1:1 -->"
+        yield signal("progress", phase=2, current=1, total=1)
         return
 
     # 2. SORTING
@@ -141,18 +143,19 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
 
         if not is_already_mp3 or do_norm:
             success = False
-            for msg in _convert_to_mp3(f_p, artist, filing_id, extracted_title, do_norm, report_data):
-                if "Converted" in msg:
+            # v2: _convert_to_mp3 reports its output file in the event itself
+            # ("output"), instead of the 1.x scrape of "Converted: <name></div>"
+            # out of the HTML it had just built.
+            for ev in _convert_to_mp3(f_p, artist, filing_id, extracted_title, do_norm, report_data):
+                if ev.get("output"):
                     success = True
-                    match_conv = re.search(r': (.*?)</div>', msg)
-                    if match_conv:
-                        mp3_path = f_p.parent / match_conv.group(1)
-                yield msg
+                    mp3_path = f_p.parent / ev["output"]
+                yield ev
             if not success:
                 report_data['failed_targets'].append(f_p.name)
         else:
             mp3_path = _rename_existing_mp3(f_p, artist, filing_id, extracted_title)
-            yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:36px;"><span aria-hidden="true">✨</span> Converted: {mp3_path.name}</div>'
+            yield event("detail", "Already MP3: renamed to the standard", file=mp3_path.name)
 
         # 5. METADATA ENFORCEMENT
         if mp3_path:
@@ -167,17 +170,17 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
             metadata_track = str(offset + per_disc_track) if is_multidisc else str(per_disc_track)
             _enforce_metadata_truth(mp3_path, artist, album, extracted_title, metadata_track, category, disc_num, total_discs, is_multidisc)
 
-            status_suffix = f"(Disc {disc_num}, Track {metadata_track})" if is_multidisc else f"(Track {metadata_track})"
-            yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:36px; margin-bottom:10px;"><span aria-hidden="true">🧼</span> Metadata Cleaned: {mp3_path.name} {status_suffix}</div>'
+            where = f"disc {disc_num}, track {metadata_track}" if is_multidisc else f"track {metadata_track}"
+            yield event("detail", f"Metadata cleaned: {where}", file=mp3_path.name)
 
             if mp3_path.name not in report_data['conversion']:
                 report_data['conversion'].append(mp3_path.name)
 
             # 6. BITSTREAM VALIDATION (mp3val runs on every resulting file)
             if _check_mp3val(mp3_path):
-                yield f'<div class="status-warn" style="font-size:0.7rem; color:var(--mf-gold); margin-left:25px;"><span aria-hidden="true">🩹</span> Bitstream corruption queued for Repair: {mp3_path.name}</div>'
+                yield event("warning", "Damage found in the MP3 stream; queued for Repair", file=mp3_path.name)
 
-        yield f"<!-- PROGRESS:2:{idx}:{total_to_process} -->"
+        yield signal("progress", phase=2, current=idx, total=total_to_process)
 
     report_data['disc_track_counts'][disc_num] = disc_max_track
 
@@ -234,13 +237,12 @@ def _convert_to_mp3(f_path, artist, filing_id, title, do_norm, report_data):
                 os.remove(f_path)
             except: pass
 
-        yield f'<div class="status-message" style="font-size:0.75rem; color:var(--text-output); margin-left:36px;"><span aria-hidden="true">✨</span> Converted: {out_name}</div>'
+        yield event("detail", "Converted to MP3", file=out_name, output=out_name)
         if do_norm:
-            yield f'<div class="status-message" style="font-size:0.7rem; color:var(--text-message); margin-left:25px;"><span aria-hidden="true">⚖️</span> Normalized: {out_name}</div>'
+            yield event("detail", "Loudness normalized", file=out_name)
     else:
         _queue_for_repair(f_path, "FFmpeg Conversion Failure - Source Likely Corrupted")
-        yield f'<div class="status-error">❌ Processing failed: {f_path.name}</div>'
-        yield f'<div class="status-warn" style="font-size:0.7rem; color:var(--mf-gold); margin-left:25px;"><span aria-hidden="true">🩹</span> Source queued for Repair: {f_path.name}</div>'
+        yield event("error", "Conversion failed; the source was kept and queued for Repair", file=f_path.name)
 
 def _rename_existing_mp3(f_path, artist, filing_id, title):
     """Aligns existing MP3 filenames with the standard."""
