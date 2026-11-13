@@ -11,8 +11,13 @@
     
     --text-output: #1a1a1a;
     --text-message: #333333; 
-    --status-success: #1b6332;
-    --status-error: #a31621;
+    /* Darkened 2026-11-13 for WCAG 2.2 AA (4.5:1) on both light surfaces.
+       Was #1b6332 (3.84:1 on bg-main) and #a31621 (4.10:1 on bg-main).
+       Now success 4.88:1 / 6.18:1, error 4.98:1 / 6.31:1 on bg-main / bg-stage.
+       Text on bg-accent still fails; that needs the planned surface/border
+       token split, not a colour tweak. */
+    --status-success: #11522a;
+    --status-error: #8b1420;
 	--input-foreground: #ffffff; /* Use for buttons */
 	--input-foreground2: #000000; /* Use for text inputs */
     --input-background: #1a2fb5; /* Use for buttons */

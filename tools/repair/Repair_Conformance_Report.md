@@ -1,3 +1,5 @@
+> **⚠️ SUPERSEDED (2026-11-13).** This report is out of date and must not be relied on. Its claims were self-attested rather than tested, and several tools and many UI changes postdate it. Measurements on 2026-11-13 contradict it, e.g. hard-coded `#888` log text is 3.78:1 on the dark theme and 1.86:1 on the light theme (WCAG AA requires 4.5:1). A new, evidence-based report will replace it at the end of the UI review project (`D:\MetaForge Work files\UI_Guidance_Review_Plan.md`).
+
 <!-- --- START OF FILE Conformance_Report.md --- -->
 # MetaForge Conformance Report: Audio Repair Workbench
 
