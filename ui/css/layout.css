@@ -198,20 +198,27 @@ header { background-color: var(--bg-main); border-bottom: 1px solid var(--border
 .global-nav { display: flex; align-items: center; gap: 1rem; min-height: 48px; }
 .mf-logo { height: 32px; width: auto; display: block; margin-right: 0.5rem; }
 
-.mf-toolbar { flex: 1; min-width: 0; display: flex; align-items: flex-end; gap: 0.5rem; }
+/* Everything is top-aligned (John, 2026-11-13): group labels line up along
+   the top, every icon lines up on one row below them, and every button is
+   the same height so the current-tool underline sits on one line. */
+.mf-toolbar { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 0.5rem; }
 .mf-nav-group { display: flex; flex-direction: column; gap: 0.1rem; }
+.mf-nav-group > .mf-nav-list { flex: 1; }
 .mf-nav-group + .mf-nav-group { border-inline-start: 1px solid var(--border-subtle); padding-inline-start: 0.5rem; }
+.mf-nav-group.mf-nav-end { border-inline-start: 0; padding-inline-start: 0; }
+.mf-group-spacer { visibility: hidden; }
 .mf-group-label { /* hidden unless labels are on; still names its group for screen readers */
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-.mf-nav-list { display: flex; gap: 0.15rem; list-style: none; margin: 0; padding: 0; }
+.mf-nav-list { display: flex; align-items: stretch; gap: 0.15rem; list-style: none; margin: 0; padding: 0; }
+.mf-nav-list > li { display: flex; }
 .mf-nav-end { margin-inline-start: auto; }
 
 /* Tool buttons. Overrides the global gold-filled `button` look (section 2,
    which uses !important). */
 .mf-toolbar .nav-item {
     position: relative;
-    display: grid; justify-items: center; gap: 0.15rem;
+    display: grid; justify-items: center; align-content: start; gap: 0.15rem;
     min-width: 2.6rem;
     padding: 0.3rem 0.35rem 0.4rem !important;
     color: var(--mf-gold) !important;

@@ -50,9 +50,14 @@
             </div>
             {% endfor %}
             {% if settings_tool %}
-            <ul class="mf-nav-list mf-nav-end">
-                <li>{{ tool_button(settings_tool) }}</li>
-            </ul>
+            {#- Settings has no group; the invisible spacer is the height of a
+                group label so its icon lines up with every other icon. -#}
+            <div class="mf-nav-group mf-nav-end">
+                <span class="mf-group-label mf-group-spacer" aria-hidden="true">&nbsp;</span>
+                <ul class="mf-nav-list">
+                    <li>{{ tool_button(settings_tool) }}</li>
+                </ul>
+            </div>
             {% endif %}
         </nav>
     </div>
