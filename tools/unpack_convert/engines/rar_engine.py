@@ -81,7 +81,7 @@ def extract_rar(root, report_data):
         try:
             # 1. Step 1 Header Control
             if not report_data.get('extraction_occurred', False):
-                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/rar.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Extracting Original Audio Source:<br><span style="margin-left:25px; color:var(--text-output)"> {rar_path.name}</span></div>'
+                yield f'<div class="status-api" style="margin-top:5px; padding-top:5px;"><img src="/ui/images/rar.png" alt="" aria-hidden="true" style="margin-left:3px; height:32px; width:auto; margin-bottom:-12px;"> Step 1: Extracting Original Audio Source:<br><span style="margin-left:43px; color:var(--text-output)"> {rar_path.name}</span></div>'
                 report_data['extraction_occurred'] = True
             else:
                 yield f'<div class="status-message" style="font-size:0.75rem; color:var(--mf-gold); margin-top:5px;"><span aria-hidden="true">📂</span> Additional Source: Extracting {rar_path.name}</div>'
@@ -123,8 +123,8 @@ def extract_rar(root, report_data):
                     # the whole source set stays on disk for retry.
                     _register_failed(report_data, set_files)
                     reason = last_line or f"unrar exit code {process.returncode}"
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">❌</span> RAR extraction failed: {rar_path.name} — {reason}</div>'
-                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:20px;"><span aria-hidden="true">⚠️</span> RAR source set preserved for retry ({len(set_files)} file(s)).</div>'
+                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:40px;"><span aria-hidden="true">❌</span> RAR extraction failed: {rar_path.name} — {reason}</div>'
+                    yield f'<div class="status-error" style="font-size:0.75rem; margin-left:40px;"><span aria-hidden="true">⚠️</span> RAR source set preserved for retry ({len(set_files)} file(s)).</div>'
                 else:
                     # --- [ ACR DISCOVERY & COLLISION-SAFE HOIST ] ---
                     content_root = _find_atomic_content_root(tmp_path)
@@ -160,13 +160,13 @@ def extract_rar(root, report_data):
                     # one album previously left only the last one's count
                     # in the audit log.
                     report_data['extraction']['count'] += moved_count
-                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">📂</span> {moved_count} audio items moved to album directory.</div>'
+                    yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:40px;"><span aria-hidden="true">📂</span> {moved_count} audio items moved to album directory.</div>'
                     extraction_ok = True
 
             if not extraction_ok:
                 continue
 
-            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:20px;"><span aria-hidden="true">✨</span> Extraction Successful: {rar_path.name}</div>'
+            yield f'<div class="status-message" style="font-size:0.75rem; color:#888; margin-left:40px;"><span aria-hidden="true">✨</span> Extraction Successful: {rar_path.name}</div>'
 
             # 4. DELETE SOURCE SET (verified success only)
             for part_file in set_files:
@@ -176,7 +176,7 @@ def extract_rar(root, report_data):
                     part_file.unlink()
                 except Exception:
                     pass
-            yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:20px;"><span aria-hidden="true">🧹</span> RAR source set deleted.</div>'
+            yield f'<div class="status-message" style="font-size:0.7rem; color:#888; margin-left:40px;"><span aria-hidden="true">🧹</span> RAR source set deleted.</div>'
 
         except Exception as e:
             _register_failed(report_data, set_files)
