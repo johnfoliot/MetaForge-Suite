@@ -8,20 +8,43 @@
 import librosa
 import numpy as np
 import warnings
+from mutagen.mp3 import MP3
 
 # Suppress librosa/audioread hardware warnings for cleaner console
 warnings.filterwarnings("ignore", category=UserWarning)
+
+def get_full_duration(file_path):
+    """
+    Real full-track length in whole seconds, read from the MP3 header
+    (no audio decode, so it's fast). Returns 0 if the file can't be read.
+
+    Real bug, found 2026-11-13: duration used to be measured from the
+    20-second analysis fragment below, so every track 20s or longer was
+    stored as length=20 (19,084 of 19,332 tracks at the time). Length now
+    comes from the whole file, independent of the fragment.
+    """
+    try:
+        return int(round(MP3(str(file_path)).info.length))
+    except Exception:
+        try:
+            return int(round(librosa.get_duration(path=str(file_path))))
+        except Exception:
+            return 0
 
 def analyze_file(file_path):
     """
     Performs forensic bitstream analysis on the first 20 seconds of audio.
     Returns: Dictionary containing BPM, Key, Intensity, and Duration.
+    Duration is the real full-track length, not the fragment's.
     """
+    # Measured separately from the analysis, so a failed analysis still
+    # records the real length instead of 0.
+    full_duration = get_full_duration(file_path)
+
     try:
-        # Step 1: Load Fragment (20s offset to bypass intro silence/fade)
-        # We load with duration=20 to keep memory footprint low.
+        # Step 1: Load Fragment (first 20s, from the very start of the file --
+        # there is no offset). Only 20s is loaded to keep memory footprint low.
         y, sr = librosa.load(str(file_path), duration=20)
-        full_duration = librosa.get_duration(y=y, sr=sr)
 
         # Step 2: BPM Extraction (Tempo)
         # Using beat_track to identify the primary rhythmic pulse
@@ -41,7 +64,7 @@ def analyze_file(file_path):
             "bpm": bpm,
             "key": key,
             "intensity": intensity,
-            "duration": int(full_duration)
+            "duration": full_duration
         }
 
     except Exception as e:
@@ -50,7 +73,7 @@ def analyze_file(file_path):
             "bpm": 0,
             "key": "??",
             "intensity": 1,
-            "duration": 0
+            "duration": full_duration
         }
 
 def _calculate_key(y, sr):

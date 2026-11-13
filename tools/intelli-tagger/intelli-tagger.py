@@ -114,10 +114,11 @@ def _handle_reanalyze_track():
     bpm = acoustic_data.get('bpm', 0)
     key_val = acoustic_data.get('key', '??')
     intensity = acoustic_data.get('intensity', 1)
+    length = acoustic_data.get('duration', 0)
 
     db_engine.execute_query(
-        "UPDATE tracks SET bpm=?, key_val=?, intensity=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
-        (bpm, key_val, intensity, file_path),
+        "UPDATE tracks SET bpm=?, key_val=?, intensity=?, length=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
+        (bpm, key_val, intensity, length, file_path),
         commit=True
     )
 
