@@ -13,7 +13,6 @@ console.log("METAFORGE: unpack_convert.js Build 8.2.2 active...");
 window.metaforge = window.metaforge || {};
 window.metaforge.unpack_convert = {
     lastTrigger: null,
-    selectedArtFile: null,
     observer: null,
 
     // Filing Category lock: lives here on the module object, NOT on the
@@ -159,93 +158,109 @@ window.metaforge.unpack_convert = {
         }
     },
 
+    /**
+     * v2 cover step (Phase 0.3, as in the mock-up). A real radio group in a
+     * <form>: one native radio per image, Enter or "Confirm cover" submits.
+     * Built with the DOM API, so a file name can never break the markup
+     * (1.x pasted names into onclick="..." strings, so an apostrophe in a
+     * file name broke the click).
+     */
     loadArtGallery: async function() {
         const path = document.getElementById('upk-path').value;
         const consoleBox = document.getElementById('unpacker-console');
         if (!consoleBox) return;
 
+        let images = [];
         try {
             const res = await fetch(`/run_tool_logic/unpack_convert/get_art_gallery?path=${encodeURIComponent(path)}`);
-            const images = await res.json();
-            if (images.length === 0) return;
-
-            let galleryHTML = `
-                <div id="upk-step4-wrapper" style="margin-top:20px; border-top:2px solid var(--bg-accent); padding-top:15px;">
-                    <div class="status-api"><span aria-hidden="true"><img src="/ui/images/cover.png" alt="" style="height:auto; width:32px; margin-bottom:-6px; margin-left:3px;"></span> Step 4: Album Cover Selection</div>
-                    <div class="data-text" style="margin-bottom:10px; margin-left:40px;">Select the primary image to promote as folder.jpg</div>
-                    <div id="upk-art-gallery" class="art-selection-grid">
-            `;
-
-            images.forEach((img, idx) => {
-                galleryHTML += `
-                    <div class="art-card" onclick="metaforge.unpack_convert.selectArt('${img.filename}', ${idx})" id="art-card-${idx}" tabindex="0" onkeydown="if(event.key==='Enter' || event.key===' ') { event.preventDefault(); metaforge.unpack_convert.selectArt('${img.filename}', ${idx}); }">
-                        <div class="art-preview" style="background-image: url('${img.data}')"></div>
-                        <div class="art-meta" title="${img.filename}">${img.filename}</div>
-                        <div class="art-meta" style="color:var(--mf-gold)">${img.width} x ${img.height}</div>
-                        <div class="art-selector-row">
-                            <input type="radio" name="art-choice" class="art-radio" id="radio-${idx}" 
-                                   aria-label="Select ${img.filename}, ${img.width} by ${img.height} pixels"
-                                   onchange="metaforge.unpack_convert.handleRadioChange(${idx})">
-                            <label for="radio-${idx}" class="art-meta">Select</label>
-                        </div>
-                    </div>
-                `;
-            });
-
-            galleryHTML += `
-                    </div>
-                    <div style="text-align: right; margin-top: 10px; padding-bottom: 20px;">
-                        <button id="upk-confirm-art-btn" class="mf-button-gold-fixed upk-confirm-art-btn" onclick="metaforge.unpack_convert.confirmCover()" disabled>
-                            Confirm Cover
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            consoleBox.insertAdjacentHTML('beforeend', galleryHTML);
-            consoleBox.scrollTop = consoleBox.scrollHeight;
+            images = await res.json();
         } catch (err) {
-            console.error("METAFORGE: Art Gallery Error:", err);
+            window.MFEvents.render(consoleBox, { kind: 'error', text: `The cover images couldn't be loaded: ${err.message}` });
+            window.MFAnnounce(`Error: the cover images couldn't be loaded`);
+            return;
         }
+        if (!images.length) return;
+
+        const el = (tag, cls, text) => {
+            const n = document.createElement(tag);
+            if (cls) n.className = cls;
+            if (text !== undefined) n.textContent = text;
+            return n;
+        };
+
+        const form = el('form', 'mf-cover-picker');
+        form.id = 'upk-cover-step';
+        form.innerHTML = `
+            <fieldset>
+                <legend>Pick the front cover. It is saved as <span class="mf-ev-file">folder.jpg</span> at 500 × 500 and added to every track.</legend>
+                <div class="mf-cover-grid"></div>
+                <div class="mf-cover-actions">
+                    <p id="upk-cover-hint">Choose a cover to continue.</p>
+                    <button type="submit" class="mf-button-gold-fixed" id="upk-confirm-cover" disabled aria-describedby="upk-cover-hint">Confirm cover</button>
+                </div>
+            </fieldset>`;
+        const grid = form.querySelector('.mf-cover-grid');
+        const hint = form.querySelector('#upk-cover-hint');
+        const confirmBtn = form.querySelector('#upk-confirm-cover');
+
+        images.forEach((img) => {
+            const tile = el('label', 'mf-cover');
+            const radio = el('input');
+            radio.type = 'radio';
+            radio.name = 'upk-cover';
+            radio.value = img.filename;
+            radio.dataset.size = `${img.width} × ${img.height} px`;
+            radio.dataset.thumb = img.data;
+
+            const pic = el('img');
+            pic.alt = '';                      // the label text names the image
+            pic.src = img.data;
+
+            // Sighted: "600 × 600 px". Screen readers: "600 by 600 pixels".
+            const size = el('span', 'mf-cover-size');
+            const seen = el('span', '', radio.dataset.size);
+            seen.setAttribute('aria-hidden', 'true');
+            size.append(seen, el('span', 'mf-visually-hidden', `${img.width} by ${img.height} pixels`));
+
+            const sel = el('span', 'mf-cover-sel', 'Selected');
+            sel.setAttribute('aria-hidden', 'true');   // the radio's own checked state says it
+
+            tile.append(radio, pic, el('span', 'mf-cover-name', img.filename), size, sel);
+            grid.append(tile);
+
+            radio.addEventListener('change', () => {
+                confirmBtn.disabled = false;
+                hint.textContent = `Selected: ${img.filename} (${radio.dataset.size}). Confirm to apply it.`;
+            });
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.confirmCover(form);
+        });
+
+        consoleBox.append(form);
+        this.setProgressLabel('Step 4: waiting for you to choose a cover');
+        // The run has paused for a decision and focus is stranded on the
+        // disabled Start button, so take the user to the new step's first
+        // choice (focusing a radio doesn't select it).
+        grid.querySelector('input')?.focus();
     },
 
-    selectArt: function(filename, index) {
-        this.selectedArtFile = filename;
-        const btn = document.getElementById('upk-confirm-art-btn');
-        if (btn) btn.disabled = false;
-
-        document.querySelectorAll('.art-card').forEach(card => card.classList.remove('selected'));
-        document.querySelectorAll('.art-radio').forEach(radio => radio.checked = false);
-
-        const selectedCard = document.getElementById(`art-card-${index}`);
-        const selectedRadio = document.getElementById(`radio-${index}`);
-        if (selectedCard) selectedCard.classList.add('selected');
-        if (selectedRadio) selectedRadio.checked = true;
-    },
-
-    handleRadioChange: function(index) {
-        const selectedCard = document.getElementById(`art-card-${index}`);
-        if (!selectedCard) return;
-        const title = selectedCard.querySelector('.art-meta[title]')?.title;
-        if (title) this.selectArt(title, index);
-    },
-
-    confirmCover: async function() {
+    confirmCover: async function(form) {
         const path = document.getElementById('upk-path').value;
-        const btn = document.getElementById('upk-confirm-art-btn');
         const consoleBox = document.getElementById('unpacker-console');
+        const choice = form?.querySelector('input[name="upk-cover"]:checked');
+        if (!choice) return;
 
-        if (!this.selectedArtFile) return;
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = 'Embedding Artwork...';
-        }
+        const fieldset = form.querySelector('fieldset');
+        const btn = form.querySelector('#upk-confirm-cover');
+        const chosenAt = new Date().toLocaleTimeString('en-GB', { hour12: false });
+        fieldset.disabled = true;
+        btn.textContent = 'Adding the cover…';
 
         // Streaming, not a single blocking JSON response (John's report,
-        // 2026-08-14) -- same reader/decoder pattern as startProcessing()'s
-        // run_unpack consumption above, so this step's per-track embed
-        // loop shows live progress in the console instead of going silent
-        // for the whole duration.
+        // 2026-08-14): the per-track embed loop shows live progress.
         let finalized = false;
         let hadError = false;
 
@@ -253,11 +268,11 @@ window.metaforge.unpack_convert = {
             const res = await fetch('/run_tool_logic/unpack_convert/finalize_art', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: path, filename: this.selectedArtFile })
+                body: JSON.stringify({ path: path, filename: choice.value })
             });
 
             // v2: events + signals via MFEvents; the "ready for tagging"
-            // line now comes from the server (and so is in MetaForge.log too).
+            // line comes from the server (and so is in MetaForge.log too).
             await window.MFEvents.read(res, {
                 log: consoleBox,
                 onSignal: (name) => {
@@ -267,58 +282,61 @@ window.metaforge.unpack_convert = {
             });
 
             if (finalized && !hadError) {
-                const step4Wrapper = document.getElementById('upk-step4-wrapper');
-                if (step4Wrapper) {
-                    step4Wrapper.style.opacity = "0.5";
-                    step4Wrapper.style.pointerEvents = "none";
-                }
-                this.injectHandoffButton(path);
-                consoleBox.scrollTop = consoleBox.scrollHeight;
-            } else if (btn) {
-                // Real failure (bad source image, disk error, etc.) -- leave
-                // the gallery selectable so the user can retry instead of
-                // getting stuck behind a permanently disabled button.
-                btn.disabled = false;
-                btn.textContent = 'Confirm Cover';
+                // The picker becomes a one-line record of the choice, in
+                // place, so the log still reads in order.
+                const row = window.MFEvents.render(consoleBox, {
+                    kind: 'success', text: 'Cover chosen', file: choice.value, time: chosenAt
+                });
+                const thumb = document.createElement('img');
+                thumb.className = 'mf-ev-thumb';
+                thumb.alt = '';
+                thumb.src = choice.dataset.thumb;
+                row.querySelector('.mf-ev-text').prepend(thumb);
+                form.replaceWith(row);
+                this.showHandoff(path);
+            } else {
+                // Real failure (bad image, disk error...): keep the picker
+                // usable so the user can retry or pick another image.
+                fieldset.disabled = false;
+                btn.textContent = 'Confirm cover';
+                btn.focus();
             }
         } catch (err) {
             window.MFEvents.render(consoleBox, { kind: 'error', text: `The cover couldn't be applied: ${err.message}` });
             window.MFAnnounce(`Error: the cover couldn't be applied: ${err.message}`, { urgent: true });
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = 'Confirm Cover';
-            }
+            fieldset.disabled = false;
+            btn.textContent = 'Confirm cover';
+            btn.focus();
         } finally {
-            const fieldset = document.getElementById('upk-fieldset');
-            if (fieldset) fieldset.disabled = false;
+            const mainFieldset = document.getElementById('upk-fieldset');
+            if (mainFieldset) mainFieldset.disabled = false;
         }
     },
 
     /**
-     * Workflow Orchestration: Injects the Hand-off trigger.
-     * Build 8.2.1: Logic refined to ensure button always appends to end of current log stack.
+     * v2 Next-step bar (shared .mf-handoff): shown when the run is
+     * finished. Focus goes to Continue, because the control the user last
+     * used (Start or Confirm cover) is now disabled or gone.
      */
-    injectHandoffButton: function(passedPath) {
-        const consoleBox = document.getElementById('unpacker-console');
-        if (!consoleBox || document.getElementById('upk-handoff-gate')) return;
+    showHandoff: function(path) {
+        const bar = document.getElementById('upk-handoff');
+        const btn = document.getElementById('upk-continue-btn');
+        if (!bar || !btn) return;
+        const albumPath = path || document.getElementById('upk-path').value.trim();
+        btn.onclick = () => window.mfAdvanceWorkflow('musicbrainz_id', albumPath);
+        bar.hidden = false;
+        this.setProgressLabel('Finished');
+        btn.focus();
+    },
 
-        const path = passedPath || document.getElementById('upk-path').value.trim();
+    hideHandoff: function() {
+        const bar = document.getElementById('upk-handoff');
+        if (bar) bar.hidden = true;
+    },
 
-        // Built via the DOM API (not string-interpolated HTML) so a path
-        // containing a single quote or other special character can't break
-        // the handler -- no escaping needed since path is a real closure
-        // variable, not text embedded into an onclick attribute string.
-        const gate = document.createElement('div');
-        gate.id = 'upk-handoff-gate';
-        gate.style.cssText = 'margin-top: 20px; text-align: right; padding-top: 15px;';
-        const btn = document.createElement('button');
-        btn.className = 'mf-button-gold-fixed';
-        btn.textContent = 'Continue to: MusicBrainzIDs';
-        btn.onclick = () => window.mfAdvanceWorkflow('musicbrainz_id', path);
-        gate.appendChild(btn);
-
-        consoleBox.appendChild(gate);
-        consoleBox.scrollTop = consoleBox.scrollHeight;
+    setProgressLabel: function(text) {
+        const label = document.getElementById('upk-progress-label');
+        if (label) label.innerText = text;
     },
 
     updateProgress: function(phase, current, total) {
@@ -513,8 +531,8 @@ window.metaforge.unpack_convert = {
         // MutationObserver (metaforge_core.js) auto-detects this console
         // reset and resyncs the shared custom scrollbar itself.
 
-        const step4Wrapper = document.getElementById('upk-step4-wrapper');
-        if (step4Wrapper) step4Wrapper.remove();
+        document.getElementById('upk-cover-step')?.remove();
+        this.hideHandoff();
 
         // Build 8.2.2 (2026-10-01 review): this used to check
         // Intelli-Tagger's #it-path first -- a stray cross-tool reference.
@@ -550,7 +568,7 @@ window.metaforge.unpack_convert = {
                         hasArtReady = true;
                         this.loadArtGallery();
                     } else if (name === 'handoff_ready') {
-                        this.injectHandoffButton(path);
+                        this.showHandoff(path);
                     }
                 }
             });

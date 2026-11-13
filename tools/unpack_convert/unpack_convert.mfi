@@ -117,80 +117,7 @@
        #unpacker-console's own markup carries .mf-hide-native-scrollbar
        to suppress its real native scrollbar. */
 
-    /* --- ART GALLERY ARCHITECTURE --- */
-    .art-selection-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 10px;
-        margin-top: 10px;
-    }
-
-    .art-card {
-        background: var(--bg-main);
-        border: 2px solid var(--bg-accent);
-        padding: 6px;
-        cursor: pointer;
-        transition: border-color 0.1s ease;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        min-width: 0;
-    }
-
-    .art-card:hover, .art-card:focus-within {
-        border-color: var(--mf-gold);
-    }
-
-    .art-card.selected {
-        border-color: var(--mf-gold);
-        background: rgba(204, 153, 0, 0.1);
-    }
-
-    .art-preview {
-        width: 100%;
-        aspect-ratio: 1/1;
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        border: 1px solid #000;
-    }
-
-    .art-meta {
-        font-size: 0.55rem;
-        color: var(--text-message);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .art-selector-row {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-top: 4px;
-        border-top: 1px solid var(--bg-accent);
-        padding-top: 4px;
-    }
-
-    .art-radio {
-        appearance: none;
-        width: 12px;
-        height: 12px;
-        background: #fff;
-        border: 1px solid var(--mf-gold);
-        border-radius: 50%;
-        cursor: pointer;
-        display: grid;
-        place-content: center;
-    }
-
-    .art-radio:checked::before {
-        content: "";
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: var(--mf-gold);
-    }
+    /* Cover picker + Next-step bar: shared styles in layout.css sections 12-13 (v2). */
 
     /* --- CHECKBOX ARCHITECTURE --- */
     .consent-box {
@@ -474,6 +401,12 @@
                     </div>
                     <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
                 </div>
+            </div>
+            <!-- v2 Next-step bar (shared .mf-handoff, layout.css section 13): shown
+                 when the run is finished; Continue carries the album folder over. -->
+            <div class="mf-handoff" id="upk-handoff" hidden>
+                <p id="upk-next-desc"><span class="mf-handoff-kicker">Next step: 2 of 3.</span> MusicBrainz IDs. The album folder and its manifest carry over, so the fields fill in for you.</p>
+                <button type="button" class="mf-button-gold-fixed" id="upk-continue-btn" aria-describedby="upk-next-desc">Continue to MusicBrainz IDs</button>
             </div>
         </div>
 
