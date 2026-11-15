@@ -1,9 +1,21 @@
 /* --- START OF FILE personnel.js --- */
 /**
- * MetaForge Studio: Personnel Scout Logic Bridge (Personnel Engine v2)
- * Role: Orchestrates the MB+Discogs automatic waterfall, Wikipedia
- * search/fallback, AllMusic paste-modal, and the shared mapping/commit UI.
- * Physical Location: \tools\personnel\personnel.js
+ * MetaForge Studio: Album Personnel (Personnel Engine v2)
+ * Role: the MusicBrainz + Discogs automatic waterfall (with the AI web
+ * search fallback), Wikipedia search, AllMusic paste, and the shared
+ * review-and-save table.
+ * v2 (2026-11-15): per-tool pass.
+ *  - "Find credits" is the form's submit (Enter re-runs the automatic
+ *    search with whatever is in the fields, so a folder without a manifest
+ *    or a corrected name is no longer a dead end).
+ *  - Everything is built with the DOM API (1.x pasted Wikipedia titles into
+ *    onclick strings, so an apostrophe broke "Select").
+ *  - Credit rows: labelled fields, named remove buttons, real sort buttons,
+ *    focus kept in place across re-renders.
+ *  - No blocking alert()s: a status line + the shared announcer.
+ *  - AllMusic paste is a native <dialog>.
+ *  - The save reports what it saved and what it couldn't; a clean save
+ *    offers Bio Builder only when the artist has no bio yet (John).
  */
 
 window.metaforge = window.metaforge || {};
@@ -12,78 +24,138 @@ window.metaforge.personnel = {
         localPath: "",
         mapping: [],
         isLocked: false,
-        pendingVerifyIdx: null
+        pendingVerifyIdx: null,
+        sortKey: null,
+        sortDir: 1,
+        manualConfirmConfidence: null
     },
 
-    // Human-readable names for aria-labels, keyed the same as the
-    // p-src-{key}-btn/-check element id convention.
     _sourceLabels: { mb: 'MusicBrainz', wiki: 'Wikipedia', discogs: 'Discogs', allmusic: 'AllMusic' },
 
- 
-    _markSourceChecked: function(key, found) {
-        const btn = document.getElementById(`p-src-${key}-btn`);
-        const badge = document.getElementById(`p-src-${key}-check`);
-        if (btn) btn.style.display = 'none';
-        if (!badge) return;
-        badge.style.display = 'inline-flex';
-        const label = this._sourceLabels[key] || key;
-        if (found) {
-            badge.className = 'p-scout-check p-scout-found';
-            badge.textContent = '✓';
-            badge.setAttribute('aria-label', `${label}: credits found`);
-        } else {
-            badge.className = 'p-scout-check p-scout-none';
-            badge.textContent = '';
-            badge.setAttribute('aria-label', `${label}: checked, nothing found`);
-        }
-    },
-
-    // Called whenever a new album folder loads (this tool processes many
-    // albums back to back) -- without this, a badge earned on album #1
-    // would incorrectly still show as checked on album #2, which has
-    // never actually had any of these sources checked yet.
-    _resetSourceChecks: function() {
-        ['mb', 'wiki', 'discogs', 'allmusic'].forEach(key => {
-            const btn = document.getElementById(`p-src-${key}-btn`);
-            const badge = document.getElementById(`p-src-${key}-check`);
-            if (btn) btn.style.display = '';
-            if (badge) {
-                badge.style.display = 'none';
-                badge.className = 'p-scout-check';
-                badge.textContent = '';
-                badge.removeAttribute('aria-label');
-            }
-        });
-    },
+    $: (id) => document.getElementById(id),
 
     init: function() {
         setTimeout(() => {
-            const h1 = document.querySelector('h1.main');
-            if (h1) h1.focus();
+            if (!this.$('p-form')) return;
+            this.wire();
+            document.querySelector('#mfi-content h1.main')?.focus();
             this.ingestContext();
         }, 50);
     },
 
+    /** Event wiring (was inline onclick attributes). Once per screen build. */
+    wire: function() {
+        const form = this.$('p-form');
+        if (form.dataset.wired) return;
+        form.dataset.wired = 'true';
 
-    toggleLoading: function(show, text) {
-        const overlay = document.getElementById('p-loading-overlay');
-        if (!overlay) return;
-        if (show && text) {
-            const label = document.getElementById('p-loading-text');
-            if (label) label.innerText = text;
-        }
-        overlay.style.display = show ? 'flex' : 'none';
+        form.addEventListener('submit', (e) => { e.preventDefault(); this.resolveWaterfall(); });
+        this.$('p-browse-btn').addEventListener('click', () => this.selectFolder());
+        this.$('p-src-wiki-btn').addEventListener('click', () => this.searchWikipedia());
+        this.$('p-src-allmusic-btn').addEventListener('click', () => this.checkAllMusic());
+        this.$('p-add-btn').addEventListener('click', () => this.addManualRow());
+        this.$('p-commit-btn').addEventListener('click', () => this.commitToDatabase());
+        this.$('p-bio-btn').addEventListener('click', () => window.mfAdvanceWorkflow?.('biography', this.state.localPath));
+        document.querySelectorAll('.p-sort').forEach(b => b.addEventListener('click', () => this.sortMapping(b.dataset.sort)));
+
+        // Wikipedia results: one delegated listener (no per-row onclick strings).
+        this.$('p-search-results-body').addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-title]');
+            if (btn) this.selectCandidate(btn.dataset.title);
+        });
+
+        // Credit rows: delegated input/change/click by row index.
+        const body = this.$('p-mapping-body');
+        body.addEventListener('input', (e) => {
+            const idx = Number(e.target.closest('tr')?.dataset.idx);
+            if (Number.isNaN(idx)) return;
+            if (e.target.matches('.p-map-name')) this.updateMappingField(idx, 'name', e.target.value);
+            if (e.target.matches('.p-map-role')) this.updateMappingField(idx, 'role', e.target.value);
+        });
+        body.addEventListener('change', (e) => {
+            const idx = Number(e.target.closest('tr')?.dataset.idx);
+            if (e.target.matches('.p-map-status')) this.updateConfidenceStatus(idx, e.target.value);
+        });
+        body.addEventListener('click', (e) => {
+            const idx = Number(e.target.closest('tr')?.dataset.idx);
+            if (e.target.closest('.p-remove')) this.removeRow(idx);
+            if (e.target.closest('.p-verify')) this.verifySource(idx);
+        });
+
+        // AllMusic dialog: paste handler, and "closed without a paste" = checked, nothing found.
+        const dlg = this.$('p-allmusic-dialog');
+        this.$('p-allmusic-paste').addEventListener('paste', (e) => this.handleAllMusicPaste(e));
+        dlg.addEventListener('close', () => {
+            if (dlg.returnValue !== 'found') this._markSourceChecked('allmusic', false);
+            // The dialog hands focus back to "Search AllMusic", which has just
+            // been replaced by its "checked" badge; never leave focus nowhere.
+            setTimeout(() => {
+                const a = document.activeElement;
+                if (!a || a === document.body || a.hidden || a.closest('[hidden]')) this.$('p-find-btn')?.focus();
+            }, 0);
+        });
     },
 
-    ingestContext: function() {
-        const artist = document.getElementById('p-artist-input');
-        const album = document.getElementById('p-album-input');
-        const pathInput = document.getElementById('p-local-path');
+    // ------------------------------------------------------------ status
+    /** Visible status line beside Find credits; spoken when `speak`. */
+    updateStatus: function(msg, type, speak) {
+        const el = this.$('p-status');
+        if (!el) return;
+        el.textContent = msg;
+        el.className = type === 'error' ? 'is-error' : (type === 'success' ? 'is-ok' : '');
+        if (speak && msg) window.MFAnnounce?.(type === 'error' ? `Error: ${msg}` : msg);
+    },
 
-        if (window.mf_context_artist) artist.value = window.mf_context_artist;
-        if (window.mf_context_album) album.value = window.mf_context_album;
+    toggleLoading: function(show, text) {
+        const overlay = this.$('p-busy');
+        if (!overlay) return;
+        if (show && text) this.$('p-busy-text').textContent = text;
+        overlay.hidden = !show;
+        // The rest of the screen is inert while the search runs.
+        this.$('p-left').inert = show;
+        document.querySelector('.p-right').inert = show;
+        if (show) window.MFAnnounce?.(text || 'Searching for credits');
+    },
+
+    _markSourceChecked: function(key, found) {
+        const btn = this.$(`p-src-${key}-btn`);
+        const badge = this.$(`p-src-${key}-check`);
+        if (btn) {
+            // Keep focus somewhere sensible if the button the user just used disappears.
+            if (document.activeElement === btn) this.$('p-find-btn')?.focus();
+            btn.hidden = true;
+        }
+        if (!badge) return;
+        badge.hidden = false;
+        const label = this._sourceLabels[key] || key;
+        badge.className = 'p-badge ' + (found ? 'is-found' : 'is-none');
+        badge.textContent = found ? '✓' : '–';
+        badge.setAttribute('role', 'img');
+        badge.setAttribute('aria-label', found ? `${label}: credits found` : `${label}: checked, nothing found`);
+    },
+
+    // A new album folder means none of the four sources has been checked yet.
+    _resetSourceChecks: function() {
+        ['mb', 'wiki', 'discogs', 'allmusic'].forEach(key => {
+            const btn = this.$(`p-src-${key}-btn`);
+            const badge = this.$(`p-src-${key}-check`);
+            if (btn) btn.hidden = false;
+            if (badge) {
+                badge.hidden = true;
+                badge.className = 'p-badge';
+                badge.textContent = '';
+                badge.removeAttribute('aria-label');
+                badge.removeAttribute('role');
+            }
+        });
+    },
+
+    // ------------------------------------------------------------ album context
+    ingestContext: function() {
+        if (window.mf_context_artist) this.$('p-artist-input').value = window.mf_context_artist;
+        if (window.mf_context_album) this.$('p-album-input').value = window.mf_context_album;
         if (window.mf_context_path) {
-            pathInput.value = window.mf_context_path;
+            this.$('p-local-path').value = window.mf_context_path;
             this.state.localPath = window.mf_context_path;
             this.getFolderContext(window.mf_context_path);
             window.mf_context_path = null;
@@ -96,22 +168,19 @@ window.metaforge.personnel = {
             const data = await response.json();
             if (data && data.path) {
                 this.state.localPath = data.path;
-                const pathInput = document.getElementById('p-local-path');
-                if (pathInput) pathInput.value = data.path;
+                this.$('p-local-path').value = data.path;
                 await this.getFolderContext(data.path);
             }
         } catch (err) {
             console.error("Path selection failed:", err);
-            this.updateStatus("File selection failed.", "error");
+            this.updateStatus("The folder couldn't be opened.", "error", true);
         }
     },
 
     getFolderContext: async function(path) {
         if (!path) return;
-        // Reset before the new folder's data even arrives -- a new album
-        // means none of the 4 sources have been checked yet, regardless
-        // of what the previous album left behind.
         this._resetSourceChecks();
+        this.$('p-handoff').hidden = true;
         try {
             const response = await fetch('/run_tool_logic/personnel/get_folder_context', {
                 method: 'POST',
@@ -120,30 +189,35 @@ window.metaforge.personnel = {
             });
             const data = await response.json();
             if (data.status === "success" && data.context) {
-                document.getElementById('p-artist-input').value = data.context.artist_seed || "";
-                document.getElementById('p-album-input').value = data.context.album_seed || "";
-                document.getElementById('p-year-input').value = data.context.release_year || "";
-                this.updateStatus("Directory context loaded from manifest.", "success");
+                this.$('p-artist-input').value = data.context.artist_seed || "";
+                this.$('p-album-input').value = data.context.album_seed || "";
+                this.$('p-year-input').value = data.context.release_year || "";
+                this.updateStatus("Album details filled in from the manifest.", "success");
                 this.resolveWaterfall();
+            } else {
+                // v2: shown, not swallowed (1.x left the screen sitting there).
+                this.updateStatus(data.message || "The album details couldn't be read.", "error", true);
+                this.$('p-artist-input').focus();
             }
         } catch (err) {
-            console.warn("Manifest discovery failed.");
+            this.updateStatus("The album details couldn't be read.", "error", true);
         }
     },
 
+    // ------------------------------------------------------------ automatic search
     resolveWaterfall: async function() {
-        const artist = document.getElementById('p-artist-input').value.trim();
-        const album = document.getElementById('p-album-input').value.trim();
-        if (!artist || !album) return;
-
-        // The overlay is the primary "something is happening" signal now
-        // (John, 2026-07-09 -- the status bar text alone was easy to miss
-        // and this whole call can run long, since a real AI grounded
-        // search may happen inside it). The single backend call can't
-        // report its own sub-stage progress, so the message says what's
-        // POSSIBLE, not a false promise of exactly what's running.
-        this.toggleLoading(true, "Checking MusicBrainz + Discogs, falling back to an AI web search if thin. Please stand-by, this can take a little while...");
-        this.updateStatus("Resolving personnel via MusicBrainz + Discogs...", "success");
+        const artist = this.$('p-artist-input').value.trim();
+        const album = this.$('p-album-input').value.trim();
+        if (!artist || !album) {
+            this.updateStatus("Enter both Artist and Album to find credits.", "error", true);
+            this.$(artist ? 'p-album-input' : 'p-artist-input').focus();
+            return;
+        }
+        // The whole call can run long (a grounded AI web search may happen
+        // inside it), and the backend can't report sub-stages, so the
+        // message says what's POSSIBLE, not exactly what's running.
+        this.toggleLoading(true, "Checking MusicBrainz and Discogs, with an AI web search if they come up thin. This can take a little while.");
+        this.updateStatus("Searching for credits…", "");
 
         try {
             const res = await fetch('/run_tool_logic/personnel/resolve_waterfall', {
@@ -154,59 +228,50 @@ window.metaforge.personnel = {
             const data = await res.json();
             if (data.status === "success") {
                 this.state.mapping = data.candidates || [];
-                // Single source of truth for the manual-confirm target
-                // value (John, 2026-07-11) -- read once from the backend
-                // rather than hardcoding a second copy of
-                // MANUAL_CONFIRM_CONFIDENCE here that could drift.
+                // Single source of truth for the manual-confirm value (John,
+                // 2026-07-11): read from the backend, never a second copy here.
                 this.state.manualConfirmConfidence = data.manual_confirm_confidence;
                 this.renderMapping();
-                // MB+Discogs is one merged call from the frontend's
-                // perspective (no separate per-source completion signal),
-                // but each staged credit still carries its own real
-                // provenance -- computing per-source counts from that
-                // (John's report, 2026-08-13) is what lets the two
-                // sources show genuinely different outcomes instead of
-                // both getting an identical checkmark regardless of
-                // which one actually contributed anything.
+                // Per-source outcome from each credit's own provenance (John,
+                // 2026-08-13), not one shared tick for the merged call.
                 const mbCount = this.state.mapping.filter(c => c.provenance === 'MusicBrainz').length;
                 const discogsCount = this.state.mapping.filter(c => c.provenance === 'Discogs').length;
                 this._markSourceChecked('mb', mbCount > 0);
                 this._markSourceChecked('discogs', discogsCount > 0);
-                if (this.state.mapping.length === 0) {
-                    this.updateStatus("No automatic matches found -- try Wikipedia search or Check AllMusic below.", "error");
+                const n = this.state.mapping.length;
+                if (n === 0) {
+                    this.updateStatus("No credits found automatically. Try Search Wikipedia or Search AllMusic.", "error", true);
                 } else if (data.thin) {
-                    this.updateStatus(`${this.state.mapping.length} credits found (still thin even after AI Web Search). Consider Wikipedia search or AllMusic if incomplete.`, "success");
+                    this.updateStatus(`${n} credit${n === 1 ? '' : 's'} found, still thin after the AI web search. Wikipedia or AllMusic may add more.`, "success", true);
                 } else {
-                    // Built from each row's own provenance rather than a
-                    // hardcoded "via MusicBrainz + Discogs" (John, 2026-07-09
-                    // -- caught live: a result that was 100% AI Web Search
-                    // still got labeled as MB+Discogs, since that message
-                    // never actually checked which tier(s) contributed).
-                    const sourcesUsed = [...new Set(this.state.mapping.map(c => c.provenance))];
-                    this.updateStatus(`${this.state.mapping.length} credits found via ${sourcesUsed.join(' + ')}.`, "success");
+                    // Named from each row's real provenance (John, 2026-07-09:
+                    // an all-AI result was once labelled "MusicBrainz + Discogs").
+                    const sources = [...new Set(this.state.mapping.map(c => c.provenance))];
+                    this.updateStatus(`${n} credit${n === 1 ? '' : 's'} found via ${sources.join(' + ')}.`, "success", true);
                 }
+            } else {
+                this.updateStatus(data.message || "The automatic search failed. Try Wikipedia or AllMusic.", "error", true);
             }
         } catch (e) {
             console.error("Waterfall resolution failed:", e);
-            this.updateStatus("Automatic resolution failed -- try manual search below.", "error");
+            this.updateStatus("The automatic search failed. Try Wikipedia or AllMusic.", "error", true);
         } finally {
             this.toggleLoading(false);
         }
     },
 
+    // ------------------------------------------------------------ Wikipedia
     searchWikipedia: async function() {
-        const artist = document.getElementById('p-artist-input').value.trim();
-        const album = document.getElementById('p-album-input').value.trim();
-        const year = document.getElementById('p-year-input').value.trim();
-
+        const artist = this.$('p-artist-input').value.trim();
+        const album = this.$('p-album-input').value.trim();
+        const year = this.$('p-year-input').value.trim();
         if (!artist || !album) {
-            this.updateStatus("⚠️ Artist and Album name required.", "error");
+            this.updateStatus("Enter both Artist and Album to search Wikipedia.", "error", true);
             return;
         }
-
-        this.updateStatus("Scouting Wikipedia candidates...", "success");
-        const resultsBody = document.getElementById('p-search-results-body');
-        resultsBody.innerHTML = '<tr><td colspan="2" style="padding:10px; text-align:center;">Searching Wikipedia...</td></tr>';
+        this.updateStatus("Searching Wikipedia…", "");
+        const body = this.$('p-search-results-body');
+        body.replaceChildren(this._noteRow("Searching Wikipedia…"));
 
         try {
             const res = await fetch('/run_tool_logic/personnel/search', {
@@ -215,56 +280,58 @@ window.metaforge.personnel = {
                 body: JSON.stringify({ artist, album, year })
             });
             const data = await res.json();
-            // Badge shown regardless of result count -- but only here,
-            // after a real completed response, not from the catch block
-            // below on an outright network failure (see
-            // _markSourceChecked's own comment). Wikipedia surfaces
-            // candidates for manual review rather than adding credits
-            // directly, so "found" here means "found candidates," a
-            // genuinely different kind of result than MB/Discogs/AllMusic's
-            // direct credit counts -- still the right question to ask
-            // ("did anything show up"), just worth remembering it's not
-            // literally a credit count for this one source.
-            const wikiFound = data.status === "success" && data.results.length > 0;
-            this._markSourceChecked('wiki', wikiFound);
-            if (wikiFound) {
+            // Badge only after a real completed response (never on a network
+            // failure). "Found" here means candidate pages, which you review.
+            const found = data.status === "success" && data.results.length > 0;
+            this._markSourceChecked('wiki', found);
+            if (found) {
                 this.renderCandidates(data.results);
-                this.updateStatus(`Identified ${data.results.length} relevance matches.`, "success");
+                this.updateStatus(`${data.results.length} Wikipedia page${data.results.length === 1 ? '' : 's'} found. Choose the album's page.`, "success", true);
             } else {
-                // Previously left the status bar stuck on "Scouting
-                // Wikipedia candidates..." forever when the search
-                // completed with zero results -- looked identical to a
-                // hang even though the request had actually finished
-                // (John, 2026-07-08).
-                resultsBody.innerHTML = '<tr><td colspan="2" style="padding:10px; text-align:center;">No matches found.</td></tr>';
-                this.updateStatus("No Wikipedia matches found.", "error");
+                body.replaceChildren(this._noteRow("No Wikipedia pages found."));
+                this.updateStatus("No Wikipedia pages found.", "error", true);
             }
         } catch (e) {
-            this.updateStatus("Network Error: Wikipedia API unreachable.", "error");
+            body.replaceChildren(this._noteRow("Wikipedia couldn't be reached."));
+            this.updateStatus("Wikipedia couldn't be reached.", "error", true);
         }
     },
 
-    renderCandidates: function(candidates) {
-        const body = document.getElementById('p-search-results-body');
-        body.innerHTML = candidates.map(c => `
-            <tr style="border-bottom: 1px solid var(--bg-main);">
-                <td style="padding:6px; color: var(--text-output);">${c.title} <span style="font-size:0.65rem; opacity:0.5;">(Rel: ${c.score}%)</span></td>
-                <td style="padding:6px; text-align:right;">
-                    <button class="mf-button-gold-fixed" style="font-size:0.65rem; padding: 2px 8px;"
-                            onclick="window.metaforge.personnel.selectCandidate('${c.title}')">Select</button>
-                </td>
-            </tr>
-        `).join('');
+    _noteRow: function(text) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 2;
+        td.className = 'p-note';
+        td.textContent = text;
+        tr.append(td);
+        return tr;
     },
 
-    // Staging-level dedup: mirrors edge_store.find_matching_edge's key
-    // (name + exact role text) but purely in-memory, before anything ever
-    // reaches the database. Commit-time dedup already makes a double-add
-    // harmless in the DB (John, 2026-07-08), but leaving a visibly
-    // duplicated row in the review table is still confusing clutter he'd
-    // have to notice and delete by hand -- this stops it from landing
-    // there in the first place, at any concat site (Wikipedia extraction,
-    // AllMusic paste), not just the one that got clicked twice.
+    renderCandidates: function(candidates) {
+        const rows = candidates.map(c => {
+            const tr = document.createElement('tr');
+            const title = document.createElement('td');
+            const score = document.createElement('span');
+            score.className = 'p-wiki-score';
+            score.textContent = ` (match ${c.score}%)`;
+            title.append(document.createTextNode(c.title), score);
+            const act = document.createElement('td');
+            act.className = 'p-col-action';
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mf-button-gold-fixed';
+            btn.dataset.title = c.title;
+            btn.textContent = 'Use';
+            btn.setAttribute('aria-label', `Use the Wikipedia page ${c.title}`);
+            act.append(btn);
+            tr.append(title, act);
+            return tr;
+        });
+        this.$('p-search-results-body').replaceChildren(...rows);
+    },
+
+    // Staging-level dedup (name + exact role), mirroring edge_store's key,
+    // so a double-add never leaves a duplicated row to delete by hand.
     _mergeCandidates: function(existing, incoming) {
         const key = (name, role) => `${(name || '').trim().toLowerCase()}::${(role || '').trim().toLowerCase()}`;
         const seen = new Set(existing.map(p => key(p.name, p.role)));
@@ -279,139 +346,124 @@ window.metaforge.personnel = {
     },
 
     selectCandidate: async function(title) {
-        // The raw-wikitext debug panel was removed from the UI (John,
-        // 2026-07-09 -- clutter for a feature that's now a rare manual
-        // fallback, not the primary tool). data.raw_text is still
-        // returned by the backend and simply unused here -- cheap to
-        // leave available server-side in case it's ever wanted again,
-        // no reason to touch that response shape for a pure UI removal.
-        this.updateStatus(`Extracting from: ${title}...`, "success");
+        this.updateStatus(`Reading credits from ${title}…`, "");
         try {
             const res = await fetch('/run_tool_logic/personnel/fetch_content', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: title })
+                body: JSON.stringify({ title })
             });
             const data = await res.json();
             if (data.status === "success") {
-                // A manual Wikipedia search ADDS to whatever the automatic
-                // waterfall already staged, rather than replacing it --
-                // MB/Discogs edges already found stay put. Candidates
-                // arrive already junk-filtered and classified.
+                // A manual Wikipedia pick ADDS to what the automatic search staged.
+                const before = this.state.mapping.length;
                 this.state.mapping = this._mergeCandidates(this.state.mapping, data.candidates);
+                const added = this.state.mapping.length - before;
                 this.renderMapping();
-                this.updateStatus("Extraction complete. Map identities on right.", "success");
+                this.updateStatus(added ? `${added} credit${added === 1 ? '' : 's'} added from Wikipedia.` : "Those credits were already in the list.", "success", true);
             } else {
-                this.updateStatus(data.message || "Extraction failed.", "error");
+                this.updateStatus(data.message || "The page's credits couldn't be read.", "error", true);
             }
         } catch (e) {
-            this.updateStatus("Error: Failed to retrieve page content.", "error");
+            this.updateStatus("The Wikipedia page couldn't be read.", "error", true);
         }
     },
 
-    renderMapping: function() {
-        const body = document.getElementById('p-mapping-body');
-        const countLabel = document.getElementById('p-mapping-count');
-        const commitBtn = document.getElementById('p-commit-btn');
-        body.innerHTML = '';
+    // ------------------------------------------------------------ the credits table
+    /**
+     * Rebuilds the credit rows. `refocus` = {idx, sel}: after a rebuild,
+     * focus returns to that control in that row (or the nearest row), so
+     * keyboard users never get thrown back to the top of the page.
+     */
+    renderMapping: function(refocus) {
+        const body = this.$('p-mapping-body');
+        const rows = this.state.mapping.map((row, idx) => this._mappingRow(row, idx));
+        body.replaceChildren(...rows);
 
-        this.state.mapping.forEach((row, idx) => {
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = "1px solid #444";
-            const provenance = row.provenance || 'MetaForge (Manual)';
-            // Track scope was already reaching this row object (every
-            // source sets evidence_scope/evidence_detail server-side --
-            // the AI Web Search tier's 2026-07-10 rebuild in particular
-            // depends on this being visible for review, not just present
-            // in the data) but was never actually rendered -- John caught
-            // this live, testing the new confirmed/inferred prompt.
-            const scopeLabel = row.evidence_scope === 'track' && row.evidence_detail
-                ? `Track ${row.evidence_detail}`
-                : (row.evidence_scope === 'album' ? 'Album-wide' : '');
-            // Manual override control (John, 2026-07-10): only rendered
-            // for genuine AI Web Search rows -- ai_confirmed is null for
-            // MB/Discogs/Wikipedia, where the confirmed/inferred
-            // distinction doesn't apply at all, not just "unset". Lets a
-            // reviewer who independently checks an [inferred] credit
-            // (his own example: spot-verifying the Clancy Eccles house
-            // band roster) upgrade it BEFORE committing, instead of only
-            // ever accepting whatever the AI tier assigned.
-            const isAiTier = row.ai_confirmed !== null && row.ai_confirmed !== undefined;
-            const nameForLabel = (row.name || '').replace(/"/g, '&quot;');
-            const statusControl = isAiTier
-                ? `<select class="p-map-status" aria-label="Confidence status for ${nameForLabel}"
-                           style="font-size:0.6rem; background:var(--bg-main); color:var(--text-output); border:1px solid var(--bg-accent); margin-right:4px; vertical-align:middle;"
-                           onchange="window.metaforge.personnel.updateConfidenceStatus(${idx}, this.value)">
-                       <option value="confirmed" ${row.ai_confirmed ? 'selected' : ''}>Confirmed</option>
-                       <option value="inferred" ${row.ai_confirmed ? '' : 'selected'}>Inferred</option>
-                   </select>`
-                : '';
-            // "Click to verify" trigger (John, 2026-07-11): only rendered
-            // when the AI tier actually surfaced source links for this
-            // credit (candidate_urls -- see ai_engine.py's
-            // _credit_candidate_uris, capped at 3, ephemeral/never
-            // persisted). Distinct from the Confirmed/Inferred select
-            // above: that's a quick self-assessed toggle, this opens a
-            // live companion window so a human can look at the actual
-            // source and record their OWN judgment (see
-            // project_mb_contribution_tool memory for why Gemini's
-            // grounding terms require that human-in-the-loop step).
-            const hasVerifyLinks = isAiTier && Array.isArray(row.candidate_urls) && row.candidate_urls.length > 0;
-            const verifyControl = hasVerifyLinks
-                ? `<button class="mf-button-gold-fixed" style="font-size:0.6rem; padding:1px 6px; margin-right:4px; vertical-align:middle;"
-                           onclick="window.metaforge.personnel.verifySource(${idx})">Verify Source${row.candidate_urls.length > 1 ? 's' : ''}</button>`
-                : '';
-            const tierLabel = row.verification_tier
-                ? ` · Verified: ${row.verification_tier.charAt(0).toUpperCase()}${row.verification_tier.slice(1)}`
-                : '';
-            const meta = row.confidence !== undefined
-                ? `${statusControl}${verifyControl}${provenance} · conf ${row.confidence}${scopeLabel ? ' · ' + scopeLabel : ''}${tierLabel}`
-                : `${statusControl}${verifyControl}${provenance}`;
-            tr.innerHTML = `
-                <td style="padding:4px;"><input type="text" class="mb-input-text p-map-name" value="${(row.name || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'name', this.value)"></td>
-                <td style="padding:4px;">
-                    <input type="text" class="mb-input-text p-map-role" value="${(row.role || '').replace(/"/g, '&quot;')}" style="width:100%; border:none; background:transparent; color:var(--text-output);" oninput="window.metaforge.personnel.updateMappingField(${idx}, 'role', this.value)">
-                    <span style="display:block; font-size:0.6rem; opacity:0.6; margin-top:2px;">${meta}</span>
-                </td>
-                <td style="padding:4px; text-align:center;">
-                    <button class="mf-button-gold-fixed" style="background:var(--status-error)!important; font-size:0.6rem; padding: 2px 6px; color:#fff!important;"
-                            onclick="window.metaforge.personnel.removeRow(${idx})" aria-label="Remove Row">X</button>
-                </td>
-            `;
-            body.appendChild(tr);
-        });
+        const n = this.state.mapping.length;
+        this.$('p-mapping-count').textContent = `${n} credit${n === 1 ? '' : 's'} ready to save`;
+        this.$('p-commit-btn').disabled = n === 0;
 
-        countLabel.innerText = `${this.state.mapping.length} Rows Staged`;
-        commitBtn.disabled = this.state.mapping.length === 0;
-        commitBtn.style.opacity = this.state.mapping.length > 0 ? "1" : "0.5";
-        // No explicit scrollbar sync needed here -- MFScrollbar's
-        // MutationObserver (metaforge_core.js) auto-detects this row
-        // rebuild and resyncs the shared custom scrollbar itself.
+        if (refocus && n) {
+            const i = Math.min(refocus.idx, n - 1);
+            body.querySelector(`tr[data-idx="${i}"] ${refocus.sel}`)?.focus();
+        } else if (refocus) {
+            this.$('p-add-btn').focus();
+        }
+    },
+
+    _mappingRow: function(row, idx) {
+        const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+        const tr = el('tr');
+        tr.dataset.idx = String(idx);
+        const label = (row.name || 'unnamed').trim() || 'unnamed';
+
+        const nameTd = el('td');
+        const name = el('input', 'p-cell-input p-map-name');
+        name.type = 'text';
+        name.value = row.name || '';
+        name.setAttribute('aria-label', `Name, credit ${idx + 1}`);
+        nameTd.append(name);
+
+        const roleTd = el('td');
+        const role = el('input', 'p-cell-input p-map-role');
+        role.type = 'text';
+        role.value = row.role || '';
+        role.setAttribute('aria-label', `Role, credit ${idx + 1}`);
+        roleTd.append(role);
+
+        // Where the credit came from, and (for AI web-search rows) the
+        // confirmed/inferred control and the "verify the source" window.
+        const meta = el('div', 'p-meta');
+        const isAiTier = row.ai_confirmed !== null && row.ai_confirmed !== undefined;
+        if (isAiTier) {
+            const sel = el('select', 'p-map-status');
+            sel.setAttribute('aria-label', `Confidence for ${label}`);
+            sel.append(new Option('Confirmed', 'confirmed', false, !!row.ai_confirmed),
+                       new Option('Inferred', 'inferred', false, !row.ai_confirmed));
+            meta.append(sel);
+            if (Array.isArray(row.candidate_urls) && row.candidate_urls.length) {
+                const v = el('button', 'mf-button-gold-fixed p-verify', `Verify source${row.candidate_urls.length > 1 ? 's' : ''}`);
+                v.type = 'button';
+                v.setAttribute('aria-label', `Verify the source${row.candidate_urls.length > 1 ? 's' : ''} for ${label}`);
+                meta.append(v);
+            }
+        }
+        const scope = row.evidence_scope === 'track' && row.evidence_detail ? `Track ${row.evidence_detail}`
+                    : (row.evidence_scope === 'album' ? 'Album-wide' : '');
+        const tier = row.verification_tier ? `Verified: ${row.verification_tier.charAt(0).toUpperCase()}${row.verification_tier.slice(1)}` : '';
+        const facts = [row.provenance || 'MetaForge (Manual)',
+                       row.confidence !== undefined ? `confidence ${row.confidence}` : '', scope, tier].filter(Boolean).join(' · ');
+        meta.append(el('span', '', facts));
+        roleTd.append(meta);
+
+        const rmTd = el('td', 'p-col-remove');
+        const rm = el('button', 'p-remove');
+        rm.type = 'button';
+        rm.setAttribute('aria-label', `Remove ${label}${row.role ? ', ' + row.role : ''}`);
+        rm.append(Object.assign(el('span', '', '✕'), { ariaHidden: 'true' }));
+        rmTd.append(rm);
+
+        tr.append(nameTd, roleTd, rmTd);
+        return tr;
     },
 
     updateMappingField: function(idx, field, value) {
-        if (this.state.mapping[idx]) this.state.mapping[idx][field] = value;
+        const row = this.state.mapping[idx];
+        if (!row) return;
+        row[field] = value;
+        // Keep the remove button's name in step with what's typed.
+        const tr = this.$('p-mapping-body').querySelector(`tr[data-idx="${idx}"]`);
+        const rm = tr?.querySelector('.p-remove');
+        if (rm) rm.setAttribute('aria-label', `Remove ${(row.name || 'unnamed').trim() || 'unnamed'}${row.role ? ', ' + row.role : ''}`);
     },
 
     updateConfidenceStatus: function(idx, value) {
-        // Manual override for an AI Web Search row's confirmed/inferred
-        // status (John, 2026-07-10, fixed 2026-07-11). A CONFIRMED toggle
-        // no longer switches to confirmed_confidence -- that number is
-        // classify_role()'s role-TEXT classification confidence, not a
-        // fact-verification confidence, so a generic role like "Backing
-        // Band" capped out at 0.5 even after a human personally checked
-        // it (real bug, caught live). A human confirmation now sets the
-        // fixed MANUAL_CONFIRM_CONFIDENCE value (read from the backend as
-        // state.manualConfirmConfidence, not duplicated here) and marks
-        // provenance as "Submitter Confirmed" so the DB/evidence log can
-        // tell "the AI said this, unverified" apart from "a human
-        // verified this." An INFERRED toggle reverts provenance to "AI
-        // Web Search" (every AI-tier row starts there; this control only
-        // ever renders for AI-tier rows) and uses the AI's own
-        // inferred_confidence, unchanged. Either direction sets
-        // manually_reviewed=true -- even reverting to inferred means a
-        // human looked at it and agreed, worth keeping distinct from
-        // "never reviewed at all."
+        // Manual override of an AI web-search row (John, 2026-07-10/11).
+        // Confirmed = the backend's MANUAL_CONFIRM_CONFIDENCE (never a
+        // duplicated constant) + provenance "Submitter Confirmed"; Inferred
+        // = the AI's own inferred confidence + provenance "AI Web Search".
+        // Either way manually_reviewed = true.
         const row = this.state.mapping[idx];
         if (!row) return;
         const confirmed = value === 'confirmed';
@@ -422,20 +474,14 @@ window.metaforge.personnel = {
             row.confidence = (target !== undefined && target !== null) ? target : row.confirmed_confidence;
             row.provenance = "Submitter Confirmed";
         } else {
-            if (row.inferred_confidence !== undefined && row.inferred_confidence !== null) {
-                row.confidence = row.inferred_confidence;
-            }
+            if (row.inferred_confidence !== undefined && row.inferred_confidence !== null) row.confidence = row.inferred_confidence;
             row.provenance = "AI Web Search";
         }
-        this.renderMapping();
+        this.renderMapping({ idx, sel: '.p-map-status' });
     },
 
-    // Opens the live "click to verify" companion window for one AI-tier
-    // credit's candidate sources (John, 2026-07-11). Only one verify
-    // session is ever open at a time -- pendingVerifyIdx just tracks
-    // which mapping row the eventual result applies to, same
-    // single-companion-window assumption MB Submit's pseudo-tab already
-    // makes.
+    // "Verify the source" companion window (John, 2026-07-11): one session
+    // at a time; pendingVerifyIdx is the row the result applies to.
     verifySource: async function(idx) {
         const row = this.state.mapping[idx];
         if (!row || !Array.isArray(row.candidate_urls) || row.candidate_urls.length === 0) return;
@@ -444,172 +490,94 @@ window.metaforge.personnel = {
             await fetch('/open_verify_window', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    urls: row.candidate_urls,
-                    title: `Verify: ${row.name} — ${row.role}`
-                })
+                body: JSON.stringify({ urls: row.candidate_urls, title: `Verify: ${row.name} — ${row.role}` })
             });
         } catch (e) {
             console.error("Failed to open verify window:", e);
-            this.updateStatus("Could not open the verify window.", "error");
+            this.updateStatus("The verify window couldn't be opened.", "error", true);
         }
     },
 
-    // Called by ui/app.py's VerifyWindowAPI._finish() via evaluate_js once
-    // the human either submits a real verdict or every source resolved
-    // False (discarded). result.discarded means "leave this row exactly
-    // as it was" -- per John's design, closing/discarding the verify
-    // session is a deliberate no-op, never an implicit downgrade.
+    // Called by ui/app.py's VerifyWindowAPI._finish() via evaluate_js. A
+    // discarded session deliberately leaves the row exactly as it was.
     onVerifyModalResult: function(result) {
         const idx = this.state.pendingVerifyIdx;
         this.state.pendingVerifyIdx = null;
         if (idx === null || idx === undefined || !this.state.mapping[idx]) return;
         const row = this.state.mapping[idx];
-
         if (!result || result.discarded) {
-            this.updateStatus("No source confirmed this credit -- left unchanged.", "success");
+            this.updateStatus("No source confirmed this credit, so it was left unchanged.", "success", true);
             return;
         }
-
         row.ai_confirmed = true;
         row.manually_reviewed = true;
         row.verification_tier = result.verification_tier;
         row.confidence = result.confidence;
         row.provenance = "Submitter Confirmed";
-        // The RESOLVED destination page's own URL (John, 2026-07-13) --
-        // captured via window.location.href inside the verify window
-        // itself, after a real human-driven page load, not Gemini's
-        // opaque grounding-chunk redirect link. See
-        // project_mb_contribution_tool memory for why that distinction
-        // makes this citable to MusicBrainz where the raw grounding URL
-        // wasn't.
+        // The RESOLVED page URL from inside the verify window (John,
+        // 2026-07-13), citable to MusicBrainz unlike the raw grounding link.
         row.verified_source_url = result.source_url || null;
-        this.renderMapping();
-        this.updateStatus(`Verified as "${result.verification_tier}" -- confidence updated.`, "success");
+        this.renderMapping({ idx, sel: '.p-verify, .p-map-status' });
+        this.updateStatus(`Verified as "${result.verification_tier}"; confidence updated.`, "success", true);
     },
 
     addManualRow: function() {
         this.state.mapping.push({ name: "", role: "", provenance: "MetaForge (Manual)" });
-        this.renderMapping();
-        const names = document.querySelectorAll('.p-map-name');
-        if (names.length > 0) names[names.length - 1].focus();
+        this.renderMapping({ idx: this.state.mapping.length - 1, sel: '.p-map-name' });
     },
 
     removeRow: function(idx) {
+        const row = this.state.mapping[idx];
         this.state.mapping.splice(idx, 1);
-        this.renderMapping();
+        this.renderMapping({ idx, sel: '.p-remove' });
+        window.MFAnnounce?.(`Removed ${(row?.name || 'the credit').trim() || 'the credit'}.`);
     },
 
-	sortMapping: function(key) {
-        // Toggle sort (ascending/descending) -- re-clicking the SAME
-        // column flips direction, clicking a DIFFERENT column starts
-        // fresh ascending (John, 2026-07-16, added Role as a sortable
-        // column alongside the existing Name one: without tracking which
-        // column the current direction belongs to, switching from Name
-        // to Role would carry over whatever direction Name was left on
-        // instead of starting predictably).
-        if (this.state.sortKey === key) {
-            this.state.sortDir = (this.state.sortDir || 1) * -1;
-        } else {
-            this.state.sortKey = key;
-            this.state.sortDir = 1;
-        }
-
+    sortMapping: function(key) {
+        // Same column flips direction; a different column starts ascending
+        // (John, 2026-07-16).
+        if (this.state.sortKey === key) this.state.sortDir *= -1;
+        else { this.state.sortKey = key; this.state.sortDir = 1; }
+        const dir = this.state.sortDir;
         this.state.mapping.sort((a, b) => {
-            const valA = (a[key] || '').toLowerCase();
-            const valB = (b[key] || '').toLowerCase();
-            if (valA < valB) return -1 * this.state.sortDir;
-            if (valA > valB) return 1 * this.state.sortDir;
-            return 0;
+            const A = (a[key] || '').toLowerCase(), B = (b[key] || '').toLowerCase();
+            return A < B ? -dir : (A > B ? dir : 0);
         });
-
         this.renderMapping();
+        ['name', 'role'].forEach(k => {
+            this.$(`p-th-${k}`).setAttribute('aria-sort', k === key ? (dir === 1 ? 'ascending' : 'descending') : 'none');
+        });
+        window.MFAnnounce?.(`Sorted by ${key}, ${dir === 1 ? 'A to Z' : 'Z to A'}.`);
     },
 
-    // ======================================================
-    // TIER 4: ALLMUSIC (semi-manual, true last resort)
-    // ======================================================
-
+    // ------------------------------------------------------------ AllMusic (last resort)
     checkAllMusic: function() {
-        const artist = document.getElementById('p-artist-input').value.trim();
-        const album = document.getElementById('p-album-input').value.trim();
+        const artist = this.$('p-artist-input').value.trim();
+        const album = this.$('p-album-input').value.trim();
         const query = encodeURIComponent(`${artist} ${album}`.trim());
-        // Just constructing a URL for the user's own browser to open --
-        // no different from typing it into AllMusic's search box by hand.
-        // Named target so repeated lookups across albums reuse one
-        // companion tab instead of piling up a new one each time.
+        // Just a URL for a companion window, the same as typing into
+        // AllMusic's own search; MetaForge never fetches AllMusic itself.
         window.open(`https://www.allmusic.com/search/albums/${query}`, 'metaforge_allmusic_lookup');
-        this.openAllMusicModal();
-    },
-
-    openAllMusicModal: function() {
-        const existing = document.getElementById('p-allmusic-modal');
-        if (existing) { existing.style.display = 'flex'; return; }
-
-        const modal = document.createElement('div');
-        modal.id = 'p-allmusic-modal';
-        modal.style = "position:fixed; top:20%; left:30%; width:40%; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000; display:flex; flex-direction:column; gap:10px;";
-        modal.innerHTML = `
-            <h3 style="color:var(--mf-gold); margin:0;">Paste AllMusic Credits</h3>
-            <p class="tool_notes" style="margin:0; font-size:0.75rem;">On the AllMusic tab: find the album, scroll to Credits, select the credits table, and copy (Ctrl+C). Then click the box below and paste (Ctrl+V).</p>
-            <div id="p-allmusic-paste-target" contenteditable="true" role="textbox" aria-label="Paste AllMusic credits table here"
-                 style="min-height:100px; border:1px solid #444; background:var(--input-background2); color:var(--input-foreground2); padding:8px; overflow-y:auto; max-height:150px;"
-                 onpaste="window.metaforge.personnel.handleAllMusicPaste(event)"></div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button class="mf-button-gold-fixed" style="background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;" onclick="window.metaforge.personnel.closeAllMusicModal()">Close</button>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        document.getElementById('p-allmusic-paste-target').focus();
-    },
-
-    // Closes the AllMusic paste modal AND ensures the source-status badge
-    // reflects that AllMusic was genuinely checked (John's report,
-    // 2026-08-13). Reached two ways: the user manually clicks Close
-    // without ever pasting anything, or the zero-results branch of
-    // handleAllMusicPaste() below closes it automatically instead of
-    // leaving it sitting open waiting for a manual click. Either way, by
-    // the time this runs the source was genuinely attempted --
-    // checkAllMusic() already opened the real companion search tab
-    // before this modal ever appeared -- so leaving the original "Check
-    // AllMusic" button in place afterward would misrepresent whether the
-    // source was ever looked at. Only ever called on a not-found/never-
-    // pasted path (the success path removes the modal itself, having
-    // already marked the badge "found" first), so unconditionally
-    // marking "not found" here is always correct, not a guess.
-    closeAllMusicModal: function() {
-        const modal = document.getElementById('p-allmusic-modal');
-        if (modal) modal.remove();
-        this._markSourceChecked('allmusic', false);
+        const dlg = this.$('p-allmusic-dialog');
+        this.$('p-allmusic-paste').textContent = '';
+        dlg.returnValue = '';
+        dlg.showModal();
+        this.$('p-allmusic-paste').focus();
     },
 
     handleAllMusicPaste: async function(event) {
         event.preventDefault();
-        // A normal Ctrl+C on rendered page text puts both text/html and
-        // text/plain on the clipboard, and text/html normally carries the
-        // real markup. But copying from a "View Selection Source" page
-        // (John, 2026-07-08) is a different case: that page displays
-        // markup AS TEXT, so its own text/html is the browser's syntax-
-        // highlighting wrapper around that display, not the original
-        // page's markup -- the literal source text you actually want is
-        // in text/plain instead for that path. Sending both and trying
-        // both server-side (see _parse_allmusic_html) covers both cases
-        // without needing to know in advance which one the user did.
-        const html = (event.clipboardData && event.clipboardData.getData('text/html')) || '';
-        const plain = (event.clipboardData && event.clipboardData.getData('text/plain')) || '';
+        // text/html normally carries the real markup; from a "View Selection
+        // Source" page the literal source is in text/plain instead (John,
+        // 2026-07-08). Both are sent; the server tries both.
+        const html = event.clipboardData?.getData('text/html') || '';
+        const plain = event.clipboardData?.getData('text/plain') || '';
+        const target = this.$('p-allmusic-paste');
         if (!html && !plain) {
-            this.updateStatus("Clipboard was empty -- try copying the table again.", "error");
+            target.textContent = "The clipboard was empty. Copy the credits table again.";
             return;
         }
-
-        // Visible confirmation that something was actually captured --
-        // the paste target intentionally never shows the pasted content
-        // itself (preventDefault blocks that), which John noted looked
-        // like nothing had happened at all.
-        const target = document.getElementById('p-allmusic-paste-target');
-        if (target) target.innerText = `Captured ${(html || plain).length} characters -- parsing...`;
-
-        this.updateStatus("Parsing pasted AllMusic content...", "success");
+        target.textContent = `Captured ${(html || plain).length} characters. Reading the credits…`;
         try {
             const res = await fetch('/run_tool_logic/personnel/parse_allmusic_html', {
                 method: 'POST',
@@ -617,126 +585,80 @@ window.metaforge.personnel = {
                 body: JSON.stringify({ html, plain })
             });
             const data = await res.json();
-            // Badge shown regardless of result count -- but only here,
-            // after a real completed response, not from the catch block
-            // below on an outright parse/network failure (see
-            // _markSourceChecked's own comment) -- nor on the empty-
-            // clipboard early return above, since nothing was actually
-            // sent to the backend there.
-            const allmusicFound = data.status === "success" && data.candidates.length > 0;
-            this._markSourceChecked('allmusic', allmusicFound);
-            if (allmusicFound) {
-                // Candidates arrive already junk-filtered and classified
-                // (relation_type/confidence/evidence_scope/evidence_detail
-                // included) -- carry all of it through, not just name/role,
-                // so these commit the same way MB/Discogs results do.
+            const found = data.status === "success" && data.candidates.length > 0;
+            const dlg = this.$('p-allmusic-dialog');
+            if (found) {
+                this._markSourceChecked('allmusic', true);
                 const before = this.state.mapping.length;
                 this.state.mapping = this._mergeCandidates(this.state.mapping, data.candidates);
                 const added = this.state.mapping.length - before;
                 this.renderMapping();
-                this.updateStatus(added > 0 ? `Added ${added} credits from AllMusic.` : "Those credits are already staged -- nothing new to add.", "success");
-                const modal = document.getElementById('p-allmusic-modal');
-                if (modal) modal.remove();
+                dlg.close('found');
+                this.updateStatus(added ? `${added} credit${added === 1 ? '' : 's'} added from AllMusic.` : "Those credits were already in the list.", "success", true);
             } else {
-                // John's report, 2026-08-13: a zero-result paste used to
-                // leave the modal sitting open forever, requiring a
-                // manual Close click before the source-status badge
-                // would ever update -- now auto-closes via
-                // closeAllMusicModal(), which also marks the badge.
-                // Deliberately NOT applied to the catch block below (a
-                // genuine network/parse failure, not a real "checked,
-                // found nothing" outcome) -- that path stays open so the
-                // user can retry, same reasoning as everywhere else this
-                // session that a technical failure shouldn't be treated
-                // as a completed check.
-                //
-                // This does trade away part of the original 2026-07-08
-                // fix's reasoning (the message living INSIDE the modal so
-                // a sighted user can't miss it behind a closed dialog,
-                // and so a screen reader focused in the modal's DOM
-                // actually reaches it) -- the same message still reaches
-                // the page's own aria-live status region via
-                // updateStatus() below, but that's a different, less
-                // immediate channel than text inside the dialog someone
-                // was already looking at. Flagging this rather than
-                // silently overriding a previous explicit design call.
-                const msg = data.message || "No credits found in pasted content.";
-                if (target) target.innerText = msg;
-                this.updateStatus(msg, "error");
-                this.closeAllMusicModal();
+                // Checked, nothing usable: say so in the dialog, then close
+                // it (the close handler marks AllMusic as checked).
+                const msg = data.message || "No credits were found in what was pasted.";
+                target.textContent = msg;
+                this.updateStatus(msg, "error", true);
+                dlg.close('none');
             }
         } catch (e) {
-            if (target) target.innerText = "AllMusic parse failed -- try copying the table again.";
-            this.updateStatus("AllMusic parse failed.", "error");
+            // A real failure stays open so the paste can be retried.
+            target.textContent = "The pasted credits couldn't be read. Copy the table and paste again.";
+            this.updateStatus("The pasted AllMusic credits couldn't be read.", "error", true);
         }
     },
 
-    // ======================================================
-    // COMMIT (shared by every tier)
-    // ======================================================
-
+    // ------------------------------------------------------------ save
     commitToDatabase: async function() {
         if (this.state.isLocked) return;
-
-        // Reads from state (kept in sync via updateMappingField on every
-        // edit), not re-scraped from the DOM -- MB/Discogs rows carry
-        // relation_type/confidence/evidence_scope metadata that only
-        // exists in state, not in the visible inputs.
+        // From state (kept in step on every edit), not re-scraped from the
+        // DOM: MB/Discogs rows carry metadata that only exists in state.
         const personnelData = this.state.mapping.filter(p => p.name && p.role);
-
         if (personnelData.length === 0) {
-            alert("Commit Error: No mappings staged for commit.");
+            this.updateStatus("Nothing to save yet: every credit needs a name and a role.", "error", true);
             return;
         }
-
+        const artist = this.$('p-artist-input').value;
+        const album = this.$('p-album-input').value;
         this.state.isLocked = true;
-        this.updateStatus("Transmitting to Database...", "success");
+        const btn = this.$('p-commit-btn');
+        btn.disabled = true;
+        this.$('p-handoff').hidden = true;
+        this.updateStatus("Saving to the database…", "");
 
         try {
             const res = await fetch('/run_tool_logic/personnel/commit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    artist: document.getElementById('p-artist-input').value,
-                    album: document.getElementById('p-album-input').value,
-                    personnel: personnelData
-                })
+                body: JSON.stringify({ artist, album, personnel: personnelData })
             });
-
             const data = await res.json();
-
-            if (res.ok && data.status === "success") {
-                this.updateStatus(`<img src="/ui/images/support.png" alt="" aria-hidden="true" style="width:auto; height:64px; float:left; margin-right:8px; margin-top:-15px!important;"> ${data.count} support artists committed to the database.`, "success", true);
-                setTimeout(() => {
-                    alert(`Update Complete: ${data.count} personnel records successfully written to the database.`);
-                }, 100);
+            if (data.status === "success") {
+                this.updateStatus(`Saved ${data.count} credit${data.count === 1 ? '' : 's'} for ${artist} / ${album}.`, "success", true);
+                if (!data.has_bio) this.showHandoff(artist);
+            } else if (data.status === "partial") {
+                const names = (data.failed || []).map(f => f.role ? `${f.name} (${f.role})` : f.name).join(', ');
+                this.updateStatus(`Saved ${data.count}, but ${data.failed.length} couldn't be saved: ${names}. Try saving again.`, "error", true);
             } else {
-                throw new Error(data.message || "Server returned error status.");
+                this.updateStatus(data.message || "Nothing was saved.", "error", true);
             }
         } catch (e) {
             console.error("MetaForge Commit Error:", e);
-            this.updateStatus("Commit Failed.", "error");
-            alert(`Commit Failed: ${e.message}`);
+            this.updateStatus(`Nothing was saved: ${e.message}`, "error", true);
         } finally {
             this.state.isLocked = false;
+            btn.disabled = this.state.mapping.length === 0;
         }
     },
 
-    // isHtml defaults false so every existing call site (several of
-    // which pass through server/DB-sourced text, e.g. data.message or
-    // result.verification_tier) keeps using innerText exactly as before.
-    // Only a call that explicitly opts in with isHtml=true -- a fully
-    // hardcoded template, never raw external content -- gets innerHTML.
-    updateStatus: function(msg, type, isHtml) {
-        const el = document.getElementById('p-status-text');
-        if (!el) return;
-        if (isHtml) { el.innerHTML = msg; } else { el.innerText = msg; }
-        el.style.color = (type === "success") ? "var(--status-success)" : "var(--status-error)";
+    /** Bio Builder, offered only when the artist has no bio yet (John). */
+    showHandoff: function(artist) {
+        this.$('p-next-artist').textContent = artist || 'This artist';
+        this.$('p-handoff').hidden = false;
+        this.$('p-bio-btn').focus();
     }
-    // Custom scrollbar for #p-mapping-viewport is no longer wired here --
-    // it now uses the shared MFScrollbar utility (metaforge_core.js),
-    // auto-attached via personnel.mfi's .mf-custom-scrollbar markup. See
-    // that file's comment for the full history.
 };
 
 if (document.readyState === 'loading') {

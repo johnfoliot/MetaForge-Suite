@@ -1,260 +1,443 @@
 <!-- --- START OF FILE personnel.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Album Personnel (optional step after Intelli-Tagger)
+     v2 (2026-11-15): per-tool pass. No inline styles; shared type scale;
+     the form's main action is "Find credits" (Enter re-runs MusicBrainz +
+     Discogs, with the AI fallback) and Wikipedia / AllMusic stay secondary;
+     credit rows are labelled per row with real sort buttons; AllMusic paste
+     is a native <dialog>; status goes through the shared announcer (no
+     blocking alerts); the right panel has no repeated icon/heading (John's
+     header pattern); a clean save offers Bio Builder only if the artist
+     has no bio yet.
+     ====================================================================== -->
+<style>
+    .p-stage {
+        position: relative;          /* the busy overlay covers this */
+        display: flex;
+        gap: 1rem;
+        height: 100%;
+        min-height: 0;
+    }
+
+    /* --- LEFT: THE ALBUM AND THE SOURCES (scrolls on its own) --- */
+    .p-left {
+        flex: 0 0 calc(42% - 0.5rem);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        position: relative;          /* contains hidden screen-reader text */
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.9rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    #p-form { display: flex; flex-direction: column; gap: 0.6rem; }
+    .p-field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .p-field > label {
+        color: var(--mf-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+    .p-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.4rem 0.5rem;
+        font-family: var(--font-main);
+        font-size: 1rem;
+    }
+    .p-input-path { font-family: var(--font-mono); font-size: 0.875rem; }
+    .p-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+    .p-row > .p-field { flex: 1; min-width: 0; }
+    .p-row > .p-field-year { flex: 0 0 6rem; }
+    .p-row button { flex: none; }
+    .p-form-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    #p-status {
+        flex: 1;
+        min-width: 10rem;
+        margin: 0;
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    #p-status.is-ok { color: var(--status-success); }
+    #p-status.is-error { color: var(--status-error); }
+
+    /* Source panel: one cell per source, with its logo, its own button
+       where it has one, and a found / nothing-found badge once checked. */
+    .p-sources {
+        margin: 0;
+        padding: 0.6rem 0.75rem 0.75rem;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-raised);
+        min-width: 0;
+    }
+    .p-sources legend {
+        padding: 0 0.25rem;
+        color: var(--mf-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+    .p-source-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem 1rem;
+    }
+    .p-source {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 2.5rem;
+    }
+    .p-logo { height: 1.75rem; width: auto; max-width: 5.5rem; object-fit: contain; flex: none; }
+    .p-logo-mb {
+        width: 1.75rem;
+        background-color: var(--mf-gold);
+        mask: url('/ui/images/musicbrainz.svg') center / contain no-repeat;
+    }
+    .p-source button { font-size: 0.875rem; padding: 0.3rem 0.7rem; min-block-size: 2.25rem; }
+    .p-source button[hidden] { display: none; }
+    .p-badge {
+        display: inline-grid;
+        place-content: center;
+        width: 1.6rem;
+        height: 1.6rem;
+        flex: none;
+        font-weight: 700;
+    }
+    .p-badge[hidden] { display: none; }
+    .p-badge.is-found {
+        border-radius: 4px;
+        background: var(--status-success);
+        color: var(--bg-main);          /* dark on green (dark theme), light on green (light theme): 10:1 / 5.7:1 */
+    }
+    .p-badge.is-none {
+        border-radius: 50%;
+        border: 2px solid var(--status-error);
+        color: var(--status-error);
+    }
+
+    /* Wikipedia results */
+    .p-wiki { display: flex; flex-direction: column; gap: 0.3rem; min-height: 0; }
+    .p-wiki-viewport {
+        max-height: 12rem;
+        overflow-y: auto;
+        position: relative;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-page);
+    }
+    .p-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.875rem; }
+    .p-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 0.4rem 0.5rem;
+        background: var(--surface-raised);
+        color: var(--mf-gold);
+        font-size: 0.8125rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-ui);
+    }
+    .p-table td {
+        padding: 0.35rem 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+    .p-note { color: var(--text-muted); }
+    .p-wiki-score { color: var(--text-muted); font-size: 0.8125rem; }
+    .p-table .p-col-action { width: 5.5rem; text-align: right; }
+    .p-table td.p-col-action button { font-size: 0.8125rem; padding: 0.25rem 0.6rem; min-block-size: 2rem; }
+
+    /* --- RIGHT: THE CREDITS --- */
+    .p-right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-width: 0;
+        min-height: 0;
+        padding: 0.9rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    #p-mapping-count { margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    .p-mapping-outer { flex: 1; display: flex; min-height: 0; }
+    #p-mapping-viewport {
+        flex: 1;
+        overflow-y: auto;
+        position: relative;   /* contains hidden screen-reader text */
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-panel);
+    }
+    /* color needs !important: the global button rule (layout.css) forces
+       dark button text with !important, which made these invisible. */
+    .p-sort {
+        all: unset;
+        cursor: pointer;
+        color: var(--mf-gold) !important;
+        font-weight: 700;
+        font-size: 0.8125rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        min-height: 1.5rem;
+    }
+    .p-sort:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .p-sort-arrow { color: var(--text-muted); }
+    .p-cell-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.3rem 0.4rem;
+        font-family: var(--font-main);
+        font-size: 0.9375rem;
+    }
+    .p-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.3rem 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.8125rem;
+        color: var(--text-muted);
+    }
+    .p-meta select { font-size: 0.8125rem; padding: 0.15rem 0.3rem; }
+    .p-meta button { font-size: 0.8125rem; padding: 0.15rem 0.55rem; min-block-size: 1.75rem; }
+    .p-table .p-col-remove { width: 2.75rem; text-align: center; }
+    .p-remove {
+        all: unset;
+        cursor: pointer;
+        display: inline-grid;
+        place-content: center;
+        width: 1.9rem;
+        height: 1.9rem;
+        border: 1px solid var(--status-error);
+        border-radius: 4px;
+        color: var(--status-error) !important;   /* see .p-sort */
+        font-weight: 700;
+    }
+    .p-remove:hover { background: var(--surface-raised); }
+    .p-remove:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+    .p-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 0.6rem; }
+    .p-btn-quiet {
+        background: transparent !important;
+        color: var(--mf-gold) !important;
+        border: 1px solid var(--mf-gold) !important;
+    }
+    .p-right .mf-handoff { margin: 0 -0.9rem -0.9rem; }
+
+    /* --- BUSY OVERLAY (the automatic search can take a while) --- */
+    .p-busy {
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-content: center;
+        background: color-mix(in srgb, var(--bg-main) 70%, transparent);
+    }
+    .p-busy[hidden] { display: none; }
+    .p-busy-card {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        max-width: 30rem;
+        padding: 1rem 1.25rem;
+        background: var(--surface-panel);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+        line-height: 1.45;
+    }
+    .p-spinner {
+        flex: none;
+        width: 2.25rem;
+        height: 2.25rem;
+        border: 4px solid var(--border-subtle);
+        border-top-color: var(--mf-gold);
+        border-radius: 50%;
+        animation: p-spin 1s linear infinite;
+    }
+    @keyframes p-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .p-spinner { animation-duration: 4s; } }
+
+    /* --- ALLMUSIC PASTE (native modal <dialog>) --- */
+    .p-dialog {
+        width: min(36rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .p-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .p-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .p-dialog p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.45; }
+    .p-paste {
+        min-height: 6rem;
+        max-height: 10rem;
+        overflow-y: auto;
+        margin-bottom: 0.9rem;
+        padding: 0.5rem;
+        background: var(--input-background2);
+        color: var(--input-foreground2);
+        border: 1px solid var(--border-ui);
+        font-size: 0.9375rem;
+    }
+    .p-paste:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .p-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Album Personnel</h1>
     <button type="button" class="mf-help-btn" data-mf-help="personnel" data-mf-help-name="Album Personnel">Help</button>
 </div>
 
-<div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+<div class="active_stage">
+<div class="p-stage" id="p-stage">
 
+    <!-- LEFT: THE ALBUM. Find credits is the form's submit button, so Enter
+         in Artist, Album or Year re-runs the automatic search. -->
+    <div class="p-left" id="p-left">
+        <form id="p-form" aria-label="Album">
+            <div class="p-row">
+                <div class="p-field">
+                    <label for="p-local-path">Source Directory</label>
+                    <input type="text" id="p-local-path" class="p-input p-input-path" readonly placeholder="Select album folder...">
+                </div>
+                <button type="button" id="p-browse-btn" class="mf-button-gold-fixed">Browse</button>
+            </div>
+            <div class="p-field">
+                <label for="p-artist-input">Artist</label>
+                <input type="text" id="p-artist-input" class="p-input">
+            </div>
+            <div class="p-row">
+                <div class="p-field">
+                    <label for="p-album-input">Album</label>
+                    <input type="text" id="p-album-input" class="p-input">
+                </div>
+                <div class="p-field p-field-year">
+                    <label for="p-year-input">Year</label>
+                    <input type="text" id="p-year-input" class="p-input" inputmode="numeric">
+                </div>
+            </div>
+            <div class="p-form-actions">
+                <button type="submit" id="p-find-btn" class="mf-button-gold-fixed">Find credits</button>
+                <p id="p-status"></p>
+            </div>
+        </form>
 
-    <div id="p-loading-overlay" class="p-overlay" role="status" aria-live="polite" style="display: none;">
-        <div style="font-size:.85rem; color:#fff; margin-left:50%; max-width:35%;">
-            <div class="p-spinner"></div>
-            <img src="\ui\images\intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;">
-            <p id="p-loading-text">Resolving personnel via MusicBrainz + Discogs...</p>
+        <fieldset class="p-sources">
+            <legend>Sources</legend>
+            <div class="p-source-grid">
+                <div class="p-source">
+                    <span class="p-logo p-logo-mb" aria-hidden="true"></span>
+                    <span class="mf-visually-hidden">MusicBrainz</span>
+                    <span class="p-badge" id="p-src-mb-check" hidden></span>
+                </div>
+                <div class="p-source">
+                    <img src="/ui/images/Discogs_logo.png" alt="Discogs" class="p-logo">
+                    <span class="p-badge" id="p-src-discogs-check" hidden></span>
+                </div>
+                <div class="p-source">
+                    <img src="/ui/images/wikipedia.png" alt="" class="p-logo">
+                    <button type="button" id="p-src-wiki-btn" class="mf-button-gold-fixed" aria-describedby="p-wiki-hint">Search Wikipedia</button>
+                    <span class="p-badge" id="p-src-wiki-check" hidden></span>
+                    <span class="mf-visually-hidden" id="p-wiki-hint">Wikipedia has no structured credits, so you choose the right page from the results.</span>
+                </div>
+                <div class="p-source">
+                    <img src="/ui/images/AllMusic.png" alt="" class="p-logo">
+                    <button type="button" id="p-src-allmusic-btn" class="mf-button-gold-fixed" aria-describedby="p-allmusic-hint">Search AllMusic</button>
+                    <span class="p-badge" id="p-src-allmusic-check" hidden></span>
+                    <span class="mf-visually-hidden" id="p-allmusic-hint">Last resort: opens an AllMusic search in a separate window; you copy the credits table and paste it here.</span>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="p-wiki">
+            <div class="p-wiki-viewport" id="p-search-results-container">
+                <table class="p-table">
+                    <caption class="mf-visually-hidden">Wikipedia pages that may hold this album's credits</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Wikipedia page</th>
+                            <th scope="col" class="p-col-action"><span class="mf-visually-hidden">Use</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="p-search-results-body">
+                        <tr><td colspan="2" class="p-note">Wikipedia results appear here.</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
-    <!-- MAIN WORKING STAGE: SIDE-BY-SIDE SILOS -->
-    <div id="p-workspace-stage" style="flex: 1; display: flex; gap: 15px; padding: 10px; overflow: hidden; background: var(--bg-main);">
-        
-        <!-- LEFT SILO: THE RADAR & SOURCE (40% Width) -->
-        <div id="p-left-silo" style="flex: 0 0 42%; display: flex; flex-direction: column; gap: 10px; min-height: 0; border-right: 1px solid #444; padding-right: 15px;">
-            
-            <!-- SOURCE DIRECTORY BLOCK -->
-            <div style="display: grid; grid-template-columns: 100px 1fr 80px; gap: 8px; align-items: center;">
-                <label for="p-local-path" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Source Directory:</label>
-                <input type="text" id="p-local-path" class="mb-input-text" placeholder="Select album folder..." 
-                       style="background: var(--input-background2); color: var(--input-foreground2);">
-                <button type="button" class="mf-button-gold-fixed" onclick="window.metaforge.personnel.selectFolder()">Browse</button>
+    <!-- RIGHT: THE CREDITS. No repeated tool icon/heading (John's header
+         pattern); the region keeps a name for screen-reader navigation. -->
+    <section class="p-right" aria-label="Album personnel credits">
+        <p id="p-mapping-count">0 credits ready to save</p>
+
+        <div class="p-mapping-outer">
+            <div id="p-mapping-viewport" class="mf-hide-native-scrollbar">
+                <table class="p-table">
+                    <caption class="mf-visually-hidden">Credits ready to save. Edit a name or role, or remove a credit, before saving.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col" id="p-th-name" aria-sort="none"><button type="button" class="p-sort" data-sort="name">Name <span class="p-sort-arrow" aria-hidden="true">↕</span></button></th>
+                            <th scope="col" id="p-th-role" aria-sort="none"><button type="button" class="p-sort" data-sort="role">Role <span class="p-sort-arrow" aria-hidden="true">↕</span></button></th>
+                            <th scope="col" class="p-col-remove"><span class="mf-visually-hidden">Remove</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="p-mapping-body"></tbody>
+                </table>
             </div>
-
-            <hr style="border: 0; border-top: 1px solid #333; margin: 5px 0;">
-
-            <!-- v2: a real <form> (display:contents, so the layout is unchanged) so
-                 Enter in Artist, Album or Year runs the default action, Search
-                 Wikipedia (native-app feel). The browser "clicks" the submit
-                 button, so its existing onclick runs; the form never navigates. -->
-            <form style="display: contents;" aria-label="Album identity" onsubmit="event.preventDefault();">
-            <!-- IDENTITY CONTEXT BLOCK -->
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <div style="display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: center;">
-                    <label for="p-artist-input" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Artist:</label>
-                    <input type="text" id="p-artist-input" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
-                    
-                    <label for="p-album-input" class="mf-card-label" style="text-align: right; color: var(--mf-gold);">Album:</label>
-                    <input type="text" id="p-album-input" class="mb-input-text" style="background: var(--input-background2); color: var(--input-foreground2);">
+            <!-- Custom scrollbar, shared implementation (layout.css section 10 / MFScrollbar). -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="p-mapping-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
                 </div>
-                
-                <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;">
-                    <label for="p-year-input" class="mf-card-label" style="color: var(--mf-gold);">Year:</label>
-                    <input type="text" id="p-year-input" class="mb-input-text" style="width: 60px; text-align: center; background: var(--input-background2); color: var(--input-foreground2);">
-                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
             </div>
-			
-            <div id="p-status-bar" role="status" aria-live="polite" class="p-scout-panel">
-                <div id="p-status-text" class="p-scout-headline" style="color: var(--status-success);">Scout Engine Ready.</div>
-                <div class="p-scout-grid">
-                    <div class="p-scout-source">
-                        <span aria-hidden="true" class="p-scout-logo" style="display:inline-block; margin-left:27px; margin-right:27px; width:32px; height:32px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/musicbrainz.svg'); mask-image:url('/ui/images/musicbrainz.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span>
-
-                        <span id="p-src-mb-check" class="p-scout-check"></span>
-                    </div>
-                    <div class="p-scout-source">
-                        <img src="/ui/images/wikipedia.png" alt="" class="p-scout-logo">
-                        <button type="submit" id="p-src-wiki-btn" class="mf-button-gold-fixed p-scout-btn" onclick="window.metaforge.personnel.searchWikipedia()" title="Wikipedia doesn't offer structed data queries - this requires some manual intervention.">Search Wikipedia&nbsp;</button>
-                        <span id="p-src-wiki-check" class="p-scout-check"></span>
-                    </div>
-                    <div class="p-scout-source">
-                        <img src="/ui/images/Discogs_logo.png" alt="" class="p-scout-logo">
-                        <span id="p-src-discogs-check" class="p-scout-check"></span>
-                    </div>
-                    <div class="p-scout-source">
-                        <img src="/ui/images/AllMusic.png" alt="" class="p-scout-logo">
-                        <button type="button" id="p-src-allmusic-btn" class="mf-button-gold-fixed p-scout-btn"
-                                onclick="window.metaforge.personnel.checkAllMusic()" title="Last resort: opens an AllMusic search in a companion tab -- you copy the credits table yourself, MetaForge never fetches AllMusic directly.">&nbsp;Search AllMusic&nbsp;</button>
-                        <span id="p-src-allmusic-check" class="p-scout-check"></span>
-                    </div>
-                </div>
-            </div>
-            </form>
-
-            <!-- CANDIDATE TABLE: FIXED HEIGHT (Directive: UI Stability) -->
-            <div style="height: 155px; flex-shrink: 0; display: flex;">
-                <div id="p-search-results-container" class="mf-hide-native-scrollbar" style="flex: 1; border: 1px solid var(--mf-gold); border-right: none; background: var(--bg-accent); overflow-y: auto;">
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.75rem;">
-                        <thead style="position: sticky; top: 0; background: var(--bg-main); color: var(--mf-gold); border-bottom: 1px solid var(--mf-gold);">
-                            <tr>
-                                <th style="padding: 4px; text-align: left;">Wikipedia Candidate</th>
-                                <th style="padding: 4px; text-align: right; width: 60px;">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="p-search-results-body">
-                            <tr><td colspan="2" style="padding: 10px; text-align: center; opacity: 0.5;">Identity results will appear here.</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Custom scrollbar, shared implementation -- see
-                     layout.css section 10 / metaforge_core.js's
-                     MFScrollbar. No per-tool JS needed. Note: this pane
-                     is only 155px tall total -- worth watching whether
-                     two 40px buttons feel cramped here specifically,
-                     same open sizing question flagged for the Album
-                     Personnel scrollbar. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="p-search-results-container" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track">
-                        <div class="mf-scroll-thumb"></div>
-                    </div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
-            </div>
-
         </div>
 
-        <!-- RIGHT SILO: MAPPING INTERFACE (60% Width) -->
-        <div id="p-right-silo" style="flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--mf-gold); padding-bottom: 5px;">
-                <h2 class="mf-card-label" style="color: var(--mf-gold); margin: 0; font-size:26px;"><span aria-hidden="true" style="display:inline-block; width:40px; height:40px; padding-bottom:6px; vertical-align:middle; background-color:var(--mf-gold); -webkit-mask-image:url('/ui/images/personnel.svg'); mask-image:url('/ui/images/personnel.svg'); -webkit-mask-size:contain; mask-size:contain; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat; -webkit-mask-position:center; mask-position:center;"></span> Album Artists</h2>
-                <span id="p-mapping-count" class="mf-card-label" style="font-size: 0.75rem; color: var(--text-message);">0 Rows Staged</span>
-            </div>
+        <div class="p-actions">
+            <button type="button" id="p-add-btn" class="mf-button-gold-fixed p-btn-quiet">Add a credit by hand</button>
+            <button type="button" id="p-commit-btn" class="mf-button-gold-fixed" disabled>Save to Database</button>
+        </div>
 
-            <div id="p-mapping-outer" style="flex: 1; display: flex; min-height: 0;">
-                <div id="p-mapping-viewport" class="mf-hide-native-scrollbar" style="flex: 1; overflow-y: auto; background: var(--bg-stage); border: 1px solid #000; border-right: none;">
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8rem;">
-                        <thead style="background: var(--bg-stage); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--mf-gold);">
-    						<tr>
-    							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;"
-    								onclick="window.metaforge.personnel.sortMapping('name')">Name ↕</th>
-    							<th style="padding: 8px; text-align: left; color: var(--mf-gold); width: 45%; cursor: pointer;"
-    								onclick="window.metaforge.personnel.sortMapping('role')">Role ↕</th>
-    							<th style="padding: 8px; text-align: center; width: 40px;">X</th>
-    						</tr>
-    					</thead>
-                        <tbody id="p-mapping-body" style="color: var(--text-output);">
-                            <!-- Mapping rows injected via JS -->
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Custom scrollbar, shared implementation (John's report,
-                     2026-08-11) -- see layout.css section 10 and
-                     metaforge_core.js's MFScrollbar for the full history
-                     and the shared CSS/JS. No per-tool JS needed: found
-                     and wired automatically by
-                     MFScrollbar.autoAttachAll(), called from
-                     initCommonComponents() on every tool load. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="p-mapping-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track">
-                        <div class="mf-scroll-thumb"></div>
-                    </div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
-            </div>
+        <!-- Next-step bar (shared .mf-handoff): only after a clean save, and
+             only when this artist has no bio yet (John, 2026-11-15). -->
+        <div class="mf-handoff" id="p-handoff" hidden>
+            <p id="p-next-desc"><span class="mf-handoff-kicker">Optional next step.</span> <span id="p-next-artist">This artist</span> has no biography yet. Bio Builder adds one (used by the Library Viewer).</p>
+            <button type="button" class="mf-button-gold-fixed" id="p-bio-btn" aria-describedby="p-next-desc">Build Artist Bio</button>
+        </div>
+    </section>
 
-            <div style="display: flex; justify-content: flex-end; gap: 12px; padding-top: 10px; background: var(--bg-main);">
-                 <button class="mf-button-gold-fixed" style="background: transparent!important; border: 1px solid var(--mf-gold); color: var(--mf-gold)!important;" onclick="window.metaforge.personnel.addManualRow()">Add Manual Entry</button>
-                 <!-- Expand Commit Button width to fit text -->
-                 <button id="p-commit-btn" class="mf-button-gold-fixed" style="width: 240px; height: 40px; font-size: 1rem; opacity: 0.5;" disabled onclick="window.metaforge.personnel.commitToDatabase()">Commit to Database</button>
-            </div>
+    <!-- Busy overlay for the automatic search (MusicBrainz + Discogs, AI
+         fallback): the rest of the screen is inert while it runs. -->
+    <div class="p-busy" id="p-busy" hidden>
+        <div class="p-busy-card">
+            <div class="p-spinner" aria-hidden="true"></div>
+            <p id="p-busy-text">Checking MusicBrainz and Discogs, with an AI web search if they come up thin. This can take a little while.</p>
         </div>
     </div>
 </div>
+</div>
 
-<style>
-/* Source-status panel, replacing the old plain text-only status bar
-   (John, 2026-08-13 -- "the advisory area is not prominent enough"). */
-.p-scout-panel {
-    border: 1px solid var(--mf-gold);
-    background: var(--bg-accent);
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-.p-scout-headline {
-    font-size: 0.95rem;
-    font-weight: bold;
-    line-height: 1.3;
-}
-.p-scout-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px 20px;
-}
-.p-scout-source {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 36px;
-}
-.p-scout-logo {
-    height: 32px;
-    width: auto;
-    max-width: 92px;
-    object-fit: contain;
-    flex-shrink: 0;
-}
-.p-scout-btn {
-    font-size: 0.72rem !important;
-    padding: 4px 8px !important;
-}
-
-.p-scout-check {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    position: relative;
-}
-.p-scout-check.p-scout-found {
-    border-radius: 4px;
-    background: var(--status-success);
-    color: #fff;
-    font-weight: bold;
-    font-size: 0.9rem;
-}
-.p-scout-check.p-scout-none {
-    border-radius: 50%;
-    background: var(--status-error);
-}
-.p-scout-check.p-scout-none::before {
-    content: "";
-    position: absolute;
-    width: 65%;
-    height: 2px;
-    background: #fff;
-    transform: rotate(-45deg);
-}
-
-/* Same pattern as tools/biography/biography.mfi's .bio-overlay/.bio-spinner
-   (John, 2026-07-09) -- reused deliberately, not reinvented. */
-.p-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: color-mix(in srgb, var(--bg-stage) 50%, transparent);
-    z-index: 2000;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: var(--mf-gold);
-    font-family: 'Cascadia Code', monospace;
-}
-.p-spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--mf-gold); border-radius: 50%; animation: p-spin 1s linear infinite; margin-bottom: 10px; margin-left: 150px; }
-@keyframes p-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-/* Custom scrollbar CSS (.mf-custom-scrollbar etc.) now lives shared in
-   layout.css section 10, not duplicated per-tool here -- see that file
-   for the full history of why native ::-webkit-scrollbar-button was
-   abandoned. #p-mapping-viewport's own markup carries
-   .mf-hide-native-scrollbar to suppress its real native scrollbar. */
-</style>
+<!-- AllMusic paste: native modal <dialog> (Esc or Close = checked, nothing added). -->
+<dialog id="p-allmusic-dialog" class="p-dialog" aria-labelledby="p-allmusic-title" aria-describedby="p-allmusic-steps">
+    <h2 id="p-allmusic-title">Paste the AllMusic credits</h2>
+    <p id="p-allmusic-steps">In the AllMusic window: find the album, scroll to Credits, select the credits table and copy it (Ctrl+C). Then paste it into the box below (Ctrl+V).</p>
+    <div id="p-allmusic-paste" class="p-paste" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Paste the AllMusic credits table here"></div>
+    <form method="dialog" class="p-dialog-actions">
+        <button type="submit" class="mf-button-gold-fixed p-btn-quiet" value="close">Close</button>
+    </form>
+</dialog>
 
 <script>
     if (window.metaforge && window.metaforge.personnel) {

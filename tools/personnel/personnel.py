@@ -17,7 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from flask import jsonify, request
 from common import db_engine, config_handler
-from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, is_junk_role, classify_role, load_config, hash_artist_identity
+from tools.personnel.edge_normalizer import normalize_personnel, is_junk_name, is_junk_role, classify_role, load_config, hash_artist_identity, hash_album_identity
 from tools.personnel import edge_store
 from tools.personnel import mb_personnel_engine
 from tools.personnel import discogs_personnel_engine
@@ -135,7 +135,11 @@ def _get_folder_context():
             })
         except Exception as e:
             return jsonify({"status": "error", "message": f"Manifest read error: {str(e)}"})
-    return jsonify({"status": "error", "message": "Manifest not found."})
+    # v2: not an error state any more. The screen shows this and lets the
+    # user type Artist / Album and choose Find credits (1.x discarded the
+    # message and the automatic search never ran at all).
+    return jsonify({"status": "no_manifest",
+                    "message": "This folder has no manifest.json. Type the Artist and Album, then choose Find credits."})
 
 
 # ==========================================================================
@@ -783,11 +787,37 @@ def _commit():
     """
     data = request.json
     artist, album, personnel = data.get('artist'), data.get('album'), data.get('personnel', [])
-    res = db_engine.execute_query("SELECT mf_id FROM library_master WHERE album_title LIKE ? AND artist_name LIKE ? LIMIT 1", (f"%{album}%", f"%{artist}%"))
-    if not res: return jsonify({"status": "error", "message": "Album ID resolution failed."})
 
-    mf_id = res[0]['mf_id']
+    # v2 (2026-11-15): the album is found by its EXACT identity, the same
+    # hash Intelli-Tagger's commit gives it (hash_album_identity). 1.x used
+    # "album_title LIKE %album% AND artist_name LIKE %artist% LIMIT 1", which
+    # picked whichever partial match came first: a read-only replay against
+    # the real database found 14 albums whose credits would land on another
+    # album ("Up" -> "Stand Up", "ALICIA" -> "The Diary of Alicia Keys"...).
+    # No match is now an honest stop, never a guess.
+    mf_id = hash_album_identity(artist or "", album or "")
+    res = db_engine.execute_query("SELECT mf_id FROM library_master WHERE mf_id = ? LIMIT 1", (mf_id,))
+    if not res:
+        # A handful of older albums carry an id that predates the current
+        # hashing (5 of 1,365 on 2026-11-15). Second, still-exact step: the
+        # whole artist AND album names, ignoring case. Accepted only when it
+        # names exactly ONE album; never a partial match.
+        exact = db_engine.execute_query(
+            "SELECT mf_id FROM library_master WHERE lower(artist_name) = lower(?) AND lower(album_title) = lower(?)",
+            ((artist or "").strip(), (album or "").strip()))
+        if exact and len(exact) == 1:
+            mf_id, res = exact[0]['mf_id'], exact
+        elif exact and len(exact) > 1:
+            return jsonify({"status": "error", "reason": "album_ambiguous",
+                            "message": f"The database has {len(exact)} albums named \\u201c{artist} / {album}\\u201d, "
+                                       f"so nothing was saved (MetaForge won't guess which one). This needs sorting out in Database Tools."})
+    if not res:
+        return jsonify({"status": "error", "reason": "album_not_found",
+                        "message": f"\u201c{artist} / {album}\u201d isn't in the MetaForge database yet, so nothing was saved. "
+                                   f"Run Intelli-Tagger on this album with database writing on, or check the Artist and Album spelling."})
+
     count = 0
+    failed = []   # (name, reason): a credit that couldn't be saved is reported, never silently lost
 
     mb_rows = db_engine.execute_query(
         "SELECT target_id, relation_type FROM edges WHERE source_id=? AND source_type='album' AND provenance='MusicBrainz'",
@@ -809,6 +839,31 @@ def _commit():
     for p in personnel:
         name = (p.get('name') or '').strip()
         if not name: continue
+        try:
+            count += _commit_one(p, name, mf_id, _maybe_log_candidate)
+        except Exception as ex:
+            print(f"Personnel commit failed for {name}: {ex}")
+            failed.append({"name": name, "role": (p.get('role') or '').strip(), "reason": str(ex)})
+
+    # Optional next step: Bio Builder, offered only when this artist has no
+    # bio yet (John, 2026-11-15). Same artist identity key Bio Builder uses.
+    bio_rows = db_engine.execute_query(
+        "SELECT biography FROM library_artist WHERE mf_artist_id = ? LIMIT 1", (hash_artist_identity(artist or ""),))
+    has_bio = bool(bio_rows and (bio_rows[0].get('biography') or '').strip())
+
+    return jsonify({"status": "success" if not failed else "partial",
+                    "count": count, "failed": failed, "has_bio": has_bio}), 200
+
+
+def _commit_one(p, name, mf_id, _maybe_log_candidate):
+    """
+    Writes one staged credit; returns how many edges it produced. Split out
+    of _commit (v2, 2026-11-15) so each credit succeeds or fails on its own
+    and a failure is reported by name instead of a bare 500 that hid the
+    credits already saved before it.
+    """
+    count = 0
+    if name:   # the caller already skips blank names; kept as a guard
 
         tid = hash_artist_identity(name)
         # Real gap found live 2026-07-16: mb_target_mbid was already being
@@ -830,7 +885,7 @@ def _commit():
 
         if p.get('relation_type'):
             role = (p.get('role') or '').strip()
-            if not role: continue
+            if not role: return count
             confidence = p.get('confidence', 0.9)
             provenance = p.get('provenance', 'MetaForge')
             evidence_scope = p.get('evidence_scope')
@@ -851,7 +906,7 @@ def _commit():
             count += 1
         else:
             role_string = (p.get('role') or '').strip()
-            if not role_string: continue
+            if not role_string: return count
             provenance = p.get('provenance', 'Wikipedia')
 
             for edge in normalize_personnel(role_string):
@@ -866,5 +921,5 @@ def _commit():
                                       edge['confidence'], edge['evidence_scope'], edge['evidence_detail'])
                 count += 1
 
-    return jsonify({"status": "success", "count": count}), 200
+    return count
 # --- END OF FILE personnel.py ---
