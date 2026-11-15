@@ -1,250 +1,344 @@
 // --- START OF FILE biography.js ---
 /**
  * ======================================================================
- * MetaForge Logic Bridge: Biography Builder
- * Build 1.0.17: Browse Button Wired to Native File Dialog
+ * MetaForge Logic Bridge: Bio Builder
+ * v2 (2026-11-15): per-tool pass.
+ *  - Grounded bios with their sources; an unsourced bio is flagged.
+ *  - The portrait is a draft until Save (nothing on disk changes before).
+ *  - Regenerate for artists who already have a bio (John), with a confirm
+ *    before replacing text that's in the editor.
+ *  - Arriving from Intelli-Tagger / Album Personnel loads the album's artist.
+ *  - No blocking alert()s: a status line + the shared announcer.
  * ======================================================================
  */
 
 window.metaforge = window.metaforge || {};
 window.metaforge.biography = {
-    observer: null,
     currentArtist: null,
+    savedText: '',          // what's in the database, to spot unsaved edits
+    draftPhoto: false,      // a draft portrait is waiting for Save
+
+    $: (id) => document.getElementById(id),
 
     init: function() {
         const stage = document.getElementById('bio-container-main');
-        if (!stage) return;
-        if (stage.getAttribute('data-synced') === 'true') return;
+        if (!stage || stage.getAttribute('data-synced') === 'true') return;
         stage.setAttribute('data-synced', 'true');
-
         setTimeout(() => {
             this.currentArtist = null;
+            this.draftPhoto = false;
             this.bindEvents();
             this.resetUI();
+            this.ingestContext();
         }, 10);
     },
 
-    resetUI: function() {
-        const artistIn = document.getElementById('bio-artist');
-        const bioEd = document.getElementById('bio-text-editor');
-        const img = document.getElementById('bio-img-element');
-        
-        if (artistIn) artistIn.value = "";
-        if (bioEd) { bioEd.value = ""; bioEd.dispatchEvent(new Event('scroll')); }
-        if (img) img.src = '/ui/images/no-photo.png';
-        this.hideCandidates();
-
-        const toggle = document.getElementById('bio-profile-toggle');
-        if (toggle) {
-            toggle.setAttribute('aria-checked', 'false');
-            document.getElementById('bio-toggle-label').innerHTML = "Enhanced<br>Bio: Off";
-        }
-        
-        this.setButtonState('get', false);
-        this.setButtonState('save', false);
-        this.toggleLoading(false);
-    },
-
     bindEvents: function() {
-        const searchBtn = document.getElementById('btn-search-artist');
-        const saveBtn = document.getElementById('btn-save-biography');
-        const getBtn = document.getElementById('btn-get-biography');
-        const browseBtn = document.getElementById('btn-browse-photo');
-
-        if (searchBtn) searchBtn.onclick = () => this.performSearch(document.getElementById('bio-artist').value);
-        if (saveBtn) saveBtn.onclick = () => this.saveBiography();
-        if (getBtn) getBtn.onclick = () => this.generateBiography();
-        if (browseBtn) browseBtn.onclick = () => this.browsePhoto();
-        
-        const toggle = document.getElementById('bio-profile-toggle');
-        if (toggle) toggle.onclick = () => this.toggleEnhancedMode(toggle);
+        this.$('bio-search-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.performSearch(this.$('bio-artist').value);
+        });
+        this.$('btn-get-biography').addEventListener('click', () => this.generateBiography());
+        this.$('btn-save-biography').addEventListener('click', () => this.saveBiography());
+        this.$('btn-browse-photo').addEventListener('click', () => this.browsePhoto());
+        this.$('bio-text-editor').addEventListener('input', () => this.updateDirty());
+        this.$('bio-candidate-list').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-id]');
+            if (b) { this.hideCandidates(); this.loadArtist(b.dataset.id); }
+        });
     },
 
-    toggleEnhancedMode: function(el) {
-        const isChecked = el.getAttribute('aria-checked') === 'true';
-        const newState = !isChecked;
-        el.setAttribute('aria-checked', newState.toString());
-        document.getElementById('bio-toggle-label').innerHTML = newState ? "Enhanced<br>Bio: On" : "Enhanced<br>Bio: Off";
+    resetUI: function() {
+        this.$('bio-artist').value = '';
+        this.setEditor('');
+        this.setPortrait(null);
+        this.hideCandidates();
+        this.showSources(null);
+        this.setStatus('', '');
+        this.$('btn-get-biography').disabled = true;
+        this.$('btn-save-biography').disabled = true;
+        this.$('bio-dirty').textContent = '';
     },
 
-    setButtonState: function(type, enabled) {
-        const btn = document.getElementById(type === 'get' ? 'btn-get-biography' : 'btn-save-biography');
-        if (btn) btn.disabled = !enabled;
+    // ------------------------------------------------------------ helpers
+    setStatus: function(msg, kind, speak) {
+        const el = this.$('bio-status');
+        el.textContent = msg;
+        el.className = kind === 'error' ? 'is-error' : (kind === 'ok' ? 'is-ok' : '');
+        if (speak && msg) window.MFAnnounce?.(kind === 'error' ? `Error: ${msg}` : msg);
+    },
+
+    setEditor: function(text) {
+        const ed = this.$('bio-text-editor');
+        ed.value = text;
+        ed.dispatchEvent(new Event('scroll'));   // resync the custom scrollbar (see biography.mfi)
+        this.updateDirty();
     },
 
     toggleLoading: function(show) {
-        const overlay = document.getElementById('bio-loading-overlay');
-        if (overlay) overlay.style.display = show ? 'flex' : 'none';
+        this.$('bio-busy').hidden = !show;
+        this.$('bio-left').inert = show;
+        document.querySelector('.bio-right').inert = show;
+        if (show) window.MFAnnounce?.('Writing the biography. This can take a little while.');
+    },
+
+    /** Saved portrait, draft portrait, or none; with an honest caption. */
+    setPortrait: function(mode, info) {
+        const img = this.$('bio-img-element');
+        const cap = this.$('bio-photo-caption');
+        const a = this.currentArtist;
+        cap.replaceChildren();
+        if (!a || !mode) {
+            img.src = '/ui/images/no-photo.png';
+            img.alt = 'No portrait yet';
+            cap.textContent = a ? `${a.artist_name} has no portrait yet.` : 'Choose an artist to see their portrait.';
+            return;
+        }
+        const name = a.artist_name;
+        if (mode === 'saved') {
+            img.src = `/ui/artist_photo/${a.md5_hash}?t=${Date.now()}`;
+            img.alt = `Portrait of ${name}`;
+            cap.textContent = 'Saved portrait.';
+        } else {
+            img.src = `/run_tool_logic/biography/draft_photo?md5=${a.md5_hash}&t=${Date.now()}`;
+            img.alt = `Draft portrait of ${name}`;
+            cap.append('Draft portrait: replaces the saved one only when you save. ');
+            if (info?.match) {
+                if (info.exact) cap.append(`From Discogs artist “${info.match}”.`);
+                else {
+                    const w = document.createElement('span');
+                    w.className = 'is-warn';
+                    w.textContent = `Discogs' closest match was “${info.match}”, not an exact name match. Check it's the right artist.`;
+                    cap.append(w);
+                }
+            } else if (info?.file) {
+                cap.append('From the file you chose.');
+            }
+        }
+    },
+
+    showSources: function(sources, grounded) {
+        const box = this.$('bio-sources');
+        const warn = this.$('bio-unverified');
+        if (sources === null) { box.hidden = true; warn.hidden = true; return; }
+        warn.hidden = !!grounded;
+        box.hidden = !sources.length;
+        this.$('bio-sources-summary').textContent = `Sources (${sources.length})`;
+        this.$('bio-sources-list').replaceChildren(...sources.map(s => Object.assign(document.createElement('li'), { textContent: s })));
+    },
+
+    updateDirty: function() {
+        const ed = this.$('bio-text-editor');
+        const changed = !!this.currentArtist && (ed.value !== this.savedText || this.draftPhoto);
+        this.$('btn-save-biography').disabled = !this.currentArtist || !ed.value.trim() || !changed;
+        this.$('bio-dirty').textContent = changed ? 'Not saved yet.' : '';
+    },
+
+    // ------------------------------------------------------------ context + search
+    ingestContext: async function() {
+        const path = window.mf_context_path;
+        if (!path) return;
+        window.mf_context_path = null;
+        try {
+            const res = await fetch('/run_tool_logic/biography/folder_artist', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path })
+            });
+            const data = await res.json();
+            if (data.status === 'success' && data.artist) {
+                this.$('bio-artist').value = data.artist;
+                this.performSearch(data.artist);
+            }
+        } catch (e) { /* stays on an empty search: nothing lost */ }
     },
 
     performSearch: async function(query) {
-        if (!query) return;
+        query = (query || '').trim();
+        if (!query) { this.setStatus('Type an artist name to search.', 'error', true); return; }
         this.hideCandidates();
         try {
             const res = await fetch(`/run_tool_logic/biography/search?q=${encodeURIComponent(query)}&t=${Date.now()}`);
             const result = await res.json();
-            const matches = (result.status === 'success') ? result.data : [];
-
-            if (matches.length === 0) {
-                alert("Artist not found.");
+            const matches = result.status === 'success' ? result.data : [];
+            if (!matches.length) {
+                this.setStatus(`No artist called “${query}” is in the MetaForge database.`, 'error', true);
                 return;
             }
-
-            if (matches.length === 1) {
-                this.loadArtist(matches[0].mf_artist_id);
-                return;
-            }
-
-            // Real bug, found live 2026-07-29 (John's "Ace" report): the
-            // search is a substring match ("LIKE %query%"), so a short
-            // name like "Ace" can match many unrelated artists (Ace-rno,
-            // Johnny Ace, Wall-ace, Hor-ace, Gr-ace, ...) -- this used to
-            // just take matches[0], whichever the database happened to
-            // return first, with ZERO on-screen indication of which
-            // artist actually got loaded. A real biography got generated
-            // and saved onto the wrong artist's record as a direct
-            // result. An exact (case-insensitive) name match is still
-            // auto-loaded with no extra click -- only a genuine ambiguity
-            // (no exact match, or more than one) requires the user to
-            // actually pick.
-            const exact = matches.filter(m => m.artist_name.toLowerCase() === query.trim().toLowerCase());
-            if (exact.length === 1) {
-                this.loadArtist(exact[0].mf_artist_id);
-                return;
-            }
-
+            // Exact (case-insensitive) match loads directly. Otherwise the user
+            // picks: 1.x took the first substring match, and a bio was once
+            // saved to the wrong artist ("Ace" matched "John Ac-erno").
+            const exact = matches.filter(m => m.artist_name.toLowerCase() === query.toLowerCase());
+            if (exact.length === 1) return this.loadArtist(exact[0].mf_artist_id);
+            if (matches.length === 1) return this.loadArtist(matches[0].mf_artist_id);
             this.showCandidates(matches);
-        } catch (e) { console.error("Search Error:", e); }
+        } catch (e) {
+            this.setStatus("The search couldn't be completed.", 'error', true);
+        }
     },
 
     showCandidates: function(matches) {
-        const list = document.getElementById('bio-search-candidates');
-        const outer = document.getElementById('bio-candidates-outer');
-        if (!list || !outer) return;
-        list.innerHTML = '';
-        matches.forEach(m => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'bio-candidate-item';
-            btn.setAttribute('role', 'option');
-            btn.innerHTML = `${m.artist_name}` + (m.country ? ` <span class="bio-candidate-country">(${m.country})</span>` : '');
-            btn.onclick = () => {
-                this.hideCandidates();
-                this.loadArtist(m.mf_artist_id);
-            };
-            list.appendChild(btn);
+        const items = matches.map(m => {
+            const li = document.createElement('li');
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'bio-candidate';
+            b.dataset.id = m.mf_artist_id;
+            b.append(m.artist_name);
+            if (m.country) {
+                const c = document.createElement('span');
+                c.className = 'bio-candidate-country';
+                c.textContent = ` (${m.country})`;
+                b.append(c);
+            }
+            li.append(b);
+            return li;
         });
-        // Toggling the wrapper (not the list itself) so the sibling
-        // custom scrollbar shows/hides in sync with it.
-        outer.style.display = 'flex';
+        this.$('bio-candidate-list').replaceChildren(...items);
+        this.$('bio-candidates').hidden = false;
+        this.setStatus(`${matches.length} artists match. Choose one.`, '', true);
+        this.$('bio-candidate-list').querySelector('button')?.focus();
     },
 
     hideCandidates: function() {
-        const list = document.getElementById('bio-search-candidates');
-        const outer = document.getElementById('bio-candidates-outer');
-        if (outer) outer.style.display = 'none';
-        if (list) list.innerHTML = '';
+        this.$('bio-candidates').hidden = true;
+        this.$('bio-candidate-list').replaceChildren();
     },
 
     loadArtist: async function(mf_id) {
+        // A draft portrait for the previous artist is thrown away, not kept.
+        if (this.draftPhoto && this.currentArtist) this.discardDraft(this.currentArtist.artist_name);
         try {
-            const res = await fetch(`/run_tool_logic/biography/get_details?mf_id=${mf_id}&t=${Date.now()}`);
+            const res = await fetch(`/run_tool_logic/biography/get_details?mf_id=${encodeURIComponent(mf_id)}&t=${Date.now()}`);
             const result = await res.json();
-            if (result.status === 'success') {
-                this.currentArtist = result.data;
-                const bioEd = document.getElementById('bio-text-editor');
-                bioEd.value = result.data.biography || "";
-                // MutationObserver never fires for a textarea's .value
-                // assignment -- see biography.mfi's comment on this
-                // element's custom scrollbar wiring -- so the resync has
-                // to be forced explicitly here.
-                bioEd.dispatchEvent(new Event('scroll'));
-                document.getElementById('bio-img-element').src = result.data.md5_hash ? 
-                    `/ui/artist_photo/${result.data.md5_hash}?t=${Date.now()}` : '/ui/images/no-photo.png';
-                
-                const hasBio = (result.data.biography && result.data.biography.trim() !== "");
-                this.setButtonState('get', !hasBio);
-                this.setButtonState('save', hasBio);
-            }
-        } catch (e) { console.error("Load Error:", e); }
+            if (result.status !== 'success') { this.setStatus("That artist couldn't be loaded.", 'error', true); return; }
+            this.currentArtist = result.data;
+            this.draftPhoto = false;
+            this.savedText = result.data.biography || '';
+            this.$('bio-artist').value = result.data.artist_name;
+            this.$('bio-add-photo').value = '';
+            this.setEditor(this.savedText);
+            this.setPortrait(result.data.has_photo ? 'saved' : null);
+            this.showSources(null);
+            const hasBio = !!this.savedText.trim();
+            const get = this.$('btn-get-biography');
+            get.disabled = false;
+            get.textContent = hasBio ? 'Regenerate Biography' : 'Get Biography';
+            this.setStatus(hasBio ? `${result.data.artist_name}: biography loaded. Edit it, or regenerate it.`
+                                  : `${result.data.artist_name} has no biography yet.`, 'ok', true);
+        } catch (e) {
+            this.setStatus("That artist couldn't be loaded.", 'error', true);
+        }
     },
 
+    discardDraft: function(name) {
+        fetch('/run_tool_logic/biography/discard_draft', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ artist_name: name })
+        }).catch(() => {});
+        this.draftPhoto = false;
+    },
+
+    // ------------------------------------------------------------ portrait from a file
     browsePhoto: async function() {
-        if (!this.currentArtist) return alert("Search for and load an artist first.");
+        if (!this.currentArtist) { this.setStatus('Choose an artist first.', 'error', true); return; }
         const res = await fetch('/select_file');
         const data = await res.json();
         if (!data.path) return;
-        document.getElementById('bio-add-photo').value = data.path;
-        await this.handleLocalPhoto();
+        this.$('bio-add-photo').value = data.path;
+        try {
+            const r = await fetch('/run_tool_logic/biography/upload_local_photo', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artist_name: this.currentArtist.artist_name, local_path: data.path })
+            });
+            const result = await r.json();
+            if (result.status === 'success') {
+                this.draftPhoto = true;
+                this.setPortrait('draft', { file: true });
+                this.updateDirty();
+                this.setStatus('Draft portrait ready. Save to keep it.', 'ok', true);
+            } else {
+                this.setStatus(result.message || "That image couldn't be used.", 'error', true);
+            }
+        } catch (e) {
+            this.setStatus("That image couldn't be used.", 'error', true);
+        }
     },
 
-    handleLocalPhoto: async function() {
-        const localPath = document.getElementById('bio-add-photo').value;
-        if (!localPath || !this.currentArtist) return alert("Select artist and enter path.");
-        
-        this.toggleLoading(true);
-        const res = await fetch('/run_tool_logic/biography/upload_local_photo', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                artist_name: this.currentArtist.artist_name, 
-                local_path: localPath 
-            })
+    // ------------------------------------------------------------ generate / regenerate
+    confirmReplace: function() {
+        const dlg = this.$('bio-regen-dialog');
+        return new Promise((resolve) => {
+            dlg.addEventListener('close', () => resolve(dlg.returnValue === 'replace'), { once: true });
+            dlg.returnValue = '';
+            dlg.showModal();
         });
-        const result = await res.json();
-        if (result.status === 'success') {
-            document.getElementById('bio-img-element').src = `/ui/artist_photo/${result.md5_hash}?t=${Date.now()}`;
-        } else {
-            alert("Error: " + result.message);
-        }
-        this.toggleLoading(false);
     },
 
     generateBiography: async function() {
         if (!this.currentArtist) return;
-        const isEnhanced = document.getElementById('bio-profile-toggle').getAttribute('aria-checked') === 'true';
+        if (this.$('bio-text-editor').value.trim() && !(await this.confirmReplace())) {
+            this.$('btn-get-biography').focus();
+            return;
+        }
         this.toggleLoading(true);
         try {
             const res = await fetch('/run_tool_logic/biography/generate_bio', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    artist_name: this.currentArtist.artist_name, 
-                    enhanced: isEnhanced,
-                    t: Date.now() 
-                })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artist_name: this.currentArtist.artist_name,
+                                       mf_artist_id: this.currentArtist.mf_artist_id,
+                                       enhanced: this.$('bio-enhanced').checked })
             });
             const result = await res.json();
             if (result.status === 'success') {
-                const bioEd = document.getElementById('bio-text-editor');
-                bioEd.value = result.biography;
-                bioEd.dispatchEvent(new Event('scroll'));
-                document.getElementById('bio-img-element').src = `/ui/artist_photo/${result.md5_hash}?t=${Date.now()}`;
-                this.setButtonState('get', false);
-                this.setButtonState('save', true);
+                this.setEditor(result.biography);
+                this.showSources(result.sources || [], result.grounded);
+                if (result.draft_photo) {
+                    this.draftPhoto = true;
+                    this.setPortrait('draft', { match: result.photo_match, exact: result.photo_exact });
+                }
+                this.updateDirty();
+                const n = (result.sources || []).length;
+                this.setStatus(result.grounded ? `Biography written from ${n} web source${n === 1 ? '' : 's'}. Review it, then save.`
+                                               : 'Biography written without web sources. Check the facts before saving.',
+                               result.grounded ? 'ok' : 'error', true);
             } else {
-                alert("Error: " + result.message);
+                this.setStatus(result.message || "The biography couldn't be written.", 'error', true);
             }
-        } catch (e) { console.error(e); } finally {
+        } catch (e) {
+            this.setStatus("The biography couldn't be written (no reply).", 'error', true);
+        } finally {
             this.toggleLoading(false);
+            this.$('bio-text-editor').focus();
         }
     },
 
+    // ------------------------------------------------------------ save
     saveBiography: async function() {
         if (!this.currentArtist) return;
-        const payload = {
-            mf_artist_id: this.currentArtist.mf_artist_id,
-            artist_name: this.currentArtist.artist_name,
-            biography: document.getElementById('bio-text-editor').value
-        };
-        const res = await fetch('/run_tool_logic/biography/save_bio', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        if ((await res.json()).status === 'success') {
-            alert("Biography saved.");
-            this.init(); 
+        const text = this.$('bio-text-editor').value;
+        this.$('btn-save-biography').disabled = true;
+        try {
+            const res = await fetch('/run_tool_logic/biography/save_bio', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mf_artist_id: this.currentArtist.mf_artist_id,
+                                       artist_name: this.currentArtist.artist_name,
+                                       biography: text, use_draft_photo: this.draftPhoto })
+            });
+            const result = await res.json();
+            if (result.status === 'success') {
+                const hadDraft = this.draftPhoto;
+                this.savedText = text;
+                this.draftPhoto = false;
+                if (hadDraft) this.setPortrait('saved');
+                this.$('btn-get-biography').textContent = 'Regenerate Biography';
+                const n = this.currentArtist.artist_name;
+                const owner = /s$/i.test(n) ? `${n}'` : `${n}'s`;   // "The Meters'", "Marianne Faithfull's"
+                this.setStatus(`Saved ${owner} biography${hadDraft ? ' and portrait' : ''}.`, 'ok', true);
+            } else {
+                this.setStatus(result.message || "The biography couldn't be saved.", 'error', true);
+            }
+        } catch (e) {
+            this.setStatus("The biography couldn't be saved (no reply).", 'error', true);
+        } finally {
+            this.updateDirty();
         }
     }
 };

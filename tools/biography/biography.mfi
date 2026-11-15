@@ -1,154 +1,254 @@
 <!-- --- START OF FILE biography.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Bio Builder
+     v2 (2026-11-15): per-tool pass. No inline styles; shared type scale and
+     tokens; native switch for Enhanced; the portrait is a draft until Save;
+     grounded bios list their web sources (and say so plainly when there are
+     none); Regenerate for artists who already have a bio (John); arriving
+     from Intelli-Tagger / Album Personnel loads the album's artist (John).
+     ====================================================================== -->
+<style>
+    /* flex: 1 + width: 100%: .active_stage is itself a flex row, so without
+       these the stage only took its content's width (empty band on the right). */
+    .bio-stage { position: relative; display: flex; gap: 1rem; flex: 1; width: 100%; min-width: 0; height: 100%; min-height: 0; }
+
+    /* LEFT: find the artist, the portrait (scrolls on its own) */
+    .bio-left {
+        flex: 0 0 min(26rem, 38%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        position: relative;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.9rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .bio-field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .bio-field > label, .bio-label {
+        color: var(--mf-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+    .bio-row { display: flex; gap: 0.5rem; }
+    .bio-row > input { flex: 1; min-width: 0; }
+    .bio-row > button { flex: none; }
+    .bio-input {
+        box-sizing: border-box;
+        padding: 0.4rem 0.5rem;
+        font-family: var(--font-main);
+        font-size: 1rem;
+    }
+    .bio-input-path { font-family: var(--font-mono); font-size: 0.875rem; }
+    #bio-status { margin: 0; font-size: 0.875rem; font-weight: 700; color: var(--text-primary); }
+    #bio-status.is-ok { color: var(--status-success); }
+    #bio-status.is-error { color: var(--status-error); }
+    #bio-status:empty { display: none; }
+
+    .bio-candidates { display: flex; flex-direction: column; gap: 0.3rem; }
+    .bio-candidates[hidden] { display: none; }
+    .bio-candidates ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 12rem;
+        overflow-y: auto;
+        position: relative;
+        border: 1px solid var(--border-subtle);
+    }
+    .bio-candidates li + li { border-top: 1px solid var(--border-subtle); }
+    .bio-candidate {
+        all: unset;
+        box-sizing: border-box;
+        display: block;
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        cursor: pointer;
+        color: var(--text-primary) !important;   /* global button rule forces dark text */
+        font-size: 0.9375rem;
+    }
+    .bio-candidate:hover { background: var(--surface-raised); }
+    .bio-candidate:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .bio-candidate-country { color: var(--text-muted); font-size: 0.8125rem; }
+
+    .bio-portrait { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+    .bio-portrait img {
+        width: 100%;
+        max-width: 16rem;
+        aspect-ratio: 1;
+        object-fit: cover;
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-raised);
+    }
+    .bio-portrait figcaption { font-size: 0.875rem; color: var(--text-muted); line-height: 1.4; }
+    .bio-portrait figcaption .is-warn { color: var(--status-warning); font-weight: 700; }
+
+    /* RIGHT: the biography */
+    .bio-right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        min-width: 0;
+        min-height: 0;
+        padding: 0.9rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .bio-generate { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; }
+    .bio-switch { display: flex; align-items: center; gap: 0.5rem; }
+    .bio-switch input { width: 2.25rem; height: 1.25rem; margin: 0; accent-color: var(--mf-gold); cursor: pointer; }
+    .bio-switch label { font-size: 0.9375rem; color: var(--text-primary); cursor: pointer; }
+    .bio-editor-wrap { flex: 1; display: flex; flex-direction: column; gap: 0.25rem; min-height: 0; }
+    .bio-text-outer { flex: 1; display: flex; min-height: 0; }
+    #bio-text-editor {
+        flex: 1;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.75rem;
+        font-family: var(--font-main);
+        font-size: 1.0625rem;
+        line-height: 1.55;
+        resize: none;
+        position: relative;
+    }
+    .bio-unverified {
+        margin: 0;
+        padding: 0.5rem 0.65rem;
+        border-left: 3px solid var(--status-warning);
+        background: var(--surface-raised);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+    .bio-unverified[hidden] { display: none; }
+    .bio-sources { font-size: 0.875rem; color: var(--text-muted); }
+    .bio-sources[hidden] { display: none; }
+    .bio-sources summary { cursor: pointer; color: var(--mf-gold); font-weight: 700; }
+    .bio-sources ul { margin: 0.3rem 0 0; padding-left: 1.25rem; max-height: 6rem; overflow-y: auto; position: relative; }
+    .bio-actions { display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    #bio-dirty { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+
+    /* Busy overlay (writing a grounded bio takes a while) */
+    .bio-busy { position: absolute; inset: 0; z-index: 50; display: grid; place-content: center;
+                background: color-mix(in srgb, var(--bg-main) 70%, transparent); }
+    .bio-busy[hidden] { display: none; }
+    .bio-busy-card { display: flex; align-items: center; gap: 0.9rem; max-width: 30rem; padding: 1rem 1.25rem;
+                     background: var(--surface-panel); border: 1px solid var(--mf-gold); border-radius: 6px;
+                     color: var(--text-primary); font-size: 0.9375rem; line-height: 1.45; }
+    .bio-spinner { flex: none; width: 2.25rem; height: 2.25rem; border: 4px solid var(--border-subtle);
+                   border-top-color: var(--mf-gold); border-radius: 50%; animation: bio-spin 1s linear infinite; }
+    @keyframes bio-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .bio-spinner { animation-duration: 4s; } }
+
+    /* Regenerate confirmation (native modal <dialog>) */
+    .bio-dialog { width: min(30rem, 90vw); padding: 1.1rem 1.25rem; background: var(--surface-panel);
+                  color: var(--text-primary); border: 1px solid var(--mf-gold); border-radius: 6px; }
+    .bio-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .bio-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .bio-dialog p { margin: 0 0 1rem; font-size: 0.9375rem; line-height: 1.45; }
+    .bio-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+    .bio-btn-quiet { background: transparent !important; color: var(--mf-gold) !important; border: 1px solid var(--mf-gold) !important; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Bio Builder</h1>
     <button type="button" class="mf-help-btn" data-mf-help="biography" data-mf-help-name="Bio Builder">Help</button>
 </div>
 
 <div id="bio-container-main" class="active_stage">
-    <!-- Processing Overlay -->
-    <div id="bio-loading-overlay" class="bio-overlay" style="display: none;">
-        <div  style="font-size:.85rem; color:#000; padding-left:300px;">
-		<div class="bio-spinner"></div>
-        <img src="/ui/images/intelligence.png" alt="" style="height:36px; width:auto; float:left; margin-right:10px;"> <p>Generating biography and searching for a portrait...</p></div>
+<div class="bio-stage">
+
+    <div class="bio-left" id="bio-left">
+        <!-- Enter in the field runs the search (native-app feel). -->
+        <form class="bio-field" id="bio-search-form" role="search" aria-label="Find an artist">
+            <label for="bio-artist">Artist</label>
+            <div class="bio-row">
+                <input type="text" id="bio-artist" class="bio-input" placeholder="Artist Name" autocomplete="off">
+                <button type="submit" class="mf-button-gold-fixed">Search</button>
+            </div>
+        </form>
+        <p id="bio-status"></p>
+
+        <div class="bio-candidates" id="bio-candidates" hidden>
+            <p class="bio-label" id="bio-candidates-label">More than one artist matched. Choose one:</p>
+            <ul id="bio-candidate-list" aria-labelledby="bio-candidates-label"></ul>
+        </div>
+
+        <figure class="bio-portrait">
+            <img id="bio-img-element" src="/ui/images/no-photo.png" alt="No portrait yet">
+            <figcaption id="bio-photo-caption">Choose an artist to see their portrait.</figcaption>
+        </figure>
+
+        <div class="bio-field">
+            <label for="bio-add-photo">Use a portrait from a file</label>
+            <div class="bio-row">
+                <input type="text" id="bio-add-photo" class="bio-input bio-input-path" readonly placeholder="No file chosen" aria-describedby="bio-photo-hint">
+                <button type="button" id="btn-browse-photo" class="mf-button-gold-fixed">Browse</button>
+            </div>
+            <span id="bio-photo-hint" class="mf-visually-hidden">The chosen file becomes a draft portrait; it replaces the artist's portrait only when you save.</span>
+        </div>
     </div>
 
-    <div class="bio-container">
-        
-        <div class="bio-left-panel">
-            
-            <div class="bio-form-group">
-                <label for="bio-artist" class="bio-label">Artist</label>
-				<p>Search to confirm that this artist has content in the database.</p>
-                <!-- v2: a real <form> so Enter in the field runs the search (native-app
-                     feel). The browser "clicks" the submit button, so the existing
-                     click listener in biography.js runs; the form never navigates. -->
-                <form class="bio-input-row" role="search" aria-label="Search artists" onsubmit="event.preventDefault();">
-                    <input type="text" id="bio-artist" class="bio-input-field" placeholder="Artist Name">
-                    <button type="submit" id="btn-search-artist" class="bio-btn-amber">Search</button>
-                </form>
-                <!-- Populated only when a search matches more than one artist
-                     and none of them is an exact name match -- see
-                     performSearch()'s "Real bug" comment in biography.js for
-                     why this exists: silently picking the first substring
-                     match (e.g. "Ace" matching "John Ac-ERN-o") used to
-                     attach a generated biography to the wrong artist with
-                     zero on-screen indication anything had gone wrong. -->
-                <!-- Wrapper's display:none/flex is now toggled by JS
-                     (biography.js showCandidates()/hideCandidates()),
-                     not the inner list's own -- needed so the sibling
-                     custom scrollbar hides/shows in sync with it. -->
-                <div id="bio-candidates-outer" style="display:none;">
-                    <div id="bio-search-candidates" class="bio-candidate-list mf-hide-native-scrollbar" role="listbox" aria-label="Multiple artists matched, choose one"></div>
-                    <!-- Custom scrollbar, shared implementation -- see
-                         layout.css section 10 / metaforge_core.js's
-                         MFScrollbar. No per-tool JS needed. -->
-                    <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-search-candidates" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
-                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                    </div>
-                </div>
+    <section class="bio-right" aria-label="Biography">
+        <div class="bio-generate">
+            <button type="button" id="btn-get-biography" class="mf-button-gold-fixed" disabled>Get Biography</button>
+            <div class="bio-switch">
+                <input type="checkbox" id="bio-enhanced" switch aria-describedby="bio-enhanced-hint">
+                <label for="bio-enhanced">Enhanced bio</label>
+                <span id="bio-enhanced-hint" class="mf-visually-hidden">About 450 to 500 words in five paragraphs, instead of 250 to 300 words in three.</span>
             </div>
-            
-            <div class="bio-action-row" style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box;">
-                <button type="button" id="btn-get-biography" class="bio-btn-amber long-btn" disabled style="flex: 1; white-space: nowrap;">Get Biography</button>
-                
-                <div class="bio-toggle-group-inline" style="display: flex; align-items: center; gap: 10px; user-select: none; flex-shrink: 0; white-space: nowrap;">
-                    <div class="mf-toggle-wrapper" role="switch" aria-checked="false" tabindex="0" aria-label="Toggle Biography Profile Detail" id="bio-profile-toggle">
-                        <div class="mf-toggle-knob"></div>
-                    </div>
-                    <span class="mf-toggle-label" id="bio-toggle-label" style="font-family: 'Cascadia Code', monospace; color: #888888; font-size: 0.8rem; font-weight: bold; line-height: 1.2;">Enhanced Bio: Off</span>
-                </div>
+        </div>
 
-                <button type="button" id="btn-save-biography" class="bio-btn-amber long-btn" disabled style="flex: 1; white-space: nowrap;">Save Biography</button>
-            </div>
-            
-            <div class="bio-photo-region">
-                <div id="bio-photo-preview" class="photo-box-container">
-                    <img id="bio-img-element" src="/ui/images/no-photo.png" alt="Artist Portrait">
-                </div>
-            </div>
-            
-            <!-- Restored: Local Portrait File Path Picker -->
-            <div class="bio-form-group mt-15">
-                <label for="bio-add-photo" class="bio-label">Local Portrait File Path</label>
-                <div class="bio-input-row">
-                    <input type="text" id="bio-add-photo" class="bio-input-field" placeholder="D:\MetaForge Suite\photos\artist.jpg">
-                    <button type="button" id="btn-browse-photo" class="bio-btn-amber">Browse</button>
+        <p class="bio-unverified" id="bio-unverified" hidden>No web sources were found for this bio, so it comes from the AI's own knowledge. Check the facts before saving.</p>
+
+        <div class="bio-editor-wrap">
+            <label for="bio-text-editor" class="bio-label">Biography</label>
+            <div class="bio-text-outer">
+                <textarea id="bio-text-editor" class="mf-hide-native-scrollbar" placeholder="The artist's biography appears here. You can edit it before saving."></textarea>
+                <!-- Custom scrollbar (layout.css section 10 / MFScrollbar). A
+                     textarea changes via .value, which MFScrollbar's observer
+                     can't see, so biography.js dispatches 'scroll' after each
+                     .value assignment to resync it. -->
+                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-text-editor" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                    <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
+                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
                 </div>
             </div>
         </div>
 
-        <div class="bio-right-panel">
-            <div class="bio-form-group h-100">
-                <label for="bio-text-editor" class="bio-label">Biography Editor Workspace</label>
-                <div id="bio-text-outer" style="flex: 1; display: flex; min-height: 0;">
-                    <textarea id="bio-text-editor" class="bio-textarea-field mf-hide-native-scrollbar" placeholder="Artist background details..."></textarea>
-                    <!-- Custom scrollbar, shared implementation -- see
-                         layout.css section 10 / metaforge_core.js's
-                         MFScrollbar. A textarea's content changes via its
-                         .value property, not child DOM nodes, so the
-                         MutationObserver MFScrollbar.attach() relies on
-                         for auto-resync never fires here -- biography.js
-                         dispatches a synthetic 'scroll' event after every
-                         .value assignment instead, which reaches the same
-                         internal sync() through the scroll listener
-                         attach() already sets up. -->
-                    <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-text-editor" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                        <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                        <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
-                        <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                    </div>
-                </div>
-            </div>
+        <details class="bio-sources" id="bio-sources" hidden>
+            <summary id="bio-sources-summary">Sources</summary>
+            <ul id="bio-sources-list"></ul>
+        </details>
+
+        <div class="bio-actions">
+            <p id="bio-dirty"></p>
+            <button type="button" id="btn-save-biography" class="mf-button-gold-fixed" disabled>Save Biography</button>
+        </div>
+    </section>
+
+    <div class="bio-busy" id="bio-busy" hidden>
+        <div class="bio-busy-card">
+            <div class="bio-spinner" aria-hidden="true"></div>
+            <p>Writing the biography from a web search and looking for a portrait. This can take a little while.</p>
         </div>
     </div>
 </div>
+</div>
 
-<style>
-/* --- Toggle Styles --- */
-.mf-toggle-wrapper { position: relative; width: 44px; height: 24px; background-color: #2a2a2a; border: 1px solid #444; border-radius: 12px; cursor: pointer; flex-shrink: 0; }
-.mf-toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background-color: #888888; border-radius: 50%; transition: transform 0.2s; display: block; z-index: 10; }
-div[aria-checked="true"]#bio-profile-toggle { background-color: #0d2a1d !important; border-color: var(--mf-gold) !important; }
-div[aria-checked="true"]#bio-profile-toggle .mf-toggle-knob { transform: translateX(20px); background-color: var(--mf-gold); }
-
-/* --- Layout Styles --- */
-.bio-container { display: flex; width: 100%; height: calc(100vh - 160px); gap: 30px; box-sizing: border-box; }
-.bio-left-panel { width: 410px; display: flex; flex-direction: column; }
-.bio-right-panel { flex: 1; height: 100%; }
-.bio-form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
-.mt-15 { margin-top: 15px; }
-.h-100 { height: 100%; }
-.bio-label { font-family: 'Cascadia Code', monospace; color: var(--mf-gold); font-size: 0.95rem; margin-bottom: 6px; font-weight: bold; }
-.bio-input-row { display: flex; gap: 10px; align-items: center; }
-.bio-input-field { flex: 1; height: 34px; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; padding: 0 10px; font-family: inherit; font-size: 0.95rem; }
-.bio-textarea-field { flex: 1; width: 100%; background-color: var(--input-background2); color: var(--input-foreground2); border: 1px solid #444444; border-right: none; padding: 12px; font-family: inherit; font-size: 1.05rem; line-height: 1.5; resize: none; }
-.bio-btn-amber { height: 34px; padding: 0 20px; background-color: var(--mf-gold); color: #000000; border: 1px solid var(--mf-gold); font-family: inherit; font-weight: bold; cursor: pointer; }
-.bio-btn-amber:disabled { background-color: #555555; color: #888888; border-color: #444444; cursor: not-allowed; }
-#bio-candidates-outer { margin-top: 8px; display: flex; max-height: 180px; }
-.bio-candidate-list { flex: 1; border: 1px solid #444444; border-right: none; background-color: var(--bg-main); overflow-y: auto; }
-.bio-candidate-item { display: block; width: 100%; text-align: left; padding: 8px 10px; background: none; border: none; border-bottom: 1px solid #333333; color: var(--text-output); font-family: inherit; font-size: 0.85rem; cursor: pointer; }
-.bio-candidate-item:last-child { border-bottom: none; }
-.bio-candidate-item:hover, .bio-candidate-item:focus { background-color: rgba(204, 153, 0, 0.15); outline: none; }
-.bio-candidate-item .bio-candidate-country { color: var(--text-message); font-size: 0.75rem; }
-.bio-photo-region { width: 220px; height: 220px; margin-left: 95px; border: 1px solid #3d3d3d; background-color: #111111; }
-.photo-box-container img { width: 100%; height: 100%; object-fit: cover; }
-.bio-overlay { 
-    position: absolute; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    background: color-mix(in srgb, var(--bg-stage) 50%, transparent); 
-    z-index: 2000; 
-    display: flex; 
-    flex-direction: column; 
-    justify-content: center; 
-    align-items: center; 
-    color: var(--mf-gold); 
-    font-family: 'Cascadia Code', monospace; 
-}
-.bio-spinner { width: 40px; height: 40px; border: 4px solid #333; border-top: 4px solid var(--mf-gold); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; margin-left:150px; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-</style>
+<!-- Regenerate over text that's already in the editor: confirm first. -->
+<dialog id="bio-regen-dialog" class="bio-dialog" aria-labelledby="bio-regen-title" aria-describedby="bio-regen-text">
+    <form method="dialog">
+        <h2 id="bio-regen-title">Replace the text in the editor?</h2>
+        <p id="bio-regen-text">A new biography will replace what's in the editor now. The saved biography isn't changed until you choose Save Biography.</p>
+        <div class="bio-dialog-actions">
+            <button type="submit" value="replace" class="mf-button-gold-fixed">Replace</button>
+            <button type="submit" value="keep" class="mf-button-gold-fixed bio-btn-quiet" autofocus>Keep my text</button>
+        </div>
+    </form>
+</dialog>
 <!-- --- END OF FILE biography.mfi --- -->
