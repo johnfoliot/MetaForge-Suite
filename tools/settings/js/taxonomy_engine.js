@@ -34,7 +34,7 @@
         $('set-genres-dirty').hidden = !on;
         // Leaving Settings with unsaved genre edits asks first (John, 2026-11-15).
         if (window.MFLeaveGuard) {
-            if (on) window.MFLeaveGuard.set(askLeave); else window.MFLeaveGuard.clear();
+            if (on) window.MFLeaveGuard.set('genres', askLeave); else window.MFLeaveGuard.clear('genres');
         }
     }
 

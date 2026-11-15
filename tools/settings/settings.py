@@ -47,6 +47,17 @@ def run_logic(action, tools_dir, env_path):
     # B. Themes
     if action == "get_themes":
         return theme_engine.discover(base_dir)
+    # Create a theme (v2, 2026-11-15)
+    if action == "theme_template":
+        return theme_engine.template()
+    if action == "theme_values":
+        return theme_engine.values()
+    if action == "logo_preview":
+        return theme_engine.logo_preview()
+    if action == "save_custom_theme":
+        return theme_engine.save_custom()
+    if action == "delete_custom_theme":
+        return theme_engine.delete_custom()
 
     # C. Genres (taxonomy.json)
     if action == "get_taxonomy":

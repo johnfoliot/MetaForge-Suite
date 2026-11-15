@@ -30,23 +30,23 @@ window.metaforge.openExternalLink = function(url) {
     }
 };
 
+// v2 (2026-11-15): every theme, built-in or made with Settings > Theme >
+// Create a theme, loads through /theme_css/, and its logo through
+// /theme_logo/ (each theme names its own logo, so there's no theme -> logo
+// list to maintain here). If a theme file is missing (e.g. one you made was
+// deleted), the default theme is used instead of an unstyled page.
 window.applyThemeFile = function(themeFileName) {
     const themeLink = document.getElementById('mf-theme-stylesheet');
-    if (!themeLink) return;
-    themeLink.href = `/ui/css/${themeFileName}?v=${new Date().getTime()}`;
-    const themeName = themeFileName.replace('_theme.css', '');
-    document.documentElement.setAttribute('data-theme', themeName);
-};
-
-// The logo that goes with each theme (John, 2026-11-15: Lavender Lemonade
-// and Festive Folk Christmas have their own). One place, used at start-up
-// and by Settings > Theme when previewing.
-window.mfLogoForTheme = function(themeFile) {
-    const f = String(themeFile || '');
-    if (f.includes('light')) return '/ui/images/logo_blue.svg';
-    if (f.includes('lavender')) return '/ui/images/logo_lavender.svg';
-    if (f.includes('festive')) return '/ui/images/logo_festive.svg';
-    return '/ui/images/logo.svg';
+    if (!themeLink || !themeFileName) return;
+    const stamp = Date.now();
+    themeLink.onerror = () => {
+        themeLink.onerror = null;
+        if (themeFileName !== 'default_theme.css') window.applyThemeFile('default_theme.css');
+    };
+    themeLink.href = `/theme_css/${encodeURIComponent(themeFileName)}?v=${stamp}`;
+    document.documentElement.setAttribute('data-theme', themeFileName.replace('_theme.css', ''));
+    const logo = document.getElementById('mf-main-logo');
+    if (logo) logo.src = `/theme_logo/${encodeURIComponent(themeFileName)}?v=${stamp}`;
 };
 
 window.initializeMetaForgeBranding = async function() {
@@ -54,11 +54,10 @@ window.initializeMetaForgeBranding = async function() {
         const response = await fetch('/run_tool_logic/settings/get_prefs');
         if (response.ok) {
             const prefs = await response.json();
-            document.documentElement.setAttribute('data-theme', prefs.theme_file ? prefs.theme_file.replace('_theme.css', '') : 'dark');
-            if (prefs.theme_file) window.applyThemeFile(prefs.theme_file);
+            // theme_file_v2: v2's own choice (it can be a theme you made,
+            // which the 1.x build can't load). theme_file: the shared one.
+            window.applyThemeFile(prefs.theme_file_v2 || prefs.theme_file || 'default_theme.css');
             window.mfApplyToolbarLabels(prefs.toolbar_labels === true);
-            const mainLogo = document.getElementById('mf-main-logo');
-            if (mainLogo && prefs.theme_file) mainLogo.src = window.mfLogoForTheme(prefs.theme_file);
         }
     } catch (e) { console.warn("Branding Boot Error"); }
 };
@@ -78,28 +77,36 @@ document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
 // --- ENGINE: MODE SWITCHER ---
 
-// v2 (2026-11-15) shared leave guard. A tool with unsaved work calls
-// MFLeaveGuard.set(askFn), where askFn() returns a Promise<boolean> ("OK to
-// leave?"), and MFLeaveGuard.clear() once the work is saved or discarded.
-// Every tool switch goes through mfSwitchMode, which asks first; closing or
-// reloading the window gets the browser's own "leave?" prompt.
+// v2 (2026-11-15) shared leave guard. A piece of unsaved work registers
+// MFLeaveGuard.set(key, askFn), where askFn() returns a Promise<boolean>
+// ("OK to leave?"), and MFLeaveGuard.clear(key) once it's saved or
+// discarded. Several can be active at once (e.g. Genre list AND a theme
+// being made); each is asked in turn. Every tool switch goes through
+// mfSwitchMode; closing or reloading gets the browser's own "leave?" prompt.
 window.MFLeaveGuard = {
-    ask: null,
+    asks: new Map(),
     asking: false,
-    set(fn) { this.ask = fn; },
-    clear() { this.ask = null; }
+    set(key, fn) { this.asks.set(key, fn); },
+    clear(key) { if (key === undefined) this.asks.clear(); else this.asks.delete(key); },
+    get active() { return this.asks.size > 0; },
+    async askAll() {
+        for (const [key, fn] of [...this.asks]) {
+            if (!(await fn())) return false;
+            this.asks.delete(key);
+        }
+        return true;
+    }
 };
-window.addEventListener('beforeunload', (e) => { if (window.MFLeaveGuard.ask) e.preventDefault(); });
+window.addEventListener('beforeunload', (e) => { if (window.MFLeaveGuard.active) e.preventDefault(); });
 
 window.mfSwitchMode = async function(mode) {
     const guard = window.MFLeaveGuard;
-    if (guard.ask && mode !== window.metaforge_current_tool) {
+    if (guard.active && mode !== window.metaforge_current_tool) {
         if (guard.asking) return;
         guard.asking = true;
         let ok = false;
-        try { ok = await guard.ask(); } finally { guard.asking = false; }
+        try { ok = await guard.askAll(); } finally { guard.asking = false; }
         if (!ok) return;
-        guard.clear();
     }
     // v2: the current tool is marked with aria-current="page" (announced as
     // "current page"), styled from that attribute so the visual and the

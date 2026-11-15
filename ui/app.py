@@ -26,7 +26,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import routes
 from common import config_handler, db_engine
-from tools.settings.engines import update_engine
 from tools.personnel.personnel import MANUAL_VERIFICATION_TIERS
 
 # --- [ SECTION 2: ARCHITECTURAL CONSTANTS ] ---
@@ -50,45 +49,35 @@ app = Flask(__name__, template_folder=str(HTML_DIR), static_folder=str(UI_ROOT),
 window = None
 dashboard_alerts = []
 
-# --- [ SECTION 3: UPDATE HEARTBEAT ] ---
-def run_silent_sync():
-    """Checks for updates on startup. Required assets are processed immediately."""
-    global dashboard_alerts
-    print("DEBUG: [Silent Sync] Heartbeat initiated...")
-    with app.app_context():
-        # Invoke engine logic
-        response = update_engine.check_for_updates()
-        
-        # Unpack response
-        data = response.get_json() if hasattr(response, 'get_json') else (response[0] if isinstance(response, tuple) else response)
+# --- [ SECTION 3: UPDATE HEARTBEAT: removed in v2 (2026-11-15) ] ---
+# The 1.x startup "silent sync" checked GitHub on every launch and could
+# auto-"commit" required updates (marking the app updated without installing
+# anything). Its alerts were never shown (index.html doesn't render them),
+# and it called update_engine functions that the v2 rewrite removed. Checking
+# is now Settings > Updates only (update_engine.check_for_updates).
 
-        if data and isinstance(data, dict):
-            print(f"DEBUG: [Silent Sync] Update Available: {data.get('update_available')}")
-            
-            if data.get("update_available"):
-                updates = data.get("updates", [])
-                required_updates = [u for u in updates if u.get("priority") == "Required"]
-                
-                if required_updates:
-                    print(f"DEBUG: [Silent Sync] Found {len(required_updates)} required updates. Committing...")
-                    commit_payload = {
-                        "updates": required_updates,
-                        "active_model": data.get("active_model"),
-                        "remote_version": data.get("remote_version")
-                    }
-                    update_engine.commit_update_direct(commit_payload)
-                    print("DEBUG: [Silent Sync] Commit successful.")
-                
-                # Injection for Optional updates
-                optional_updates = [u for u in updates if u.get("priority") == "Optional"]
-                for opt in optional_updates:
-                    dashboard_alerts.append({
-                        "id": opt["id"],
-                        "title": opt["user_message"]["title"],
-                        "body": opt["user_message"]["body"]
-                    })
-        else:
-            print("DEBUG: [Silent Sync] No valid data returned from engine.")
+# --- [ SECTION 3b: THEMES (v2, 2026-11-15) ] ---
+# One URL for every theme, built-in (ui/css) or made with Create a theme
+# (AppData\MetaForge\themes), and one for the logo each theme names.
+def _theme_engine():
+    eng = str(TOOLS_DIR / "settings" / "engines")
+    if eng not in sys.path:
+        sys.path.insert(0, eng)
+    import theme_engine
+    return theme_engine
+
+
+@app.route('/theme_css/<file_name>')
+def serve_theme_css(file_name):
+    path, _ = _theme_engine().find_theme(file_name)
+    if not path:
+        return "Theme not found", 404
+    return send_file(str(path), mimetype="text/css", max_age=0)
+
+
+@app.route('/theme_logo/<file_name>')
+def serve_theme_logo(file_name):
+    return send_file(str(_theme_engine().logo_path_for(file_name)), mimetype="image/svg+xml", max_age=0)
 
 # --- [ SECTION 4: UTILITY FUNCTIONS ] ---
 def initialize_database():
@@ -905,9 +894,8 @@ if __name__ == '__main__':
     initialize_database()
     if ENV_PATH.exists(): load_dotenv(ENV_PATH)
     
-    # Trigger Silent Sync
-    threading.Thread(target=run_silent_sync, daemon=True).start()
-    
+    # (v2: no startup update check; see SECTION 3.)
+
     api_bridge = MetaForgeAPI()
     threading.Thread(target=run_flask, daemon=True).start()
     

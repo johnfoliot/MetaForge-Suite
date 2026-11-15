@@ -156,12 +156,93 @@
         cursor: pointer;
     }
     .set-theme-card:has(input:checked) { border-color: var(--mf-gold); }
-    .set-theme-card:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
-    .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
+    .set-theme-card:has(input[type="radio"]:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .set-theme-card .set-row button { padding: 0.25rem 0.75rem; }
+    .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; cursor: pointer; }
     .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
     .set-palette { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
     .set-palette li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; font-size: 0.8125rem; color: var(--text-secondary); }
     .set-swatch { width: 1rem; height: 1rem; flex: none; border: 1px solid var(--border-ui); border-radius: 2px; }
+
+    /* --- CREATE A THEME (js/theme_maker.js) --- */
+    #tm-form[hidden], #tm-form [hidden], #set-theme-form[hidden] { display: none !important; }
+    .tm-in { container-type: inline-size; }
+    .tm-head { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+    .tm-cols { display: grid; grid-template-columns: minmax(12rem, 0.8fr) minmax(14rem, 1fr) minmax(16rem, 1.1fr); gap: 0.75rem; align-items: start; }
+    /* Larger text: the colour list goes on top (flowing into columns) so the
+       editor and the preview stay side by side; at the largest, one column. */
+    @container (width < 46rem) {
+        .tm-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        .tm-cols > .tm-col:first-child { grid-column: 1 / -1; }
+        .tm-items { grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); }
+    }
+    @container (width < 30rem) { .tm-cols { grid-template-columns: minmax(0, 1fr); } }
+    .tm-col { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; padding: 0.75rem; background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .tm-start-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; }
+    .tm-start-row .set-select { flex: 1; min-width: 10rem; width: auto; }
+    .tm-group { margin: 0.4rem 0 0 !important; font-size: 0.875rem !important; color: var(--text-secondary) !important; }
+    .tm-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.15rem; }
+    .tm-item {
+        all: unset; box-sizing: border-box; position: relative;
+        display: flex; align-items: center; gap: 0.5rem; width: 100%;
+        padding: 0.3rem 0.5rem 0.3rem 0.8rem; border-radius: 3px; cursor: pointer;
+        color: var(--text-primary) !important; font-size: 0.9375rem;
+    }
+    .tm-item:hover { background: var(--surface-raised); }
+    .tm-item:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .tm-item[aria-current="true"] { background: var(--surface-raised); color: var(--mf-gold) !important; }
+    .tm-item[aria-current="true"]::before { content: ""; position: absolute; inset: 0.2rem auto 0.2rem 0; border-inline-start: 4px solid var(--mf-gold); }
+    .tm-item-name { flex: 1; min-width: 0; }
+    .tm-swatch { width: 1.1rem; height: 1.1rem; flex: none; border: 1px solid var(--border-ui); border-radius: 2px; }
+    .tm-flag { flex: none; padding: 0 0.35rem; border: 1px solid var(--status-error); border-radius: 3px; color: var(--status-error); font-size: 0.75rem; font-weight: 700; }
+    .tm-ed-hint { margin: 0; font-size: 0.875rem; line-height: 1.4; color: var(--text-secondary); }
+    .tm-code-row { display: flex; gap: 0.5rem; align-items: end; }
+    .tm-code-row .set-field { flex: 1; min-width: 0; }
+    .tm-picker { inline-size: 3rem; block-size: 2.2rem; padding: 0.1rem; border: 1px solid var(--border-ui); border-radius: 3px; background: var(--surface-field); cursor: pointer; }
+    .tm-picker:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+    .tm-slider { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.6rem; align-items: center; }
+    .tm-slider label { grid-column: 1 / -1; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    .tm-slider input { width: 100%; margin: 0; accent-color: var(--mf-gold); }
+    .tm-slider input:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .tm-slider output { min-inline-size: 3.5ch; text-align: end; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+    .tm-pairs { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.875rem; color: var(--text-secondary); }
+    .tm-pairs .is-fail { color: var(--status-error); font-weight: 700; }
+    .tm-pairs .is-pass .tm-mark { color: var(--status-success); }
+    .tm-mark { display: inline-block; inline-size: 1.2em; }
+    .tm-gold { margin: 0; padding: 0.5rem 0.65rem; border: 2px solid var(--status-warning); border-radius: 4px; font-size: 0.875rem; color: var(--text-primary); }
+    .tm-gold p { margin: 0 0 0.4rem; }
+    .tm-logo-style { margin: 0; padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px; display: grid; gap: 0.4rem; }
+    .tm-logo-style legend { padding: 0 0.3rem; font-weight: 700; color: var(--text-primary); font-size: 0.9375rem; }
+    .tm-logo-style label { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9375rem; color: var(--text-primary); }
+    .tm-logo-style input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
+    .tm-preview-col { position: sticky; top: 0; }
+
+    /* The preview uses only the 17 template colours (set on #tm-preview by
+       JS), never the app's aliases, so it shows the new theme alone. */
+    .tm-preview {
+        display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); grid-template-rows: auto 1fr;
+        border: 1px solid var(--border-ui); border-radius: 4px; overflow: hidden;
+        background: var(--bg-main); color: var(--text-output); font-size: 0.8125rem;
+    }
+    .tm-pv-head { grid-column: 1 / -1; display: flex; align-items: center; padding: 0.5rem 0.6rem; background: var(--bg-main); border-bottom: 1px solid var(--border-subtle); }
+    .tm-pv-head img { block-size: 2.25rem; inline-size: auto; max-inline-size: 100%; }
+    .tm-pv-rail { display: grid; align-content: start; gap: 0.3rem; padding: 0.5rem 0.4rem; border-inline-end: 1px solid var(--border-subtle); }
+    .tm-pv-rail span { padding: 0.2rem 0.3rem; border-radius: 3px; color: var(--text-message); }
+    .tm-pv-rail .is-on { color: var(--mf-gold); background: var(--bg-accent); box-shadow: inset 3px 0 0 var(--mf-gold); }
+    .tm-pv-stage { display: grid; gap: 0.5rem; align-content: start; padding: 0.6rem; background: var(--bg-stage); }
+    .tm-pv-stage .tm-pv-h { color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
+    .tm-pv-muted { color: var(--text-muted); }
+    .tm-pv-msg { color: var(--text-message); }
+    .tm-pv-field { padding: 0.3rem 0.4rem; background: var(--input-background2); color: var(--input-foreground2); border: 1px solid var(--border-ui); border-radius: 3px; }
+    .tm-pv-field.is-focus { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+    .tm-pv-field .tm-pv-ph { color: var(--text-muted); }
+    .tm-pv-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .tm-pv-btn { padding: 0.25rem 0.6rem; background: var(--input-background); color: var(--input-foreground); border-radius: 3px; font-weight: 700; }
+    .tm-pv-btn2 { padding: 0.25rem 0.6rem; color: var(--text-output); border: 1px solid var(--border-ui); border-radius: 3px; }
+    .tm-pv-card { display: grid; gap: 0.2rem; padding: 0.45rem 0.5rem; background: var(--bg-accent); border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .tm-pv-ok { color: var(--status-success); font-weight: 700; }
+    .tm-pv-err { color: var(--status-error); font-weight: 700; }
+    .tm-pv-warn { color: var(--status-warning); font-weight: 700; }
 
     /* --- TOOLBAR (table rendered by js/toolbar_engine.js) --- */
     #toolbar-customizer-grid { font-size: 0.9375rem; }
@@ -352,8 +433,102 @@
                 </fieldset>
                 <div class="set-actions">
                     <button type="submit" class="mf-button-gold-fixed">Save theme</button>
+                    <button type="button" class="set-secondary" id="set-theme-create">Create a theme</button>
                     <p class="set-status" id="set-theme-status"></p>
                 </div>
+            </form>
+
+            <!-- CREATE / EDIT A THEME (js/theme_maker.js) -->
+            <form class="set-panel-in tm-in" id="tm-form" hidden>
+                    <div class="tm-head">
+                        <button type="button" class="set-secondary" id="tm-back">Back to themes</button>
+                        <h2 id="tm-title" tabindex="-1">Create a theme</h2>
+                    </div>
+                    <p class="set-intro">Choose a colour from the list, then change it with its code, the picker or the sliders. The preview shows the result as you go. Every colour is checked for contrast, so the theme stays readable for everyone; Save works once every check passes.</p>
+                    <div class="tm-cols">
+                        <div class="tm-col">
+                            <div class="set-field">
+                                <label for="tm-name">Theme name</label>
+                                <input class="set-input" id="tm-name" maxlength="40" autocomplete="off" aria-describedby="tm-name-hint">
+                                <p class="set-hint" id="tm-name-hint">Up to 40 characters, e.g. Ocean Night.</p>
+                            </div>
+                            <div class="set-field">
+                                <label for="tm-start">Start from</label>
+                                <div class="tm-start-row">
+                                    <select class="set-select" id="tm-start"></select>
+                                    <button type="button" class="set-secondary" id="tm-start-load">Use these colours</button>
+                                </div>
+                            </div>
+                            <h3>Colours</h3>
+                            <div id="tm-list"></div>
+                        </div>
+
+                        <div class="tm-col" aria-labelledby="tm-ed-title" role="group">
+                            <h3 id="tm-ed-title">Background</h3>
+                            <p class="tm-ed-hint" id="tm-ed-hint"></p>
+                            <fieldset class="tm-logo-style" id="tm-logo-style" hidden>
+                                <legend>Logo style</legend>
+                                <label><input type="radio" name="tm-logo-style" value="full"> Full recolour</label>
+                                <label><input type="radio" name="tm-logo-style" value="faces"> Faces only (gold edges)</label>
+                            </fieldset>
+                            <div class="tm-code-row">
+                                <div class="set-field">
+                                    <label for="tm-hex">Colour code</label>
+                                    <input class="set-input is-code" id="tm-hex" maxlength="7" autocomplete="off" spellcheck="false">
+                                </div>
+                                <input type="color" class="tm-picker" id="tm-picker" aria-label="Colour picker">
+                            </div>
+                            <div class="tm-slider">
+                                <label for="tm-h">Hue</label>
+                                <input type="range" id="tm-h" min="0" max="359" step="1">
+                                <output id="tm-h-out" for="tm-h"></output>
+                            </div>
+                            <div class="tm-slider">
+                                <label for="tm-s">Saturation</label>
+                                <input type="range" id="tm-s" min="0" max="100" step="1">
+                                <output id="tm-s-out" for="tm-s"></output>
+                            </div>
+                            <div class="tm-slider">
+                                <label for="tm-l">Lightness</label>
+                                <input type="range" id="tm-l" min="0" max="100" step="1">
+                                <output id="tm-l-out" for="tm-l"></output>
+                            </div>
+                            <h3>Contrast checks</h3>
+                            <ul class="tm-pairs" id="tm-pairs"></ul>
+                            <button type="button" class="set-secondary" id="tm-fix" hidden>Fix: adjust the lightness</button>
+                            <div class="tm-gold" id="tm-gold" hidden>
+                                <p><strong>This reads as gold.</strong> MetaForge has one gold, #CC9900, so other golds can't be saved.</p>
+                                <button type="button" class="set-secondary" id="tm-use-gold">Use #CC9900</button>
+                            </div>
+                        </div>
+
+                        <div class="tm-col tm-preview-col">
+                            <h3>Preview</h3>
+                            <div class="tm-preview" id="tm-preview" role="img" aria-label="Preview of the theme: header with the logo, tool list, panel with text, a field, buttons, a raised card and status messages.">
+                                <div class="tm-pv-head"><img id="tm-logo" alt=""></div>
+                                <div class="tm-pv-rail"><span class="is-on">Studio</span><span>Library</span><span>Settings</span></div>
+                                <div class="tm-pv-stage">
+                                    <span class="tm-pv-h">Panel heading</span>
+                                    <span>Text in a panel.</span>
+                                    <span class="tm-pv-msg">Secondary text.</span>
+                                    <span class="tm-pv-muted">A hint.</span>
+                                    <span class="tm-pv-field">Typed text</span>
+                                    <span class="tm-pv-field is-focus"><span class="tm-pv-ph">A focused field</span></span>
+                                    <span class="tm-pv-btns"><span class="tm-pv-btn">Button</span><span class="tm-pv-btn2">Second button</span></span>
+                                    <span class="tm-pv-card"><span>A raised card.</span><span class="tm-pv-muted">A hint on it.</span></span>
+                                    <span class="tm-pv-ok">✓ Saved.</span>
+                                    <span class="tm-pv-err">✗ Something failed.</span>
+                                    <span class="tm-pv-warn">! A warning.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="set-actions">
+                        <button type="submit" class="mf-button-gold-fixed">Save this theme</button>
+                        <button type="button" class="set-secondary" id="tm-next" hidden>Go to the next problem</button>
+                        <p class="set-status" id="tm-problems"></p>
+                        <p class="set-status" id="tm-status"></p>
+                    </div>
             </form>
         </div>
 
