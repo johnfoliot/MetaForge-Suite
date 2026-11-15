@@ -1,0 +1,39 @@
+/* --- METAFORGE SKIN: LAVENDER LEMONADE (Swapped Yellows / Purple Accents) --- */
+/* Palette by John; contrast pass 2026-11-15 (lightness-only nudges, same
+   hues except the lemon panels). Every text colour is 4.5:1 or better on all
+   three surfaces (bg-main, bg-stage, bg-accent); borders and the focus ring
+   3:1 or better. No gold in this theme: purple is the accent, and the lemon
+   panels are a true lemon so they can't read as a second gold. */
+:root {
+    color-scheme: light;
+
+    /* --- 1.x legacy compatibility names --- */
+    --bg-main: #f2e7b5;            /* Cream primary background */
+    --bg-accent: #d7cae4;          /* Soft Lavender raised cards (lightened so text passes) */
+    --bg-stage: #e8e073;           /* Lemonade panels (true lemon, was golden #e2c750) */
+    --mf-gold: #542b7e;            /* Deep Purple brand accent / headers */
+    --text-output: #2b134d;        /* Deep dark purple for maximum readability */
+    --text-message: #542b7e;       /* Deep purple secondary text */
+    --status-success: #4b5b26;     /* Olive, darkened (was 1.5-2.9:1) */
+    --status-error: #aa1e2d;       /* (was 2.86:1 on the cards) */
+    --input-foreground: #f7f3e8;   /* Light text on deep purple buttons */
+    --input-foreground2: #2b134d;  /* Text inside fields */
+    --input-background: #542b7e;   /* Deep purple button fills */
+    --input-background2: #faf6d9;  /* Light contrasting input field background */
+
+    /* --- v2 semantic names --- */
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --text-muted: #654b88;         /* (was 2.31:1 on the cards) */
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+    --border-ui: #542b7e;          /* Purple boundaries for clean contrast */
+    --border-subtle: #d7cae4;      /* Decorative only */
+    --focus-ring: #2b134d;
+    --status-warning: #8f3e00;     /* Burnt orange (was 2.61:1 on the cards) */
+}
