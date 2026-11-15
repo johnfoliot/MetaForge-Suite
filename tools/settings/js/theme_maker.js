@@ -127,7 +127,7 @@
         const hex = isLogo ? logo.colour : values[selected];
         $('tm-ed-title').textContent = isLogo ? 'Logo colour' : tok.label;
         $('tm-ed-hint').textContent = isLogo
-            ? 'Full recolour: the whole 3-D logo in this colour. Faces only: this colour on the letter faces, with gold edges and a gold “Studio”.'
+            ? 'Full recolour: the whole 3-D logo in this colour. Faces only: this colour on the letter faces and “Studio”, with gold edges.'
             : tok.hint;
         $('tm-logo-style').hidden = !isLogo;
         $('tm-hex').value = hex;

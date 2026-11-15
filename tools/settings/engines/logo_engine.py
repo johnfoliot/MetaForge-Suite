@@ -8,8 +8,10 @@
 # and lost the bevels. Two styles (John):
 #  - "full":  the whole logo in the new colour. Each shape keeps its place
 #             in the light-to-dark range, so the 3-D bevels survive.
-#  - "faces": only the letter faces in the new colour; the gold bevels stay
-#             as edges and "Studio" stays gold (like Festive Folk Christmas).
+#  - "faces": the letter faces and "Studio" in the new colour; the gold
+#             bevels stay as edges. (John 2026-11-15: "Studio" changes colour
+#             too. The built-in Festive logo, with a gold "Studio", is its
+#             own file and isn't affected.)
 # ======================================================================
 import colorsys
 import re
@@ -19,7 +21,6 @@ from common import config_handler
 SOURCE = config_handler.PROJECT_ROOT / "ui" / "images" / "logo.svg"
 FACE = "#cc9900"                 # the flat letter faces in logo.svg
 FACE_L = 0.40                    # its lightness (HLS)
-STUDIO_BOX = (2280, 455)         # "Studio": shapes starting right of x / below y (viewBox 2976x614)
 PATH = re.compile(r'<path fill="(#[0-9A-Fa-f]{6})"([^>]*?)d="([^"]*)"')
 _cache = {}
 
@@ -36,11 +37,6 @@ def _hls(h):
 
 def _hex(h, l, s):
     return "#" + "".join(f"{round(c * 255):02x}" for c in colorsys.hls_to_rgb(h, max(0.0, min(1.0, l)), max(0.0, min(1.0, s))))
-
-
-def _is_studio(d):
-    nums = [float(x) for x in re.findall(r"-?\d+\.\d+", d)]
-    return bool(nums) and min(nums[0::2]) >= STUDIO_BOX[0] and min(nums[1::2]) >= STUDIO_BOX[1]
 
 
 def make(style, colour):
@@ -61,7 +57,7 @@ def make(style, colour):
         if style == "full":
             new = colour if fill == FACE else shade(fill)
         else:
-            new = colour if (fill == FACE and not _is_studio(d)) else fill
+            new = colour if fill == FACE else fill
         return f'<path fill="{new}"{mid}d="{d}"'
 
     svg = PATH.sub(swap, _source())
