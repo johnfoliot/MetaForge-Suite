@@ -6,7 +6,7 @@
 # ======================================================================
 import sys
 from pathlib import Path
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TORY, TRCK, TCON, TXXX, TBPM, TKEY, UFID, APIC, ID3NoHeaderError
+from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TORY, TRCK, TCON, TXXX, TBPM, TKEY, TPUB, UFID, APIC, ID3NoHeaderError
 
 # --- [ PATH BOOTSTRAP ] ---
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -47,6 +47,7 @@ def update_tags(file_path, metadata):
             'track': (TRCK, 'TRCK'),
             'bpm': (TBPM, 'TBPM'),
             'key': (TKEY, 'TKEY'),
+            'label': (TPUB, 'TPUB'),     # v2: Album Editor label edits
         }
 
         # Non-standard fields with no dedicated ID3v2.3 frame -- same TXXX

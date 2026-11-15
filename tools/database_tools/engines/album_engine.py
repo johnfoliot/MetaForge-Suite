@@ -15,6 +15,7 @@ from PIL import Image
 from common import db_engine, tag_engine, config_handler
 from tools.personnel.edge_normalizer import load_config, classify_role, hash_artist_identity, is_junk_role, is_junk_name, apply_role_alias
 from tools.personnel import edge_store
+from tools.database_tools.engines import identity_ops
 
 # Same evidence-collection log commit_engine.py's automatic waterfall
 # already writes to (data/musicbrainz/original_year_correction_candidates.jsonl)
@@ -128,12 +129,8 @@ def _get_album_details_by_id(mf_id):
         (clean_mf_id,)
     )
 
-    if not tracks and album.get('mf_artist_id'):
-        clean_artist_id = str(album['mf_artist_id']).strip()
-        tracks = db_engine.execute_query(
-            "SELECT * FROM tracks WHERE LOWER(TRIM(mf_artist_id)) = LOWER(TRIM(?)) ORDER BY file_path ASC",
-            (clean_artist_id,)
-        )
+    # (v2: an album with no tracks of its own used to show the artist's
+    # tracks from OTHER albums here, and saving then edited those.)
 
     # Real bug found live 2026-07-17: every track's displayed "artist" was
     # hardcoded to the ALBUM-level library_master.artist_name below, which
@@ -179,14 +176,14 @@ def _get_album_details_by_id(mf_id):
                 "orig_year_source": track_dict.get('orig_year_source', '')
             })
 
-    if album['tracks']:
-        meta_probe = db_engine.execute_query(
-            "SELECT genre, sub_genre FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?)) AND genre IS NOT NULL LIMIT 1",
-            (clean_mf_id,)
-        )
-        if meta_probe:
-            album['genre'] = meta_probe[0]['genre']
-            album['sub_genre'] = meta_probe[0]['sub_genre']
+    combos = db_engine.execute_query(
+        "SELECT DISTINCT COALESCE(genre, '') AS genre, COALESCE(sub_genre, '') AS sub_genre FROM tracks WHERE mf_id = ?",
+        (clean_mf_id,)
+    ) or []
+    album['genre_mixed'] = len(combos) > 1
+    if len(combos) == 1:
+        album['genre'] = combos[0]['genre']
+        album['sub_genre'] = combos[0]['sub_genre']
 
     if 'genre' not in album: album['genre'] = ''
     if 'sub_genre' not in album: album['sub_genre'] = ''
@@ -217,43 +214,81 @@ def _get_album_details_by_id(mf_id):
 
     return jsonify({"status": "success", "album": album})
 
+def _taxonomy():
+    path = config_handler.DATA_DIR / "taxonomy.json"
+    return json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+
+
+def _tag(file_path, values, problems):
+    """Writes tags, collecting (not raising) failures: never-abort."""
+    if not Path(file_path).exists():
+        problems.append(f"Tags not written, file not found: {file_path}")
+        return
+    ok, msg = tag_engine.update_tags(file_path, values)
+    if not ok:
+        problems.append(f"Tags not written to {file_path}: {msg}")
+
+
 def _save_album():
-    data = request.json
-    mf_id = data['mf_id']
+    # v2 (2026-11-15, John: "yes to tags, rename carries through"). A new
+    # album artist or title re-keys the album (mf_id is a hash of both) via
+    # identity_ops, after a preview the user confirms; year and label now
+    # reach the TYER/TPUB tags; genre is written only when the user chose
+    # one (it used to flatten every track's genre on every save: 873 of
+    # 1,364 albums have tracks with different genres).
+    data = request.json or {}
+    mf_id = str(data.get('mf_id') or '').strip()
+    found = db_engine.execute_query("SELECT * FROM library_master WHERE mf_id = ?", (mf_id,))
+    if not found:
+        return jsonify({"status": "error", "message": "This album is no longer in the database."}), 404
+    row = found[0]
+    title = (data.get('title') or '').strip()
+    artist = (data.get('artist') or '').strip()
+    if not title or not artist:
+        return jsonify({"status": "error", "message": "The album needs a title and an artist."}), 400
+
+    genre_changed = bool(data.get('genre_changed'))
+    genre = (data.get('genre') or '').strip()
+    sub_genre = (data.get('sub_genre') or '').strip()
+    if genre_changed:
+        taxonomy = _taxonomy()
+        if genre and taxonomy and genre not in taxonomy:
+            return jsonify({"status": "error", "message": f"{genre} isn't in the genre list."}), 400
+        if genre and sub_genre and sub_genre not in taxonomy.get(genre, []):
+            return jsonify({"status": "error", "message": f"{sub_genre} isn't a sub-genre of {genre}."}), 400
+
+    problems = []
+    if title != row['album_title'] or artist != row['artist_name']:
+        if not data.get('confirmed'):
+            prev = identity_ops.run("album_edit", mf_id=mf_id, artist=artist, title=title)
+            return jsonify({"status": "confirm", "summary": prev["summary"], "notes": prev["notes"]})
+        res = identity_ops.run("album_edit", apply=True, label=f"album {title}", mf_id=mf_id, artist=artist, title=title)
+        mf_id = res["album_ids"].get(mf_id, mf_id)
+        problems += res["problems"]
+
     tracks = data.get('tracks', [])
     personnel = data.get('personnel', [])
-
-    clean_mf_id = str(mf_id).strip()
+    clean_mf_id = mf_id
 
     old_tracks = db_engine.execute_query(
-        "SELECT file_path, title, original_year, mb_recording_id FROM tracks WHERE LOWER(TRIM(mf_id)) = LOWER(TRIM(?))",
+        "SELECT file_path, title, original_year, mb_recording_id, mf_artist_id FROM tracks WHERE mf_id = ?",
         (clean_mf_id,)
-    )
-
-    # Not a Various Artists compilation? Then there's exactly one real
-    # artist for this album, and it's whatever the user just typed/
-    # confirmed in the album-level Artist field -- that's authoritative
-    # over every track, full stop. Per-track independence (below) exists
-    # only for compilations, where each track genuinely has its own
-    # performer (real bug, fixed 2026-07-17: every compilation track used
-    # to get force-set to the album's own artist_name). Without this
-    # gate, a single-artist album silently re-fragments on every save --
-    # John's report, 2026-08-01: "Green Onions" kept saving tracks under
-    # a second identity ("Booker T. & the MG's", curly apostrophe, from
-    # MusicBrainz's per-recording credit) because the per-track field is
-    # pre-filled from whatever's already in the DB and nothing ever
-    # reconciled it back to the album's own artist field.
+    ) or []
     compilation_row = db_engine.execute_query(
         "SELECT is_compilation FROM library_master WHERE mf_id = ?", (mf_id,)
     )
+    # A single-artist album has one artist, the album's; per-track artists
+    # exist only on compilations (2026-08-01 "Green Onions" report: tracks
+    # used to re-fragment under a second identity on every save).
     is_compilation = bool(compilation_row and compilation_row[0]['is_compilation'])
-    old_titles_map = {t['file_path']: t['title'] for t in old_tracks} if old_tracks else {}
-    old_years_map = {t['file_path']: t['original_year'] for t in old_tracks} if old_tracks else {}
-    old_recording_ids_map = {t['file_path']: t['mb_recording_id'] for t in old_tracks} if old_tracks else {}
+    old_titles_map = {t['file_path']: t['title'] for t in old_tracks}
+    old_years_map = {t['file_path']: t['original_year'] for t in old_tracks}
+    old_recording_ids_map = {t['file_path']: t['mb_recording_id'] for t in old_tracks}
+    old_artist_map = {t['file_path']: t['mf_artist_id'] for t in old_tracks}
 
     # Replace the album's folder.jpg with the newly browsed cover, if one
-    # was staged. serve_album_cover() (ui/app.py) always reads folder.jpg
-    # from the album's own directory, not a dedicated covers folder.
+    # was staged. serve_album_cover() (ui/app.py) reads folder.jpg from the
+    # album's own folder.
     cover_path = data.get('cover_path')
     if cover_path and old_tracks:
         album_dir = Path(old_tracks[0]['file_path']).parent
@@ -261,91 +296,85 @@ def _save_album():
             img = Image.open(cover_path).convert("RGB")
             img.save(str(album_dir / "folder.jpg"), "JPEG", quality=90)
         except Exception as ex:
-            print(f"⚠️ Cover image save failed: {ex}")
+            problems.append(f"The cover image couldn't be saved: {ex}")
 
+    year = str(data.get('year') or '').strip()
+    label = (data.get('label') or '').strip()
+    album_tags = {}
+    if year != str(row['original_year'] or ''):
+        album_tags['year'] = year
+    if label != (row['label'] or ''):
+        album_tags['label'] = label
     db_engine.execute_query(
-        "UPDATE library_master SET album_title=?, artist_name=?, original_year=?, label=?, last_updated=CURRENT_TIMESTAMP WHERE mf_id=?",
-        (data['title'], data['artist'], data['year'], data['label'], mf_id),
-        commit=True
+        "UPDATE library_master SET original_year=?, label=?, last_updated=CURRENT_TIMESTAMP WHERE mf_id=?",
+        (year, label, mf_id), commit=True
     )
+    if genre_changed:
+        db_engine.execute_query(
+            "UPDATE tracks SET genre=?, sub_genre=?, last_updated=CURRENT_TIMESTAMP WHERE mf_id=?",
+            (genre, sub_genre, mf_id), commit=True
+        )
+        album_tags['genre'] = genre
+        album_tags['sub_genre'] = sub_genre
+    if album_tags:
+        for t in old_tracks:
+            _tag(t['file_path'], album_tags, problems)
 
-    # Country here means the ARTIST's home country (see the read side
-    # above) -- targeted by hashing data['artist'] fresh rather than
-    # trusting library_master's existing mf_artist_id, so a corrected
-    # artist name and a corrected country save correctly together in one
-    # pass. Only written when non-blank -- an empty field means "wasn't
-    # reviewed this save," not "clear the existing value."
+    # Country means the ARTIST's home country (library_artist.country). An
+    # empty field means "not reviewed", not "clear it".
     country_val = (data.get('country') or '').strip()
     if country_val:
-        artist_tid = hash_artist_identity(data['artist'])
         db_engine.execute_query(
             "UPDATE library_artist SET country=?, last_updated=CURRENT_TIMESTAMP WHERE mf_artist_id=?",
-            (country_val, artist_tid),
-            commit=True
+            (country_val, hash_artist_identity(artist)), commit=True
         )
 
     for t in tracks:
         f_path_str = t.get('file_path')
-        if not f_path_str: continue
+        if not f_path_str or f_path_str not in old_titles_map:
+            continue
+        new_title = (t.get('title') or '').strip()
+        track_tags = {}
 
-        new_title = t['title'].strip()
-
-        # Real bug found live 2026-07-17: the per-track "artist" field the
-        # UI already collects (album_editor.js's .track-artist input) was
-        # never actually persisted -- this UPDATE didn't touch it at all,
-        # so editing a track's artist silently did nothing. Same identity
-        # hash convention as commit_engine.py's _hash_artist() and this
-        # file's own personnel-edge sync just below. Falls back to the
-        # album's own artist when a track's field was left blank -- but
-        # only matters for a compilation; a normal album ignores the
-        # per-track field entirely (see is_compilation gate above).
-        track_artist_name = data['artist'].strip() if not is_compilation else (t.get('artist') or data['artist']).strip()
+        track_artist_name = artist if not is_compilation else ((t.get('artist') or '').strip() or artist)
         track_mf_artist_id = hash_artist_identity(track_artist_name)
+        if track_mf_artist_id != old_artist_map.get(f_path_str):
+            db_engine.execute_query(
+                "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                (track_mf_artist_id, track_artist_name), commit=True
+            )
+            db_engine.execute_query(
+                "UPDATE tracks SET mf_artist_id=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
+                (track_mf_artist_id, f_path_str), commit=True
+            )
+            track_tags['artist'] = track_artist_name
 
-        db_engine.execute_query(
-            "INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) VALUES (?, ?, CURRENT_TIMESTAMP)",
-            (track_mf_artist_id, track_artist_name),
-            commit=True
-        )
-
-        db_engine.execute_query(
-            "UPDATE tracks SET title=?, genre=?, sub_genre=?, mf_artist_id=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=? AND LOWER(TRIM(mf_id))=LOWER(TRIM(?))",
-            (new_title, data['genre'], data['sub_genre'], track_mf_artist_id, f_path_str, clean_mf_id),
-            commit=True
-        )
-
-        p_file = Path(f_path_str)
-        if p_file.exists():
-            if f_path_str not in old_titles_map or old_titles_map[f_path_str] != new_title:
-                try:
-                    tag_engine.update_tags(str(p_file), {"title": new_title})
-                except Exception as ex:
-                    print(f"⚠️ Centralized tag_engine update_tags failed for {p_file.name}: {ex}")
+        if new_title and old_titles_map[f_path_str] != new_title:
+            db_engine.execute_query(
+                "UPDATE tracks SET title=?, last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
+                (new_title, f_path_str), commit=True
+            )
+            track_tags['title'] = new_title
 
         new_year = (t.get('original_year') or '').strip()
-        if new_year and f_path_str in old_years_map and str(old_years_map[f_path_str]) != new_year:
+        if new_year and str(old_years_map[f_path_str] or '') != new_year:
             db_engine.execute_query(
                 "UPDATE tracks SET original_year=?, orig_year_conf=100, "
                 "orig_year_source='Manual (User Verified)', leak_flag=0, "
-                "last_updated=CURRENT_TIMESTAMP WHERE file_path=? AND LOWER(TRIM(mf_id))=LOWER(TRIM(?))",
-                (new_year, f_path_str, clean_mf_id),
-                commit=True
+                "last_updated=CURRENT_TIMESTAMP WHERE file_path=?",
+                (new_year, f_path_str), commit=True
             )
-            if p_file.exists():
-                try:
-                    tag_engine.update_tags(str(p_file), {"original_year": new_year})
-                except Exception as ex:
-                    print(f"⚠️ original_year tag update failed for {p_file.name}: {ex}")
-
-            # Only loggable if this track has a real MB recording MBID --
-            # without one there's no MusicBrainz page for a future
-            # submission to target anyway.
+            track_tags['original_year'] = new_year
+            # Only loggable with a real MB recording MBID: without one
+            # there's no MusicBrainz page to submit to.
             mb_recording_id = old_recording_ids_map.get(f_path_str)
             if mb_recording_id:
                 _log_manual_year_correction(
-                    clean_mf_id, f_path_str, data['artist'], data['title'], new_title,
+                    clean_mf_id, f_path_str, artist, title, new_title,
                     mb_recording_id, old_years_map[f_path_str], new_year,
                 )
+        if track_tags:
+            _tag(f_path_str, track_tags, problems)
 
     # Personnel sync -- targeted per-row update/insert/delete, NOT a blanket
     # delete-all-then-reinsert-all. The old approach wiped every edge for
@@ -467,7 +496,7 @@ def _save_album():
         if not still_used:
             db_engine.execute_query("DELETE FROM library_artist WHERE mf_artist_id=?", (r_id,), commit=True)
 
-    return jsonify({"status": "success"})
+    return jsonify({"status": "success", "mf_id": mf_id, "problems": problems})
 
 
 # =========================================================
@@ -530,15 +559,21 @@ def _save_track_detail():
     if emotional_flavor and valid_flavors and emotional_flavor not in valid_flavors:
         return jsonify({"status": "error", "message": f"Emotional Flavor {emotional_flavor!r} outside the fixed list."}), 400
 
-    try:
-        bpm = int(float(data.get('bpm') or 0))
-    except (TypeError, ValueError):
-        return jsonify({"status": "error", "message": "BPM must be numeric."}), 400
+    def _num(key, label):
+        raw = str(data.get(key) if data.get(key) is not None else '').strip()
+        if not raw:
+            return None, None          # blank stays blank (v2: was saved as 0)
+        try:
+            return int(float(raw)), None
+        except ValueError:
+            return None, f"{label} must be a number."
 
-    try:
-        intensity = int(float(data.get('intensity') or 0))
-    except (TypeError, ValueError):
-        return jsonify({"status": "error", "message": "Intensity must be numeric."}), 400
+    bpm, err = _num('bpm', 'BPM')
+    if err:
+        return jsonify({"status": "error", "message": err}), 400
+    intensity, err = _num('intensity', 'Intensity')
+    if err:
+        return jsonify({"status": "error", "message": err}), 400
 
     key_val = (data.get('key') or '').strip()
     mb_track_id = (data.get('mb_track_id') or '').strip()
@@ -565,17 +600,19 @@ def _save_track_detail():
 
     p_file = Path(file_path)
     if p_file.exists():
-        try:
-            tag_engine.update_tags(str(p_file), {
-                "genre": genre, "sub_genre": sub_genre, "mood": mood,
-                "sonic_texture": sonic_texture, "emotional_flavor": emotional_flavor,
-                "bpm": bpm, "key": key_val, "intensity": intensity,
-                "mb_track_id": mb_track_id, "mb_recording_id": mb_recording_id,
-                "mb_artist_id": mb_artist_id, "acoustid": acoustid,
-            })
-        except Exception as ex:
-            print(f"⚠️ Track-detail tag write failed for {p_file.name}: {ex}")
+        values = {
+            "genre": genre, "sub_genre": sub_genre, "mood": mood,
+            "sonic_texture": sonic_texture, "emotional_flavor": emotional_flavor,
+            "bpm": bpm, "key": key_val, "intensity": intensity,
+            "mb_track_id": mb_track_id, "mb_recording_id": mb_recording_id,
+            "mb_artist_id": mb_artist_id, "acoustid": acoustid,
+        }
+        ok, msg = tag_engine.update_tags(str(p_file), {k: v for k, v in values.items() if v is not None})
+        if not ok:
+            return jsonify({"status": "success", "problems": [f"Saved, but the file's tags weren't written: {msg}"]})
+    else:
+        return jsonify({"status": "success", "problems": ["Saved, but the music file wasn't found, so its tags weren't written."]})
 
-    return jsonify({"status": "success"})
+    return jsonify({"status": "success", "problems": []})
 
 # --- END OF FILE album_engine.py ---

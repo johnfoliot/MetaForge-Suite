@@ -8,6 +8,7 @@ import json
 import re
 from flask import jsonify, request
 from common import db_engine, config_handler
+from tools.database_tools.engines import identity_ops
 
 def handle(action):
     if action == "get_taxonomy": return _get_taxonomy()
@@ -19,6 +20,9 @@ def handle(action):
     if action == "get_artist_details": 
         aid = request.args.get('mf_artist_id')
         return _get_artist_details_logic(aid)
+
+    if action == "save_artist": return _save_artist()
+    if action == "merge_artists": return _merge_artists()
         
     return jsonify({"status": "error", "message": "Action unknown"}), 404
 
@@ -94,9 +98,10 @@ def _get_artist_details_logic(aid):
         "photo_path": row['photo_path'] if row['photo_path'] else ""
     }
 
-    # 2. Gather master collection releases directly connected to this artist identity
+    # 2. Albums where this artist is the album artist (v2: by ID; matching
+    # by name text missed albums whose name differed by case or apostrophe).
     albums_res = db_engine.execute_query(
-        "SELECT mf_id, album_title FROM library_master WHERE artist_name = ?", (artist['artist_name'],)
+        "SELECT mf_id, album_title FROM library_master WHERE mf_artist_id = ? ORDER BY album_title COLLATE NOCASE", (aid,)
     )
     
     albums = []
@@ -162,14 +167,57 @@ def _get_artist_details_logic(aid):
     return jsonify({"status": "success", "type": "artist", "artist": artist})
 
 def _save_artist():
-    data = request.json
-    
-    # Universal execution primitive requires commit=True parameter to save modifications permanently
+    """v2 (2026-11-15). Saves country, biography and photo; a new name is
+    carried through to the artist's albums, tracks, credits and tags by
+    identity_ops (merging with an artist who already has that name),
+    after a preview the user confirms."""
+    data = request.json or {}
+    aid = data.get('mf_artist_id')
+    found = db_engine.execute_query("SELECT * FROM library_artist WHERE mf_artist_id = ?", (aid,))
+    if not found:
+        return jsonify({"status": "error", "message": "This artist is no longer in the database."}), 404
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"status": "error", "message": "The artist needs a name."}), 400
+    renamed = name != found[0]['artist_name']
+    if renamed and not data.get('confirmed'):
+        prev = identity_ops.run("artist_merge", ids=[aid], name=name)
+        return jsonify({"status": "confirm", "summary": prev["summary"], "notes": prev["notes"]})
+
     db_engine.execute_query(
-        "UPDATE library_artist SET artist_name = ?, country = ?, biography = ?, photo_path = ?, last_updated = CURRENT_TIMESTAMP WHERE mf_artist_id = ?",
-        (data['name'], data['country'], data['biography'], data['photo_path'], data['mf_artist_id']),
+        "UPDATE library_artist SET country = ?, biography = ?, photo_path = ?, last_updated = CURRENT_TIMESTAMP WHERE mf_artist_id = ?",
+        ((data.get('country') or '').strip(), data.get('biography') or '', data.get('photo_path') or '', aid),
         commit=True
     )
-    
-    # Return explicit JSON response block to close out the workspace fetch pipeline cleanly
-    return jsonify({"status": "success", "message": "Artist identity committed."})
+    problems = []
+    if renamed:
+        res = identity_ops.run("artist_merge", apply=True, label=f"rename {name}", ids=[aid], name=name)
+        aid = res["artist_ids"].get(aid, aid)
+        problems = res["problems"]
+    return jsonify({"status": "success", "mf_artist_id": aid, "problems": problems})
+
+
+def _merge_artists():
+    """Merges other_id into keep_id under the chosen name (either
+    artist's). Preview first; the user confirms."""
+    data = request.json or {}
+    keep, other = data.get('keep_id'), data.get('other_id')
+    if not keep or not other or keep == other:
+        return jsonify({"status": "error", "message": "Choose two different artists."}), 400
+    rows = db_engine.execute_query(
+        "SELECT mf_artist_id, artist_name FROM library_artist WHERE mf_artist_id IN (?, ?)", (keep, other))
+    names = {r['mf_artist_id']: r['artist_name'] for r in rows or []}
+    if len(names) != 2:
+        return jsonify({"status": "error", "message": "One of these artists is no longer in the database."}), 404
+    name = (data.get('name') or names[keep]).strip()
+    if name not in names.values():
+        return jsonify({"status": "error", "message": "Keep one of the two names."}), 400
+    ids = [keep, other] if name == names[keep] else [other, keep]
+    if not data.get('confirmed'):
+        prev = identity_ops.run("artist_merge", ids=ids, name=name)
+        return jsonify({"status": "confirm", "summary": prev["summary"], "notes": prev["notes"]})
+    res = identity_ops.run("artist_merge", apply=True, label=f"merge {name}", ids=ids, name=name)
+    from tools.personnel.edge_normalizer import hash_artist_identity
+    return jsonify({"status": "success", "mf_artist_id": hash_artist_identity(name), "problems": res["problems"]})
+
+# --- END OF FILE identity_engine.py ---
