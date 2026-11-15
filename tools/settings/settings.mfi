@@ -215,10 +215,6 @@
     .tm-mark { display: inline-block; inline-size: 1.2em; }
     .tm-gold { margin: 0; padding: 0.5rem 0.65rem; border: 2px solid var(--status-warning); border-radius: 4px; font-size: 0.875rem; color: var(--text-primary); }
     .tm-gold p { margin: 0 0 0.4rem; }
-    .tm-logo-style { margin: 0; padding: 0.5rem 0.75rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 4px; display: grid; gap: 0.4rem; }
-    .tm-logo-style legend { padding: 0 0.3rem; font-weight: 700; color: var(--text-primary); font-size: 0.9375rem; }
-    .tm-logo-style label { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9375rem; color: var(--text-primary); }
-    .tm-logo-style input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
     .tm-preview-col { position: sticky; top: 0; }
     .tm-more { border: 1px solid var(--border-subtle); border-radius: 4px; }
     .tm-more summary { cursor: pointer; padding: 0.45rem 0.6rem; color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
@@ -527,11 +523,6 @@
                         <div class="tm-col" aria-labelledby="tm-ed-title" role="group">
                             <h3 id="tm-ed-title">Background</h3>
                             <p class="tm-ed-hint" id="tm-ed-hint"></p>
-                            <fieldset class="tm-logo-style" id="tm-logo-style" hidden>
-                                <legend>Logo style</legend>
-                                <label><input type="radio" name="tm-logo-style" value="full"> Full recolour</label>
-                                <label><input type="radio" name="tm-logo-style" value="faces"> Faces only (gold edges)</label>
-                            </fieldset>
                             <div class="tm-code-row">
                                 <div class="set-field">
                                     <label for="tm-hex">Colour code</label>

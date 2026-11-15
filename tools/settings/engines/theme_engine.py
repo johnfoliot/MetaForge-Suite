@@ -90,23 +90,19 @@ def values():
     meta = T.read_meta(text)
     vals = T.read_values(text)
     return jsonify({"status": "success", "values": vals, "name": _label(p, meta), "custom": custom,
-                    "logo_style": meta.get("logo-style", "full"),
                     "logo_colour": meta.get("logo-colour") or vals.get("mf-gold", T.BRAND_GOLD)})
 
 
-def _logo_args(src):
-    style = src.get("style", "full")
+def _logo_colour(src):
     colour = (src.get("colour") or "").lower()
-    if style not in ("full", "faces") or not T.HEX.match(colour):
-        return None, None
-    return style, colour
+    return colour if T.HEX.match(colour) else None
 
 
 def logo_preview():
-    style, colour = _logo_args(request.args)
-    if not style:
-        return jsonify({"status": "error", "message": "Logo style or colour not understood."}), 400
-    return Response(logo_engine.make(style, colour), mimetype="image/svg+xml",
+    colour = _logo_colour(request.args)
+    if not colour:
+        return jsonify({"status": "error", "message": "Logo colour not understood."}), 400
+    return Response(logo_engine.make(colour), mimetype="image/svg+xml",
                     headers={"Cache-Control": "no-store"})
 
 
@@ -118,14 +114,14 @@ def save_custom():
     body = request.json or {}
     name = re.sub(r"\s+", " ", str(body.get("name", ""))).strip()
     vals = {k: str(v).lower() for k, v in (body.get("values") or {}).items() if k in T.KEYS}
-    style, colour = _logo_args(body.get("logo") or {})
+    colour = _logo_colour(body.get("logo") or {})
     slug = _slug(name)
     if not name or not slug:
         return jsonify({"status": "error", "message": "Give the theme a name (letters or numbers)."}), 400
     if len(name) > 40:
         return jsonify({"status": "error", "message": "Keep the name to 40 characters or fewer."}), 400
-    if not style:
-        return jsonify({"status": "error", "message": "Choose a logo style and colour."}), 400
+    if not colour:
+        return jsonify({"status": "error", "message": "Choose a logo colour."}), 400
     file_name = f"{slug}_theme.css"
     if (BUILTIN_DIR / file_name).exists():
         return jsonify({"status": "error", "message": f"“{name}” is the name of a built-in theme. Choose another name."}), 400
@@ -139,8 +135,8 @@ def save_custom():
     CUSTOM_DIR.mkdir(parents=True, exist_ok=True)
     logo_file = f"logo_{slug}.svg"
     stamp = time.strftime("%Y-%m-%d %H:%M")
-    for path, text in ((CUSTOM_DIR / logo_file, logo_engine.make(style, colour)),
-                       (css_path, T.render_css(name, vals, logo_file, style, colour, stamp))):
+    for path, text in ((CUSTOM_DIR / logo_file, logo_engine.make(colour)),
+                       (css_path, T.render_css(name, vals, logo_file, colour, stamp))):
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_text(text, encoding="utf-8")
         tmp.replace(path)

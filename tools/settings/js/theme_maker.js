@@ -9,7 +9,7 @@
  *    pair it takes part in, with Fix (moves only its lightness).
  *  - A live preview that uses the new colours (on the preview only; the
  *    rest of Settings keeps the app's theme so it stays readable).
- *  - The logo (full recolour or faces only) is drawn by the server
+ *  - The 3-D logo (faces, edges and "Studio" in one colour) is drawn by the server
  *    (engines/logo_engine.py) so preview and saved file are identical.
  *  - Save is refused while anything fails (John: block + Fix); the server
  *    checks again.
@@ -30,7 +30,7 @@
     let tpl = null;            // template from the server
     let labels = {};
     let values = {};           // key -> '#rrggbb'
-    let logo = { style: 'full', colour: '#cc9900' };
+    let logo = { colour: '#cc9900' };
     let selected = 'bg-main';
     let editing = null;        // file name when editing one of your themes
     let dirty = false;
@@ -127,9 +127,8 @@
         const hex = isLogo ? logo.colour : values[selected];
         $('tm-ed-title').textContent = isLogo ? 'Logo colour' : tok.label;
         $('tm-ed-hint').textContent = isLogo
-            ? 'Full recolour: the whole 3-D logo in this colour. Faces only: this colour on the letter faces and “Studio”, with gold edges.'
+            ? 'The whole 3-D logo, edges and “Studio” included, is drawn in this colour, with lighter top edges and darker undersides.'
             : tok.hint;
-        $('tm-logo-style').hidden = !isLogo;
         $('tm-hex').value = hex;
         $('tm-picker').value = hex;
         const hsl = toHsl(hex);
@@ -180,7 +179,7 @@
         for (const [k, v] of Object.entries(values)) pv.style.setProperty(`--${k}`, v);
         clearTimeout(logoTimer);
         logoTimer = setTimeout(() => {
-            $('tm-logo').src = `/run_tool_logic/settings/logo_preview?style=${logo.style}&colour=${encodeURIComponent(logo.colour)}`;
+            $('tm-logo').src = `/run_tool_logic/settings/logo_preview?colour=${encodeURIComponent(logo.colour)}`;
         }, 250);
     }
 
@@ -355,7 +354,7 @@
     async function useBuilt(result, what, statusId) {
         if (dirty && !(await S.confirm({ title: 'Replace every colour?', body: 'All the colours (and the logo colour) are replaced with the new ones.', ok: 'Replace colours', cancel: 'Keep mine' }))) return false;
         values = result.values;
-        logo = { style: logo.style, colour: values['mf-gold'] };
+        logo = { colour: values['mf-gold'] };
         hueMemo = {};
         setDirty(true);
         renderAll();
@@ -380,13 +379,13 @@
         if (choice.startsWith('tpl:')) {
             const which = choice.slice(4);
             values = Object.fromEntries(tpl.tokens.map(t => [t.key, t[which]]));
-            logo = { style: 'full', colour: values['mf-gold'] };
+            logo = { colour: values['mf-gold'] };
             return `the ${which} template`;
         }
         const r = await (await fetch(`/run_tool_logic/settings/theme_values?file=${encodeURIComponent(choice)}`)).json();
         if (r.status !== 'success') throw new Error(r.message || 'not found');
         values = Object.fromEntries(tpl.tokens.map(t => [t.key, r.values[t.key] || t.dark]));
-        logo = { style: r.logo_style === 'faces' ? 'faces' : 'full', colour: isHex(r.logo_colour) ? r.logo_colour.toLowerCase() : values['mf-gold'] };
+        logo = { colour: isHex(r.logo_colour) ? r.logo_colour.toLowerCase() : values['mf-gold'] };
         return r.name;
     }
 
@@ -394,7 +393,6 @@
         renderList();
         renderEditor();
         applyPreview();
-        for (const r of document.querySelectorAll('input[name="tm-logo-style"]')) r.checked = r.value === logo.style;
     }
 
     // --- wiring ---
@@ -461,7 +459,6 @@
         }
         $('tm-fix').addEventListener('click', fix);
         $('tm-use-gold').addEventListener('click', () => { setColour(tpl.brand_gold); S.say('tm-ed-status', `${selected === LOGO ? 'Logo colour' : labels[selected]} is now #CC9900.`, 'ok'); });
-        $('tm-logo-style').addEventListener('change', (e) => { logo.style = e.target.value; setDirty(true); applyPreview(); });
         $('tm-next').addEventListener('click', () => {
             const p = problems()[0]; if (!p) return;
             select(p.keys[0], true);
