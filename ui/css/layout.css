@@ -95,6 +95,20 @@ h1.main:focus { outline:none!important; }
     font-size: 1.625rem;
     line-height: 1.2;
     font-family: var(--font-main);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+/* The tool's own icon before its heading (added by mfAddHeaderIcon,
+   metaforge_core.js). Sized in em so it grows with the heading text. */
+.mf-page-icon {
+    flex: none;
+    width: 1.15em;
+    height: 1.15em;
+    background-color: var(--mf-gold);
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
 }
 /* Quiet outlined button; overrides the global gold-filled `button` look,
    which is set with !important in section 2. */

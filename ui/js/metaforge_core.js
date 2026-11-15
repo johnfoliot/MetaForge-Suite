@@ -242,6 +242,24 @@ document.addEventListener('click', function(e) {
     if (trigger) window.MFHelp.open(trigger.dataset.mfHelp, trigger.dataset.mfHelpName);
 });
 
+// --- SHARED: TOOL ICON IN THE SCREEN HEADER (v2, John 2026-11-15) ---
+// Every screen's <h1> starts with the tool's own icon, the same one its rail
+// button shows (taken from that button, so the two can never drift apart and
+// new tools get it automatically). Decorative: the heading text names the
+// tool, so the icon is aria-hidden. Coloured by --mf-gold (gold, or the light
+// theme's blue pivot) via layout.css .mf-page-icon.
+window.mfAddHeaderIcon = function(stage, toolId) {
+    const h1 = stage.querySelector('.mf-page-head h1');
+    const railIcon = document.querySelector(`#mode-${CSS.escape(toolId)} .mf-icon-mask`);
+    if (!h1 || !railIcon || h1.querySelector('.mf-page-icon')) return;
+    const icon = document.createElement('span');
+    icon.className = 'mf-page-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.style.maskImage = railIcon.style.maskImage;
+    icon.style.webkitMaskImage = railIcon.style.maskImage;
+    h1.prepend(icon);
+};
+
 // --- ENGINE: TOOL LOADER ---
 
 /**
@@ -277,7 +295,8 @@ window.loadTool = async function(toolId) {
         const response = await fetch(`/get_tool/${toolId}?v=${new Date().getTime()}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         stage.innerHTML = await response.text();
-        
+        window.mfAddHeaderIcon(stage, toolId);
+
         // Update global tracking context to the new module ID
         window.metaforge_current_tool = toolId;
 
