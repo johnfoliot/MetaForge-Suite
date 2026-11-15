@@ -847,7 +847,12 @@ class MetaForgeAPI:
         self._active_verify_api = verify_api
 
 def run_flask():
-    app.run(port=5000, debug=False, use_reloader=False, threaded=True)
+    # SECURITY: bound to this PC only (loopback). Verified 2026-11-15: not
+    # reachable through the PC's network address. Never change this to
+    # "0.0.0.0": that would expose every tool, the API keys in Settings and
+    # the music library to the whole network. (127.0.0.1 is also Flask's
+    # default; it's spelled out so no future edit drops it by accident.)
+    app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False, threaded=True)
 
 @app.route('/scan_library', methods=['GET'])
 def scan_library_route():
