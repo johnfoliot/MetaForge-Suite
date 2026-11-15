@@ -467,7 +467,10 @@ window.MFEvents = {
             return log.lastElementChild;
         }
         const row = document.createElement('div');
-        row.className = `mf-ev mf-ev-${ev.kind}`;
+        // `ok: true` on any event adds a ✓ in the mark column (e.g. the
+        // final "Scrubbed 11 of 11 files" detail line) without changing
+        // its kind or indent.
+        row.className = `mf-ev mf-ev-${ev.kind}${ev.ok ? ' mf-ev-ok' : ''}`;
 
         const time = document.createElement('span');
         time.className = 'mf-ev-time';
@@ -477,7 +480,7 @@ window.MFEvents = {
         const mark = document.createElement('span');
         mark.className = 'mf-ev-mark';
         mark.setAttribute('aria-hidden', 'true');
-        mark.textContent = this.MARK[ev.kind] || '';
+        mark.textContent = this.MARK[ev.kind] || (ev.ok ? '✓' : '');
         row.append(mark);
 
         const body = document.createElement('span');
@@ -495,8 +498,14 @@ window.MFEvents = {
             // pairs wrap. Without details, the plain text line is shown.
             if (Array.isArray(ev.details) && ev.details.length) {
                 ev.details.forEach((line) => {
+                    // Outer span clips; inner span is pulled left by one
+                    // separator width, so the "·" in front of whichever pair
+                    // starts a (wrapped) line is clipped away.
                     const row = document.createElement('span');
                     row.className = 'mf-ev-track-did mf-ev-pairs';
+                    const inner = document.createElement('span');
+                    inner.className = 'mf-ev-pairs-in';
+                    row.append(inner);
                     line.forEach(([label, value]) => {
                         const pair = document.createElement('span');
                         pair.className = 'mf-ev-pair';
@@ -507,7 +516,7 @@ window.MFEvents = {
                         v.className = 'mf-ev-pair-v';
                         v.textContent = value;
                         pair.append(k, ' ', v);
-                        row.append(pair);
+                        inner.append(pair);
                     });
                     body.append(row);
                 });

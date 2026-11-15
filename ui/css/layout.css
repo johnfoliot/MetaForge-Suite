@@ -653,9 +653,21 @@ input, textarea, select {
    Pairs wrap as whole units. The separating dot is CSS-generated with a
    comma as its alt text, so screen readers pause between pairs ("1974,
    Release year") instead of announcing "dot" or running them together. */
-.mf-ev-pairs { display: flex; flex-wrap: wrap; column-gap: 0.25rem; }
+.mf-ev-pairs { overflow: hidden; }
+/* Every pair carries its "·" in front; the inner row is pulled left by
+   exactly one separator width and the outer row clips, so a line never
+   starts with a dot, however the pairs wrap (John, 2026-11-15). */
+.mf-ev-pairs-in { display: flex; flex-wrap: wrap; margin-left: -1rem; }
 .mf-ev-pair { white-space: nowrap; }
-.mf-ev-pair + .mf-ev-pair::before { content: "·" / ","; margin-right: 0.35rem; color: var(--text-muted); }
+.mf-ev-pair::before {
+    content: "·" / ",";
+    display: inline-block;
+    width: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+/* A ✓ in the mark column for an otherwise ordinary line (event ok: true) */
+.mf-ev-ok .mf-ev-mark { color: var(--status-success); }
 .mf-ev-pair-k { color: var(--text-muted); }
 .mf-ev-pair-v { color: var(--text-primary); white-space: normal; overflow-wrap: anywhere; }
 .mf-ev-thumb {

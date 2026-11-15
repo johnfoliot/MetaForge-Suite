@@ -65,7 +65,8 @@ def scrub_tags(root_path):
         if success:
             scrub_count += 1
             if scrub_count % 5 == 0 or scrub_count == len(files):
-                yield event("detail", f"Scrubbed {scrub_count} of {len(files)} files")
+                yield event("detail", f"Scrubbed {scrub_count} of {len(files)} files",
+            ok=(scrub_count == len(files)))   # ✓ on the final line (John, 2026-11-15)
         else:
             yield event("error", f"Scrub failed: {message}", file=f.name)
 

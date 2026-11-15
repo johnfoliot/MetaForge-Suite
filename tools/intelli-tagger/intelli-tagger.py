@@ -496,13 +496,16 @@ def _track_event(idx, total, filename, data):
         v = default if v in (None, "", "None") else v
         return str(v)
 
+    # Line layout (John, 2026-11-15): years / genre / acoustic + AI
+    # attributes / MusicBrainz track ID / AcoustID, each on its own line.
     details = [
-        [["Original year", val("original_year")], ["Release year", val("release_year")],
-         ["Genre", val("parent")], ["Sub-genre", val("sub")]],
+        [["Original year", val("original_year")], ["Release year", val("release_year")]],
+        [["Genre", val("parent")], ["Sub-genre", val("sub")]],
         [["BPM", val("bpm", "0")], ["Key", val("key", "??")], ["Intensity", val("intensity", "1")],
          ["Mood", val("mood")], ["Sonic texture", val("sonic_texture")],
          ["Emotional flavour", val("emotional_flavor")]],
-        [["MusicBrainz track ID", val("mb_track_id", "None")], ["AcoustID", val("acoustid", "None")]],
+        [["MusicBrainz track ID", val("mb_track_id", "None")]],
+        [["AcoustID", val("acoustid", "None")]],
     ]
     text = "; ".join(f"{k} {v}" for line in details for k, v in line)
     return event("track", text, file=filename, details=details, position=f"{idx} of {total}")
