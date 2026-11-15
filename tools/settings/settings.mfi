@@ -216,6 +216,15 @@
     .tm-logo-style label { display: flex; gap: 0.5rem; align-items: center; font-size: 0.9375rem; color: var(--text-primary); }
     .tm-logo-style input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
     .tm-preview-col { position: sticky; top: 0; }
+    .tm-more { border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .tm-more summary { cursor: pointer; padding: 0.45rem 0.6rem; color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
+    .tm-more summary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .tm-more-in { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.25rem 0.6rem 0.75rem; }
+    .tm-more-in button { align-self: flex-start; }
+    .tm-mode { margin: 0; padding: 0; border: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; }
+    .tm-mode legend { padding: 0; margin-bottom: 0.25rem; font-weight: 700; color: var(--text-primary); font-size: 0.9375rem; }
+    .tm-mode label { display: flex; gap: 0.4rem; align-items: center; font-size: 0.9375rem; color: var(--text-primary); }
+    .tm-mode input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
 
     /* The preview uses only the 17 template colours (set on #tm-preview by
        JS), never the app's aliases, so it shows the new theme alone. */
@@ -458,7 +467,55 @@
                                     <select class="set-select" id="tm-start"></select>
                                     <button type="button" class="set-secondary" id="tm-start-load">Use these colours</button>
                                 </div>
+                                <p class="set-status" id="tm-start-status"></p>
                             </div>
+                            <details class="tm-more">
+                                <summary>Suggest colours from one colour</summary>
+                                <div class="tm-more-in">
+                                    <p class="set-hint">Your colour becomes the brand and button colour; the rest are chosen to go with it, with contrast fixed for you. Suggest again for a different take.</p>
+                                    <div class="tm-code-row">
+                                        <div class="set-field">
+                                            <label for="tm-seed">Your colour</label>
+                                            <input class="set-input is-code" id="tm-seed" form="tm-suggest-form" value="#2a6f97" maxlength="7" autocomplete="off" spellcheck="false">
+                                        </div>
+                                        <input type="color" class="tm-picker" id="tm-seed-picker" value="#2a6f97" aria-label="Colour picker for your colour">
+                                    </div>
+                                    <div class="set-field">
+                                        <label for="tm-harmony">Colour scheme</label>
+                                        <select class="set-select" id="tm-harmony" form="tm-suggest-form">
+                                            <option value="complementary">Opposite colours (complementary)</option>
+                                            <option value="analogous">Neighbouring colours (analogous)</option>
+                                            <option value="triadic">Three evenly spaced (triadic)</option>
+                                            <option value="split">Opposite, softened (split complementary)</option>
+                                            <option value="mono">Shades of one colour (monochrome)</option>
+                                        </select>
+                                    </div>
+                                    <fieldset class="tm-mode">
+                                        <legend>Make a</legend>
+                                        <label><input type="radio" name="tm-suggest-mode" value="dark" form="tm-suggest-form" checked> Dark theme</label>
+                                        <label><input type="radio" name="tm-suggest-mode" value="light" form="tm-suggest-form"> Light theme</label>
+                                    </fieldset>
+                                    <button type="submit" class="set-secondary" form="tm-suggest-form">Suggest colours</button>
+                                    <p class="set-status" id="tm-suggest-status"></p>
+                                </div>
+                            </details>
+                            <details class="tm-more">
+                                <summary>Use colours you paste</summary>
+                                <div class="tm-more-in">
+                                    <div class="set-field">
+                                        <label for="tm-paste-text">Colour codes or a palette link</label>
+                                        <input class="set-input is-code" id="tm-paste-text" form="tm-paste-form" autocomplete="off" spellcheck="false" aria-describedby="tm-paste-hint">
+                                        <p class="set-hint" id="tm-paste-hint">2 to 10 codes, like #264653 #2a9d8f #e9c46a, or a link copied from a site such as Coolors. The darkest (or lightest) becomes the background and the boldest the brand colour.</p>
+                                    </div>
+                                    <fieldset class="tm-mode">
+                                        <legend>Make a</legend>
+                                        <label><input type="radio" name="tm-paste-mode" value="dark" form="tm-paste-form" checked> Dark theme</label>
+                                        <label><input type="radio" name="tm-paste-mode" value="light" form="tm-paste-form"> Light theme</label>
+                                    </fieldset>
+                                    <button type="submit" class="set-secondary" form="tm-paste-form">Use pasted colours</button>
+                                    <p class="set-status" id="tm-paste-status"></p>
+                                </div>
+                            </details>
                             <h3>Colours</h3>
                             <div id="tm-list"></div>
                         </div>
@@ -500,6 +557,7 @@
                                 <p><strong>This reads as gold.</strong> MetaForge has one gold, #CC9900, so other golds can't be saved.</p>
                                 <button type="button" class="set-secondary" id="tm-use-gold">Use #CC9900</button>
                             </div>
+                            <p class="set-status" id="tm-ed-status"></p>
                         </div>
 
                         <div class="tm-col tm-preview-col">
@@ -530,6 +588,10 @@
                         <p class="set-status" id="tm-status"></p>
                     </div>
             </form>
+            <!-- Owners of the Suggest / Paste fields (form="..."), so Enter in
+                 those fields runs their own action instead of Save. -->
+            <form id="tm-suggest-form" hidden></form>
+            <form id="tm-paste-form" hidden></form>
         </div>
 
         <!-- TOOLBAR -->

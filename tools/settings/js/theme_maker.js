@@ -13,6 +13,13 @@
  *    (engines/logo_engine.py) so preview and saved file are identical.
  *  - Save is refused while anything fails (John: block + Fix); the server
  *    checks again.
+ *  - Starting points that aren't blank (John, 2026-11-15): "Suggest colours"
+ *    builds a palette from one colour + a colour scheme (each press rolls a
+ *    new variation), and "Use colours you paste" takes 2-10 codes or a
+ *    palette link (e.g. Coolors). Both take hue from the source colours and
+ *    lightness from the template, then autoFix() fixes every check.
+ *    Their fields belong to their own small forms (form="..."), so Enter
+ *    runs them rather than Save; their messages show beside them.
  */
 (function () {
     const S = window.metaforge.settings;
@@ -208,6 +215,7 @@
     }
 
     function select(key, focusEditor) {
+        if (key !== selected) S.say('tm-ed-status', '');
         selected = key;
         for (const b of document.querySelectorAll('.tm-item')) {
             if (b.dataset.key === key) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current');
@@ -216,30 +224,148 @@
         if (focusEditor) $('tm-hex').focus();
     }
 
-    /** Smallest lightness change that makes every pair of the selected colour pass. */
-    function fix() {
-        const base = values[selected], hsl = toHsl(base);
-        const mine = tpl.pairs.filter(p => p.fg === selected || p.bg === selected);
+    /**
+     * Smallest lightness change to colour `key` (in palette `v`) that makes
+     * every pair it takes part in pass without reading as gold.
+     * Returns {hex, step, dir} or null.
+     */
+    function fixKey(key, v, hue) {
+        const hsl = toHsl(v[key]);
+        const mine = tpl.pairs.filter(p => p.fg === key || p.bg === key);
         const passes = (hex) => {
-            const v = { ...values, [selected]: hex };
-            return mine.every(p => ratio(v[p.fg], v[p.bg]) >= p.min) && !readsAsGold(hex);
+            const t = { ...v, [key]: hex };
+            return mine.every(p => ratio(t[p.fg], t[p.bg]) >= p.min) && !readsAsGold(hex);
         };
         for (let step = 1; step <= 100; step++) {
             for (const dir of [-1, 1]) {
                 const l = hsl.l + dir * step;
                 if (l < 0 || l > 100) continue;
-                const hex = toHex(hsl.grey ? (hueMemo[selected] ?? 0) : hsl.h, hsl.s, l);
-                if (passes(hex)) {
-                    setColour(hex);
-                    S.say('tm-status', `${labels[selected]} is now ${hex} (lightness ${dir < 0 ? 'down' : 'up'} ${step}%). Every check for it passes.`, 'ok');
-                    $('tm-hex').focus();
-                    return;
+                const hex = toHex(hsl.grey ? (hue ?? 0) : hsl.h, hsl.s, l);
+                if (passes(hex)) return { hex, step, dir };
+            }
+        }
+        return null;
+    }
+
+    /** Smallest lightness change that makes every pair of the selected colour pass. */
+    function fix() {
+        const mine = tpl.pairs.filter(p => p.fg === selected || p.bg === selected);
+        const r = fixKey(selected, values, hueMemo[selected]);
+        if (r) {
+            setColour(r.hex);
+            S.say('tm-ed-status', `${labels[selected]} is now ${r.hex} (lightness ${r.dir < 0 ? 'down' : 'up'} ${r.step}%). Every check for it passes.`, 'ok');
+            $('tm-hex').focus();
+            return;
+        }
+        const other = mine.find(p => ratio(values[p.fg], values[p.bg]) < p.min);
+        S.say('tm-ed-status', `${labels[selected]} can’t pass every check by changing its lightness alone. Try changing ${labels[other.fg === selected ? other.bg : other.fg]} instead.`, 'error');
+    }
+
+    // --- suggested and pasted palettes ---
+    // Which source colour each of the 17 colours takes its hue from, and the
+    // most saturation it may keep (null = keep the source colour exactly).
+    // Lightness comes from the Dark/Light template, which already passes, so
+    // only small contrast fixes are needed afterwards.
+    const ROLES = {
+        'bg-main': ['primary', 0.35], 'bg-stage': ['primary', 0.35], 'bg-accent': ['secondary', 0.35],
+        'input-background2': ['primary', 0.35], 'border-subtle': ['primary', 0.35],
+        'text-output': ['primary', 0.08], 'text-message': ['primary', 0.12], 'text-muted': ['primary', 0.3],
+        'input-foreground2': ['primary', 0.1],
+        'mf-gold': ['accent', null], 'input-background': ['accent', null],
+        'border-ui': ['secondary', 0.4], 'focus-ring': ['secondary', 0.6]
+    };
+    const SCHEMES = {   // [surface hue offset, raised-area hue offset] from your colour
+        complementary: [180, 0], analogous: [30, -30], triadic: [120, 240], split: [150, 210], mono: [0, 0]
+    };
+
+    /** anchors = {primary, accent, secondary} hex; mode 'dark'|'light'. */
+    function buildPalette(anchors, mode, { exactBg } = {}) {
+        const v = {};
+        for (const t of tpl.tokens) {
+            const role = ROLES[t.key];
+            if (!role) { v[t.key] = t[mode]; continue; }            // status colours, button text: template
+            const [src, cap] = role;
+            const s = toHsl(anchors[src]);
+            if (cap === null) { v[t.key] = anchors[src]; continue; }
+            v[t.key] = toHex(s.h, Math.min(s.s, cap * 100), toHsl(t[mode]).l);
+        }
+        const p = toHsl(anchors.primary);
+        if (exactBg && (mode === 'dark' ? p.l <= 20 : p.l >= 85)) v['bg-main'] = anchors.primary;
+        return autoFix(v, mode);
+    }
+
+    /** Fix every failing check, moving text before backgrounds. Returns {values, changed}. */
+    function autoFix(start, mode) {
+        const v = { ...start };
+        const gold = tpl.brand_gold;
+        for (const k of Object.keys(v)) {
+            if (!readsAsGold(v[k])) continue;
+            if (k === 'input-background') v[k] = gold;               // gold is fine behind dark text
+            else if (k === 'mf-gold') v[k] = mode === 'light' ? '#1a2fb5' : gold;   // light themes pivot to blue
+            else { const h = toHsl(v[k]); v[k] = toHex(h.h, 40, h.l); }
+        }
+        for (let round = 0; round < 8; round++) {
+            const fails = tpl.pairs.filter(p => ratio(v[p.fg], v[p.bg]) < p.min);
+            if (!fails.length) break;
+            for (const p of fails) {
+                if (ratio(v[p.fg], v[p.bg]) >= p.min) continue;
+                for (const k of [p.fg, p.bg]) {
+                    const r = fixKey(k, v);
+                    if (r) { v[k] = r.hex; break; }
                 }
             }
         }
-        const other = mine.find(p => ratio(values[p.fg], values[p.bg]) < p.min);
-        S.say('tm-status', `${labels[selected]} can’t pass every check by changing its lightness alone. Try changing ${labels[other.fg === selected ? other.bg : other.fg]} instead.`, 'error');
+        const changed = Object.keys(v).filter(k => v[k] !== start[k]).length;
+        return { values: v, changed };
     }
+
+    let suggestCount = 0;
+    function suggest(seed, scheme, mode) {
+        const rnd = suggestCount++ === 0 ? () => 0.5 : Math.random;
+        const h = toHsl(seed);
+        const [a, b] = SCHEMES[scheme];
+        const jitter = () => (rnd() - 0.5) * 30;
+        const sat = 12 + rnd() * 28;                                // surface tint
+        let hp = h.h + a + (scheme === 'mono' ? 0 : jitter());
+        let hs = h.h + b + (scheme === 'mono' ? 0 : jitter());
+        if (rnd() > 0.7) [hp, hs] = [hs, hp];
+        const norm = (x) => ((x % 360) + 360) % 360;
+        return buildPalette({
+            primary: toHex(norm(hp), sat, 50),
+            secondary: toHex(norm(hs), Math.max(sat, 30), 50),
+            accent: seed
+        }, mode);
+    }
+
+    function parseColours(text) {
+        const found = [...text.matchAll(/(?<![0-9a-f])#?([0-9a-f]{6})(?![0-9a-f])/gi)].map(m => '#' + m[1].toLowerCase());
+        return [...new Set(found)];
+    }
+
+    function fromPasted(list, mode) {
+        const byL = [...list].sort((x, y) => lum(x) - lum(y));
+        const primary = mode === 'dark' ? byL[0] : byL[byL.length - 1];
+        // "Boldest" = most chroma (max - min channel). HSL saturation would call
+        // near-black #001219 or cream #fefae0 fully saturated.
+        const chroma = (h) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); return Math.max(...c) - Math.min(...c); };
+        const rest = list.filter(c => c !== primary).sort((x, y) => chroma(y) - chroma(x));
+        return buildPalette({ primary, accent: rest[0], secondary: rest[1] || primary }, mode, { exactBg: true });
+    }
+
+    async function useBuilt(result, what, statusId) {
+        if (dirty && !(await S.confirm({ title: 'Replace every colour?', body: 'All the colours (and the logo colour) are replaced with the new ones.', ok: 'Replace colours', cancel: 'Keep mine' }))) return false;
+        values = result.values;
+        logo = { style: logo.style, colour: values['mf-gold'] };
+        hueMemo = {};
+        setDirty(true);
+        renderAll();
+        const n = problems().length;
+        const fixed = result.changed ? ` ${result.changed} ${result.changed === 1 ? 'colour was' : 'colours were'} adjusted for contrast.` : '';
+        S.say(statusId, `${what}.${fixed} ${n ? `${n} ${n === 1 ? 'check still fails' : 'checks still fail'}: use Go to the next problem.` : 'Every check passes.'}`, n ? 'warning' : 'ok');
+        return true;
+    }
+
+    const modeOf = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || 'dark';
 
     // --- start points ---
     function fillStartSelect(currentFile) {
@@ -279,6 +405,44 @@
         form.addEventListener('submit', (e) => { e.preventDefault(); S.maker.save(); });
         $('tm-back').addEventListener('click', () => S.maker.close());
         $('tm-name').addEventListener('input', () => { setDirty(true); $('tm-name').removeAttribute('aria-invalid'); });
+
+        // Suggest colours (its own form via form="", so Enter suggests, not saves)
+        const seedHex = () => { let s = $('tm-seed').value.trim(); if (!s.startsWith('#')) s = '#' + s; return s.toLowerCase(); };
+        $('tm-seed').addEventListener('input', () => {
+            suggestCount = 0;
+            if (isHex(seedHex())) { $('tm-seed').removeAttribute('aria-invalid'); $('tm-seed-picker').value = seedHex(); }
+        });
+        $('tm-seed-picker').addEventListener('input', (e) => { suggestCount = 0; $('tm-seed').value = e.target.value; $('tm-seed').removeAttribute('aria-invalid'); });
+        $('tm-harmony').addEventListener('change', () => { suggestCount = 0; });
+        $('tm-suggest-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!isHex(seedHex())) {
+                $('tm-seed').setAttribute('aria-invalid', 'true'); $('tm-seed').focus();
+                S.say('tm-suggest-status', 'Your colour needs a code: # followed by 6 digits or letters a to f, like #2a6f97.', 'error');
+                return;
+            }
+            const sel = $('tm-harmony');
+            const n = suggestCount + 1;
+            const result = suggest(seedHex(), sel.value, modeOf('tm-suggest-mode'));
+            await useBuilt(result, `Suggestion ${n}: ${sel.selectedOptions[0].textContent.toLowerCase()}, ${modeOf('tm-suggest-mode')} theme`, 'tm-suggest-status');
+        });
+
+        // Use pasted colours
+        $('tm-paste-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const box = $('tm-paste-text');
+            let list = parseColours(box.value);
+            if (list.length < 2) {
+                box.setAttribute('aria-invalid', 'true'); box.focus();
+                S.say('tm-paste-status', list.length ? 'Only one colour code was found. Paste at least 2.' : 'No colour codes were found. Paste codes like #264653, or a Coolors palette link.', 'error');
+                return;
+            }
+            box.removeAttribute('aria-invalid');
+            const extra = list.length > 10 ? ` (the first 10 of ${list.length})` : '';
+            list = list.slice(0, 10);
+            await useBuilt(fromPasted(list, modeOf('tm-paste-mode')), `Used ${list.length} pasted colours${extra}, ${modeOf('tm-paste-mode')} theme`, 'tm-paste-status');
+        });
+        $('tm-paste-text').addEventListener('input', (e) => e.target.removeAttribute('aria-invalid'));
         $('tm-list').addEventListener('click', (e) => { const b = e.target.closest('.tm-item'); if (b) select(b.dataset.key, false); });
         $('tm-hex').addEventListener('input', (e) => {
             let v = e.target.value.trim(); if (!v.startsWith('#')) v = '#' + v;
@@ -286,7 +450,7 @@
         });
         $('tm-hex').addEventListener('change', (e) => {
             let v = e.target.value.trim(); if (!v.startsWith('#')) v = '#' + v;
-            if (!isHex(v)) { e.target.setAttribute('aria-invalid', 'true'); S.say('tm-status', 'A colour code is # followed by 6 digits or letters a to f, like #1a2fb5.', 'error'); }
+            if (!isHex(v)) { e.target.setAttribute('aria-invalid', 'true'); S.say('tm-ed-status', 'A colour code is # followed by 6 digits or letters a to f, like #1a2fb5.', 'error'); }
         });
         $('tm-picker').addEventListener('input', (e) => setColour(e.target.value, { from: 'picker' }));
         for (const id of ['tm-h', 'tm-s', 'tm-l']) {
@@ -296,13 +460,13 @@
             });
         }
         $('tm-fix').addEventListener('click', fix);
-        $('tm-use-gold').addEventListener('click', () => { setColour(tpl.brand_gold); S.say('tm-status', `${selected === LOGO ? 'Logo colour' : labels[selected]} is now #CC9900.`, 'ok'); });
+        $('tm-use-gold').addEventListener('click', () => { setColour(tpl.brand_gold); S.say('tm-ed-status', `${selected === LOGO ? 'Logo colour' : labels[selected]} is now #CC9900.`, 'ok'); });
         $('tm-logo-style').addEventListener('change', (e) => { logo.style = e.target.value; setDirty(true); applyPreview(); });
         $('tm-next').addEventListener('click', () => {
             const p = problems()[0]; if (!p) return;
             select(p.keys[0], true);
             renderList();
-            S.say('tm-status', `${p.text}.`);
+            S.say('tm-ed-status', `${p.text}.`);
         });
         $('tm-start-load').addEventListener('click', async () => {
             if (dirty && !(await S.confirm({ title: 'Replace every colour?', body: 'All the colours (and the logo settings) are replaced with the ones you chose to start from.', ok: 'Replace colours', cancel: 'Keep mine' }))) return;
@@ -311,8 +475,8 @@
                 hueMemo = {};
                 setDirty(true);
                 renderAll();
-                S.say('tm-status', `Started from ${what}.`, 'ok');
-            } catch (e) { S.say('tm-status', `Those colours couldn't be loaded: ${e.message}`, 'error'); }
+                S.say('tm-start-status', `Started from ${what}.`, 'ok');
+            } catch (e) { S.say('tm-start-status', `Those colours couldn't be loaded: ${e.message}`, 'error'); }
         });
     }
 
@@ -336,11 +500,14 @@
             $('tm-name').value = edit ? name : '';
             selected = 'bg-main';
             hueMemo = {};
+            suggestCount = 0;
+            const mode = lum(values['bg-main']) > 0.4 ? 'light' : 'dark';
+            for (const r of document.querySelectorAll('input[name="tm-suggest-mode"], input[name="tm-paste-mode"]')) r.checked = r.value === mode;
             setDirty(false);
             $('set-theme-form').hidden = true;
             $('tm-form').hidden = false;
             renderAll();
-            S.say('tm-status', '');
+            for (const id of ['tm-status', 'tm-ed-status', 'tm-start-status', 'tm-suggest-status', 'tm-paste-status']) S.say(id, '');
             $('set-panels').scrollTop = 0;
             $('tm-name').focus();
         },
@@ -366,7 +533,8 @@
             if (p.length) {
                 select(p[0].keys[0], true);
                 renderList();
-                S.say('tm-status', `Not saved yet: ${p.length} ${p.length === 1 ? 'check fails' : 'checks fail'}. First: ${p[0].text}. Fix shows next to the colour.`, 'error');
+                S.say('tm-status', `Not saved: ${p.length} ${p.length === 1 ? 'check fails' : 'checks fail'}.`, 'error');
+                S.say('tm-ed-status', `${p[0].text}. Change this colour, or use Fix.`, 'error');
                 return;
             }
             const send = async (overwrite) => (await fetch('/run_tool_logic/settings/save_custom_theme', {
