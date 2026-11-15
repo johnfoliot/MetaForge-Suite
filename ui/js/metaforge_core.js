@@ -78,7 +78,29 @@ document.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 
 // --- ENGINE: MODE SWITCHER ---
 
-window.mfSwitchMode = function(mode) {
+// v2 (2026-11-15) shared leave guard. A tool with unsaved work calls
+// MFLeaveGuard.set(askFn), where askFn() returns a Promise<boolean> ("OK to
+// leave?"), and MFLeaveGuard.clear() once the work is saved or discarded.
+// Every tool switch goes through mfSwitchMode, which asks first; closing or
+// reloading the window gets the browser's own "leave?" prompt.
+window.MFLeaveGuard = {
+    ask: null,
+    asking: false,
+    set(fn) { this.ask = fn; },
+    clear() { this.ask = null; }
+};
+window.addEventListener('beforeunload', (e) => { if (window.MFLeaveGuard.ask) e.preventDefault(); });
+
+window.mfSwitchMode = async function(mode) {
+    const guard = window.MFLeaveGuard;
+    if (guard.ask && mode !== window.metaforge_current_tool) {
+        if (guard.asking) return;
+        guard.asking = true;
+        let ok = false;
+        try { ok = await guard.ask(); } finally { guard.asking = false; }
+        if (!ok) return;
+        guard.clear();
+    }
     // v2: the current tool is marked with aria-current="page" (announced as
     // "current page"), styled from that attribute so the visual and the
     // accessible state can't disagree. The 1.x aria-pressed is removed:
@@ -622,27 +644,14 @@ window.MFEvents = {
 
 // --- CENTRALIZED EVENT DELEGATION & SANITIZATION ---
 
-function setupGlobalNavigationListeners() {
-    document.addEventListener('click', (event) => {
-        const targetNav = event.target.closest('.nav-item, .settings-btn');
-        if (!targetNav) return;
-
-        const elementId = targetNav.id || '';
-        if (elementId.startsWith('mode-')) {
-            event.preventDefault();
-            const targetMode = elementId.substring(5);
-            if (targetMode) {
-                window.mfSwitchMode(targetMode);
-            }
-        }
-    });
-}
+// (2026-11-15) The 1.x setupGlobalNavigationListeners() was removed: it
+// called mfSwitchMode on the same rail clicks as the v2 delegated listener
+// above, so every click loaded the tool twice.
 
 // --- AUTO-START TRIGGER ---
 
 document.addEventListener('DOMContentLoaded', () => {
     window.initializeMetaForgeBranding();
-    setupGlobalNavigationListeners();
     setTimeout(() => { window.mfSwitchMode('dashboard'); }, 150);
 });
 // --- END OF FILE [D:\MetaForge Suite\ui\js\metaforge_core.js] ---

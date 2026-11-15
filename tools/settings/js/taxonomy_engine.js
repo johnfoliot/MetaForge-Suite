@@ -32,6 +32,24 @@
     function setDirty(on) {
         dirty = on;
         $('set-genres-dirty').hidden = !on;
+        // Leaving Settings with unsaved genre edits asks first (John, 2026-11-15).
+        if (window.MFLeaveGuard) {
+            if (on) window.MFLeaveGuard.set(askLeave); else window.MFLeaveGuard.clear();
+        }
+    }
+
+    async function askLeave() {
+        const leave = await S.confirm({
+            title: 'Leave without saving the genre list?',
+            body: 'You have unsaved changes to the genre list. If you leave Settings now, they’ll be lost.',
+            ok: 'Leave without saving', cancel: 'Stay in Settings'
+        });
+        if (!leave) {
+            const tab = $('set-tab-genres');
+            if (tab) S.selectTab(tab);
+            S.say('set-genres-status', 'Your changes are still here. Choose Save genre list to keep them.');
+        }
+        return leave;
     }
 
     function fromData(data) {
