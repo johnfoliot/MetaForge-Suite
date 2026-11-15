@@ -76,6 +76,10 @@
         scroll-padding-bottom: 5rem;
     }
     .set-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+    /* hidden="until-found" keeps an (invisible) box so find-in-page can reach
+       it; stacked in the same cell, that box would swallow clicks meant for
+       the visible panel. */
+    .set-panels > [role="tabpanel"][hidden] { pointer-events: none; }
     .set-panel-in { display: flex; flex-direction: column; gap: 1rem; padding: 0.25rem 0.5rem 0 0.25rem; min-height: 100%; box-sizing: border-box; }
     .set-panel-in h2 { margin: 0; font-size: 1.25rem; color: var(--mf-gold); }
     .set-panel-in h3 { margin: 0; font-size: 1.0625rem; color: var(--text-primary); }
