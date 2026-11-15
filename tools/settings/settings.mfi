@@ -157,12 +157,12 @@
         background: var(--surface-raised);
         border: 2px solid var(--border-subtle);
         border-radius: 6px;
-        cursor: pointer;
     }
+    .set-theme-pick { display: flex; flex-direction: column; gap: 0.5rem; cursor: pointer; flex: 1; }
     .set-theme-card:has(input:checked) { border-color: var(--mf-gold); }
     .set-theme-card:has(input[type="radio"]:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
     .set-theme-card .set-row button { padding: 0.25rem 0.75rem; }
-    .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; cursor: pointer; }
+    .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
     .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
     .set-palette { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
     .set-palette li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; font-size: 0.8125rem; color: var(--text-secondary); }

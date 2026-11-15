@@ -69,7 +69,6 @@
             const cards = themes.map(t => {
                 const radio = el('input', { type: 'radio', name: 'set-theme', value: t.file, checked: t.file === checkedFile });
                 radio.dataset.name = t.name;
-                const name = el('label', { className: 'set-theme-name' }, radio, t.name);
                 const list = el('ul', { className: 'set-palette' });
                 list.setAttribute('aria-hidden', 'true');   // decorative sample; the name is the choice
                 for (const [v, label] of Object.entries(LABELS)) {
@@ -77,7 +76,12 @@
                     sw.style.background = (t.palette && t.palette[v]) || 'transparent';
                     list.append(el('li', {}, label, sw));
                 }
-                const card = el('div', { className: 'set-theme-card' }, name, list);
+                // The label covers the name AND the sample, so clicking anywhere on
+                // the card (except Edit/Delete) chooses it; aria-hidden keeps the
+                // sample out of the radio's name.
+                const pick = el('label', { className: 'set-theme-pick' },
+                    el('span', { className: 'set-theme-name' }, radio, t.name), list);
+                const card = el('div', { className: 'set-theme-card' }, pick);
                 if (t.custom) {
                     const edit = el('button', { type: 'button', className: 'set-secondary' }, 'Edit', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));
                     const del = el('button', { type: 'button', className: 'set-del-btn' }, 'Delete', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));
