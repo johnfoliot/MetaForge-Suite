@@ -17,6 +17,7 @@ from mutagen.id3 import (
 )
 
 from common import config_handler
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from year_resolution_engine import SRC_DISCOGS, SRC_DISCOGS_MASTER, SRC_WIKIPEDIA, SRC_AI_WEB
 from tools.personnel.edge_normalizer import hash_artist_identity, hash_album_identity
 
@@ -79,8 +80,9 @@ def execute_commit(
     if manifest_seeds is None:
         manifest_seeds = {}
 
-    yield '<div class="it-log-entry it-val-gold" style="color:var(--mf-gold);"><img src="ui/images/metadata.png" alt="" style="width:32px; height:auto; margin-bottom:-6px; float:left; margin-right:6px;">Finalizing Metadata...</div>'
-    yield '<div style="margin-left:36px;">✍🏻 Writing MP3 tags... <br><img src="ui/images/database.png" alt="" style="height:16px; width:auto; margin-bottom:-2px"> Writing to MetaForge database...</div>'
+    db_requested = db_write
+    yield event("step", "Step 4: Writing the tags" + (" and the MetaForge database" if db_write else ""))
+
 
     artist_name = manifest_seeds.get('artist')
     album_title = manifest_seeds.get('album')
@@ -101,7 +103,7 @@ def execute_commit(
             cursor.execute("DELETE FROM edges WHERE source_id = ?", (mf_id,))
 
         except Exception as e:
-            yield f'<div class="it-log-entry it-val-red">DB ERROR: {str(e)}</div>'
+            yield event("error", f"The MetaForge database couldn't be opened ({e}). Tags are still written to the files, but nothing goes into the database")
             db_write = False
 
     primary = track_results[0][1] if track_results else {}
@@ -109,7 +111,12 @@ def execute_commit(
     personnel_list = primary.get('personnel', [])
     country_val = primary.get('country', 'Unknown')
 
-    success_count = 0
+    # v2: tagged files and database rows are counted separately. 1.x only
+    # counted inside the database branch, so a run with database writing
+    # switched off reported "0 tracks finalized" after tagging every file.
+    tagged_count = 0
+    failed_count = 0
+    db_ok = db_write
 
     # Real per-track artist identities encountered this commit, keyed by
     # their own mf_artist_id hash -- distinct from the single album-level
@@ -135,7 +142,8 @@ def execute_commit(
         # the actual failure mode -- the file disappearing, not a tagging
         # error -- obvious in the log.
         if not f_path.exists():
-            yield f'<div class="it-log-entry it-val-red">🔥 MISSING AT COMMIT: {f_path.name} was present during tagging but is gone from disk now. Not counted as committed -- investigate immediately.</div>'
+            failed_count += 1
+            yield event("error", "File went missing after it was analysed, so its tags weren't written. Investigate", file=f_path.name)
             continue
 
         try:
@@ -213,10 +221,14 @@ def execute_commit(
                         evidence=data.get('orig_year_evidence')
                     )
 
-                success_count += 1
+                pass   # counted below, once the physical tags AND (if on) the database row are written
+
+            tagged_count += 1
 
         except Exception as e:
-            yield f'<div class="it-log-entry it-val-red">Commit Error: {f_path.name} | {str(e)}</div>'
+            failed_count += 1
+            yield event("error", f"Not fully saved: {e}", file=f_path.name)
+            continue
 
     # =========================================================
     # MASTER SYNC
@@ -251,7 +263,8 @@ def execute_commit(
             conn.close()
 
         except Exception as e:
-            yield f'<div class="it-log-entry it-val-red">Graph commit failure: {str(e)}</div>'
+            db_ok = False
+            yield event("error", f"The database changes couldn't be saved: {e}")
 
     # =========================================================
     # AUDIT TRAIL
@@ -268,9 +281,15 @@ def execute_commit(
                 release_year=release_year
             )
     except Exception as e:
-        yield f'<div class="it-log-entry it-val-red">Audit warning: {str(e)}</div>'
+        yield event("warning", f"The MetaForge.log summary couldn't be written: {e}")
 
-    yield f'<div class="it-log-entry" style="margin-left:36px;">✅ {success_count} tracks finalized.</div>'
+    saved_where = " and saved to the MetaForge database" if (db_requested and db_ok) else ""
+    if tagged_count:
+        yield event("success", f"Tags written to {tagged_count} file{'s' if tagged_count != 1 else ''}{saved_where}")
+    # The controller decides whether the run was clean (and so whether to
+    # offer the next steps) from this, not from a count of "successes".
+    return {"tagged": tagged_count, "failed": failed_count,
+            "db_requested": db_requested, "db_ok": bool(db_requested and db_ok)}
 
 
 # =========================================================

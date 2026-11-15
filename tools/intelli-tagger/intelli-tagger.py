@@ -24,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from common import config_handler, db_engine, tag_engine
+from common.mf_events import event, signal, run_stream   # v2 event stream (Phase 0.3)
 import it_context_engine
 
 
@@ -46,9 +47,12 @@ def run_logic(action, tools_dir, env_path):
 
     if action == "run_batch":
         data = request.json
+        # v2: one event stream -> the screen's Activity log (MFEvents) AND
+        # the album's MetaForge.log (common/mf_events.run_stream).
         return Response(
-            stream_with_context(_orchestrate_tagger_batch(data, env_path)),
-            mimetype='text/html'
+            stream_with_context(run_stream(_orchestrate_tagger_batch(data, env_path),
+                                           "Intelli-Tagger", log_root=data.get('path'))),
+            mimetype='application/x-ndjson'
         )
 
     return jsonify({
@@ -227,51 +231,47 @@ def _orchestrate_tagger_batch(data, env_path):
 
     mb_personnel_preseed = {}
 
-    yield '<!-- PROGRESS:5:Ingesting Content -->'
-    yield f'<h2 class="it-log-entry it-val-gold"><img src="/ui/images/stamp.png" style="height:36px; width:auto; color:var(--mf-gold);" alt=""> Beginning Intelli-Tagging: <span style="color:var(--text-output);">{album}</span></h2>'
+    yield signal("progress", percent=5, label="Reading the album")
+    yield event("info", f"Starting: {artist} - {album}", file=str(root_path))
 
     yield from it_context_engine.initialize_audit_pair(root_path, data)
 
     health_summary = {}
 
-    yield '<!-- PROGRESS:15:Health Check -->'
+    yield signal("progress", percent=15, label="Health check")
     yield from health_engine.check_health(root_path, health_summary=health_summary)
 
-    yield '<!-- PROGRESS:25:Scrubbing -->'
+    yield signal("progress", percent=25, label="Scrubbing old metadata")
     yield from scrub_engine.scrub_tags(root_path)
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/intelligence.png" style="height:32px; width:auto; margin-bottom:-12px;" alt=""> Intelli-Tagger AI engines determining metadata values...</div>'
-
-    yield '<!-- PROGRESS:35:Preparing Acoustic Analysis -->'
-
-    yield '''
-<div id="it-acoustic-wait" class="it-log-entry" role="status" aria-live="polite" style="margin-left:36px; margin-bottom:-10px; color:var(--text-output)">
-    ✅ Beginning acoustic analysis of this Album.<br> ⚠️ The first track may take a little longer to appear while initial album identification and forensic tagging get underway...
-</div>'''
-    yield '<div style="border-top:1px solid var(--mf-gold); margin-top:15px;">&nbsp;</div>'
+    yield event("step", "Step 3: Analysing each track (acoustics, identity, genre, original year)")
+    yield signal("progress", percent=35, label="Preparing the acoustic analysis")
+    yield event("info", "The first track can take a little longer while the album is identified")
 
     files = sorted(list(root_path.glob("**/*.mp3")), key=_natural_track_sort_key)
     total_files = len(files)
 
     track_results = []
+    missing_count = 0
     
     for idx, f_path in enumerate(files, 1):
         progress = int(40 + ((idx / total_files) * 45))
-        track_prefix = f'Processing Track {idx}/{total_files}'
+        track_prefix = f'Track {idx} of {total_files}'
 
 
         if not f_path.exists():
-            yield f'<div class="it-log-entry it-val-red">🔥 MISSING: {f_path.name} was found by the initial scan but is gone from disk. Skipping this track -- investigate immediately, do not re-run this album until the cause is known.</div>'
+            missing_count += 1
+            yield event("error", "File went missing after the first scan. Skipped: investigate before re-running this album", file=f_path.name)
             continue
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Analyzing Acoustics -->'
+        yield signal("progress", percent=progress, label=f"{track_prefix}: analysing the acoustics")
 
         acoustic_data = acoustic_engine.analyze_file(f_path)
 
         if not isinstance(acoustic_data, dict):
             acoustic_data = dict(acoustic_data)
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Determining Genre / Sub Genre, Fingerprinting Track -->'
+        yield signal("progress", percent=progress, label=f"{track_prefix}: fingerprinting")
 
         fingerprint_data = fingerprint_engine.generate_acoustid(f_path)
         acoustid_value = _extract_acoustid(fingerprint_data)
@@ -287,7 +287,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if not fast_track:
             fast_track = mb_track_lookup.get(("position", idx))
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Resolving Identity -->'
+        yield signal("progress", percent=progress, label=f"{track_prefix}: identifying the recording")
 
         if fast_track:
 
@@ -311,11 +311,6 @@ def _orchestrate_tagger_batch(data, env_path):
                 "track_artist": fast_track.get("artist", ""),
             }
 
-            yield (
-                f'<!-- FAST_PATH:{filename}:'
-                f'{fast_track.get("mb_track_id", "None")}:'
-                f'{fast_track.get("mb_work_id", "None")} -->'
-            )
 
         else:
             identity_data = id_engine.get_identity(
@@ -328,7 +323,7 @@ def _orchestrate_tagger_batch(data, env_path):
 
         title = identity_data.get("title", f_path.stem)
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Calculating BPM, Intensity, and Starting Key -->'
+        yield signal("progress", percent=progress, label=f"{track_prefix}: genre, mood, BPM, key and intensity")
 
         try:
             ai_results = ai_engine.map_track_taxonomy(
@@ -357,7 +352,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if mb_ids.get("country"):
             combined["country"] = mb_ids["country"]
 
-        yield f'<!-- PROGRESS:{progress}:{track_prefix} - Resolving Original Year -->'
+        yield signal("progress", percent=progress, label=f"{track_prefix}: finding the original year")
 
         year_result = year_resolution_engine.resolve_original_year(
             recording_id=combined.get("mb_recording_id"),
@@ -393,29 +388,60 @@ def _orchestrate_tagger_batch(data, env_path):
 
         track_results.append((f_path, combined))
 
-        yield _render_deep_view_line(idx, total_files, f_path.name, combined)
+        yield _track_event(idx, total_files, f_path.name, combined)
 
 
-    audit_fn = functools.partial(it_context_engine.update_audit_trail, health_summary=health_summary) if hasattr(it_context_engine, "update_audit_trail") else None
+    audit_fn = functools.partial(it_context_engine.update_audit_trail, health_summary=health_summary,
+                                 inside_run=True) if hasattr(it_context_engine, "update_audit_trail") else None
 
-    yield from commit_engine.execute_commit(
+    yield signal("progress", percent=90, label="Writing the tags")
+    # The MetaForge.log SUMMARY is written by this controller at the very
+    # end (below), not by the commit engine mid-run, so the log reads in
+    # order: events, then SUMMARY, then the run's "Finished" footer.
+    commit = yield from commit_engine.execute_commit(
         root_path=root_path,
         track_results=track_results,
         db_write=db_write,
         manifest_seeds=data,
-        audit_callback=audit_fn
+        audit_callback=None
     )
 
 
-    if db_write:
+    commit = commit or {}
+    if commit.get("db_ok"):
         _write_personnel_preseed(root_path, mb_personnel_preseed, year_cache.get("discogs_extraartists"))
 
-    yield '<!-- PROGRESS:100:Batch Complete -->'
-    yield '<div style="margin-top:15px; border-top:1px solid var(--bg-accent); padding-top:10px;"><img src="/ui/images/complete.svg" alt="" aria-hidden="true" style="width:48px; height:48px; float:left; margin-right:8px; margin-top:5px;"><span style="font-size:1rem; font-weight:bold; margin-bottom:1rem;">Congratulations! You have successfully <span style="color:var(--mf-gold);">Intelli-Tagged</span> your files.</span><br>You are also encouraged to add the optional Personnel data (used by the Intelligent Playlist Maker) and an Artist Bio which will be stored in your database and used as part of the Library Viewer.</div>'
+    yield signal("progress", percent=100, label="Finished")
 
-    if db_write:
-        yield '<div style="display:none;" id="it-handoff-trigger">HANDOFF_READY</div>'
-    yield '<!-- BATCH_COMPLETE -->'
+    # v2: the next steps are only offered after a CLEAN run: every track
+    # tagged, nothing went missing, and (when it was switched on) the
+    # database was written. 1.x showed "Congratulations" and the Personnel
+    # hand-off regardless, even after a database error.
+    problems = missing_count + commit.get("failed", 0)
+    tagged = commit.get("tagged", 0)
+    if problems:
+        yield event("warning", f"{problems} track{'s were' if problems != 1 else ' was'}n't fully tagged (listed above in red). "
+                               f"Fix {'those' if problems != 1 else 'it'}, then run Intelli-Tagger again")
+    elif db_write and not commit.get("db_ok"):
+        yield event("warning", "The tags were written, but the MetaForge database wasn't (see the red line above). "
+                               "Album Personnel and Bio Builder need the database, so run Intelli-Tagger again once it's fixed")
+    else:
+        yield event("done", f"{tagged} track{'s' if tagged != 1 else ''} Intelli-Tagged")
+        if db_write:
+            yield signal("handoff_ready")
+        else:
+            yield event("info", "Writing to the MetaForge database was switched off, so Album Personnel and Bio Builder "
+                                "aren't offered (they read from the database)")
+
+    if callable(audit_fn) and track_results:
+        primary = track_results[0][1]
+        try:
+            audit_fn(root_path=root_path, manifest_seeds=data, track_results=track_results,
+                     label=primary.get('label', 'Unknown'), personnel=primary.get('personnel', []),
+                     db_write=bool(commit.get("db_ok")), release_year=release_year)
+        except Exception as ex:
+            yield event("warning", f"The MetaForge.log summary couldn't be written: {ex}")
+    yield signal("batch_complete")
 
 
 def _write_personnel_preseed(root_path, mb_personnel_preseed, discogs_extraartists):
@@ -456,30 +482,30 @@ def _write_personnel_preseed(root_path, mb_personnel_preseed, discogs_extraartis
         print(f"⚠️ Personnel pre-seed manifest write failed: {ex}")
 
 
-def _render_deep_view_line(idx, total, filename, data):
+def _track_event(idx, total, filename, data):
+    """
+    One "track" event per file (John, 2026-11-13: per-track entries, file
+    name as the headline, nothing cut short, IDs kept on screen). The
+    screen draws `details` as three labelled lines; `text` carries the same
+    values in one line for MetaForge.log. 1.x truncated genre (13 chars),
+    sonic texture (8), emotional flavour (10) etc. to fit a space-padded
+    monospace grid.
+    """
+    def val(key, default="Unknown"):
+        v = data.get(key, default)
+        v = default if v in (None, "", "None") else v
+        return str(v)
 
-    idx_str = f"[{str(idx).rjust(len(str(total)))}/{total}]"
-
-    line1 = f'<span class="it-val-gold">{idx_str}</span> <span class="it-val-white">{filename}</span>'
-
-    subline = f'<div style="margin-right:10px; margin-left:-40px!important; text-align:left; margin-top:5px; border-bottom:1px solid var(--mf-gold); padding-bottom:5px; width:100%;">'
-
-    subline += f'| <span class="it-val-gold">Original Date:</span> <span class="it-val-white">{str(data.get("original_year", "Unknown")).ljust(6)}</span> | '
-    subline += f'<span class="it-val-gold">Release Date:</span> <span class="it-val-white">{str(data.get("release_year", "Unknown")).ljust(6)}</span> | '
-    subline += f'<span class="it-val-gold">Genre:</span> <span class="it-val-white">{data.get("parent", "Unknown")[:13].ljust(13)}</span> | '
-    subline += f'<span class="it-val-gold">Sub Genre:</span> <span class="it-val-white">{data.get("sub", "Unknown")[:18].ljust(18)}</span><br>'
-
-    subline += f'| <span class="it-val-gold">BPM:</span> <span class="it-val-white">{str(data.get("bpm", "0")).ljust(3)}</span> | '
-    subline += f'<span class="it-val-gold">Key:</span> <span class="it-val-white">{data.get("key", "??").ljust(4)}</span> | '
-    subline += f'<span class="it-val-gold">Int.:</span> <span class="it-val-white">{str(data.get("intensity", "1")).ljust(1)}</span> | '
-    subline += f'<span class="it-val-gold">Mood:</span> <span class="it-val-white">{data.get("mood", "Unknown")[:12].ljust(12)}</span> | '
-    subline += f'<span class="it-val-gold">Sonic Texture:</span> <span class="it-val-white">{data.get("sonic_texture", "Unknown")[:8].ljust(8)}</span> | '
-    subline += f'<span class="it-val-gold">Emotional Flavor:</span> <span class="it-val-white">{data.get("emotional_flavor", "Unknown")[:10].ljust(10)}</span><br>'
-
-    subline += f'| <span class="it-val-gold">MB TrackID:</span> <span class="it-val-white">{str(data.get("mb_track_id", "None"))[:37]}</span> | '
-    subline += f'<span class="it-val-gold">AcoustID:</span> <span class="it-val-white">{str(data.get("acoustid", "None"))[:37]}</span></div>'
-
-    return f'<div class="it-log-row"><span class="it-log-line1">{line1}</span><span class="it-log-subline">{subline}</span></div>'
+    details = [
+        [["Original year", val("original_year")], ["Release year", val("release_year")],
+         ["Genre", val("parent")], ["Sub-genre", val("sub")]],
+        [["BPM", val("bpm", "0")], ["Key", val("key", "??")], ["Intensity", val("intensity", "1")],
+         ["Mood", val("mood")], ["Sonic texture", val("sonic_texture")],
+         ["Emotional flavour", val("emotional_flavor")]],
+        [["MusicBrainz track ID", val("mb_track_id", "None")], ["AcoustID", val("acoustid", "None")]],
+    ]
+    text = "; ".join(f"{k} {v}" for line in details for k, v in line)
+    return event("track", text, file=filename, details=details, position=f"{idx} of {total}")
 
 
 # --- END OF FILE intelli-tagger.py ---

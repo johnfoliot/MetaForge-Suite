@@ -1,233 +1,186 @@
 <!-- --- START OF FILE intelli-tagger.mfi --- -->
 <!-- ======================================================================
-MetaForge Interface: Intelli-Tagger Workbench
-Build 3.0.6: 30/70 Split | Revised 2-Line Forensic Layout | 0.85rem Base.
-Accessibility: WCAG 2.2 AA | COGA 4.5.4 (Error Prevention)
-====================================================================== -->
+     MetaForge Interface: Intelli-Tagger (pipeline step 3 of 3)
+     v2 (2026-11-13): per-tool pass. No inline styles; shared field and
+     type tokens (1.x inline color:#000 made typed text black-on-black in
+     the v2 dark theme); the form is a real <form> (Enter starts the run)
+     and scrolls on its own with Begin Tagging pinned; MusicBrainz IDs sit
+     in a disclosure (collapsed when they arrive filled in from step 2);
+     native switch for database writing; native <dialog> for the Various
+     Artists genre question; the run streams events (one entry per track,
+     nothing truncated) and ends in the shared Next-step bar offering
+     Album Personnel and Bio Builder.
+     ====================================================================== -->
 <style>
-/* --- WORKBENCH ARCHITECTURE --- */
-.it-workbench-wrapper {
-display: flex;
-width: 100%;
-gap: 20px;
-align-items: stretch;
-max-height: 75vh;
-}
+    .it-workbench-wrapper {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 1rem;
+        align-items: stretch;
+    }
 
-/* Column 1: The Context/Input (Fixed 30%) */
-.it-input-silo {
-flex: 0 0 calc(30% - 10px);
-background: var(--bg-main);
-padding: 15px;
-display: flex;
-flex-direction: column;
-gap: 12px;
-box-sizing: border-box;
-}
+    /* --- LEFT: THE ALBUM. Scrolls on its own; Begin Tagging is pinned. --- */
+    .it-input-silo {
+        flex: 0 0 calc(32% - 0.5rem);
+        display: flex;
+        flex-direction: column;
+        position: relative;   /* contains hidden screen-reader text */
+        min-height: 0;
+        overflow-y: auto;
+        scroll-padding-bottom: 4.5rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    #it-form { flex: 1; display: flex; flex-direction: column; }
+    #it-fieldset {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        margin: 0;
+        padding: 0.75rem 0.9rem 0.9rem;
+        border: 0;
+        min-width: 0;
+    }
 
-/* Column 2: The Feedback/Console (Fixed 70%) */
-.it-output-silo {
-flex: 0 0 calc(70% - 10px);
-display: flex;
-flex-direction: column;
-background: var(--bg-main);
-border: 3px solid var(--bg-accent);
-box-sizing: border-box;
-overflow: hidden;
-}
+    .it-field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .it-field > label {
+        color: var(--mf-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+    .it-input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 0.4rem 0.5rem;
+        font-family: var(--font-main);
+        font-size: 1rem;
+    }
+    .it-input-mono { font-family: var(--font-mono); font-size: 0.875rem; }
+    .it-path-row { display: flex; gap: 0.5rem; }
+    .it-path-row .it-input { flex: 1; min-width: 0; }
+    .it-path-row button { flex: none; }
 
-/* --- FORM COMPONENTS --- */
-.it-group { display: flex; flex-direction: column; gap: 4px; }
-.it-group label {
-color: var(--mf-gold);
-font-size: 0.75rem;
-font-weight: bold;
-letter-spacing: 0.5px;
-}
+    /* MusicBrainz IDs: a disclosure (COGA chunking). Collapsed when the IDs
+       arrive filled in from step 2, open when any is missing. */
+    .it-ids {
+        border: 1px solid var(--border-subtle);
+        background: var(--surface-raised);
+    }
+    .it-ids > summary {
+        cursor: pointer;
+        padding: 0.45rem 0.6rem;
+        color: var(--mf-gold);
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+    .it-ids-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        padding: 0.2rem 0.6rem 0.7rem;
+    }
+    .it-ids-state { font-weight: 400; color: var(--text-muted); }
+    #it-search-mb-btn[hidden] { display: none; }
 
-.it-input-text {
-background-color: var(--input-background2);
-color: var(--input-foreground2);
-border: 1px solid #000;
-padding: 6px 10px;
-font-family: var(--font-mono);
-font-size: 0.85rem;
-width: 100%;
-box-sizing: border-box;
-}
+    .it-switch-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: start;
+        gap: 0.5rem;
+    }
+    .it-switch-row input {
+        margin: 0.1rem 0 0;
+        width: 2.25rem;
+        height: 1.25rem;
+        accent-color: var(--mf-gold);
+        cursor: pointer;
+    }
+    .it-switch-row label {
+        font-size: 0.9375rem;
+        line-height: 1.4;
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+    .it-hint {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.4;
+        color: var(--text-muted);
+    }
 
-.it-input-text:read-only {
-background-color: var(--input-background2);
-color: var(--input-foreground2);
-cursor: default;
-}
+    .it-actions {
+        position: sticky;
+        bottom: 0;
+        margin: auto -0.9rem -0.9rem;
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-page);
+        text-align: right;
+    }
 
-/* --- TOGGLE PRIMITIVE --- */
-.mf-toggle-container {
-display: flex;
-align-items: center;
-gap: 12px;
-border-bottom: 3px solid var(--bg-accent);
-padding: 10px;
-margin-top: -10px;
-cursor: pointer;
-}
+    /* --- RIGHT: PROGRESS, ACTIVITY LOG, NEXT STEPS --- */
+    .it-output-silo {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    .it-progress {
+        flex-shrink: 0;
+        padding: 0.6rem 0.9rem 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    #it-progress-container {
+        height: 0.75rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .it-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+    #it-progress-label {
+        margin: 0.4rem 0 0;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    #it-console-outer { flex: 1; display: flex; min-height: 0; }
+    .it-console {
+        position: relative;   /* contains hidden "Error:"/"Warning:" labels */
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.75rem 0.9rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+    .it-log-intro { margin: 0; font-size: 0.9375rem; color: var(--text-muted); }
 
-.mf-toggle-wrapper {
-position: relative;
-width: 44px;
-height: 24px;
-background-color: var(--bg-accent);
-border: 1px solid var(--mf-gold);
-border-radius: 12px;
-transition: background-color 0.2s ease;
-flex-shrink: 0;
-}
-
-.mf-toggle-knob {
-position: absolute;
-top: 2px;
-left: 2px;
-width: 18px;
-height: 18px;
-background-color: var(--text-message);
-border-radius: 50%;
-transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
-}
-
-[aria-checked="true"] .mf-toggle-wrapper { background-color: var(--bg-main); }
-[aria-checked="true"] .mf-toggle-knob {
-transform: translateX(20px);
-background-color: var(--mf-gold);
-}
-
-.mf-toggle-label {
-font-family: var(--font-mono);
-font-size: 0.7rem;
-color: var(--text-output);
-line-height: 1.2;
-}
-
-/* --- PROGRESS & CONSOLE --- */
-#it-progress-container {
-height: 30px;
-/* John's report, 2026-08-11: only ~14px of this 30px container used to
-   be actual fill, the rest eaten by padding -- reduced so the bar reads
-   as taller/more substantial. A background+border track was tried here
-   too but caused a mismatched "ghost" box artifact against the
-   absolutely-positioned label below it (John's follow-up report,
-   2026-08-11) and had worse contrast anyway -- reverted; height +
-   the shimmer tuning (see layout.css) turned out to be sufficient on
-   their own. */
-padding: 3px 10px 2px 10px;
-margin:5px;
-margin-top:-10px;
-
-position: relative;
-flex-shrink: 0;
-z-index: 10;
-}
-
-.it-progress-fill {
-background: var(--mf-gold);
-height: 100%;
-width: 0%;
-transition: width 0.3s ease;
-}
-
-.it-progress-text {
-position: absolute;
-top: 24px;
-left: 0;
-width: 100%;
-height: 100%;
-display: flex;
-align-items: center;
-justify-content: center;
-font-size: 0.85rem;
-font-weight: bold;
-color: var(--text-output);
-background-color: transparent;
-mix-blend-mode: difference;
-margin: 0;
-pointer-events: none;
-}
-
-.it-console {
-flex: 1;
-padding: 20px;
-overflow-y: auto;
-overflow-x: hidden;
-font-family: var(--font-mono);
-font-size: 0.75rem;
-color: var(--text-output);
-line-height: 1.6;
-background-color: var(--bg-main);
-margin-top: 1rem;
-}
-/* Custom scrollbar CSS (.mf-custom-scrollbar etc.) now lives shared in
-   layout.css section 10, not duplicated per-tool here. #it-console's own
-   markup carries .mf-hide-native-scrollbar to suppress its real native
-   scrollbar. This one override stays local: keeps the scrollbar aligned
-   with .it-console's own margin-top offset from the progress bar above
-   it, a tool-specific layout detail the shared class doesn't assume. */
-#it-console-outer .mf-custom-scrollbar {
-margin-top: 1rem;
-}
-
-/* --- 2-LINE TRACK LOG STYLING --- */
-.it-log-row {
-margin-bottom: 12px;
-display: flex;
-flex-direction: column;
-border-left: 2px solid transparent;
-padding-left: 10px;
-}
-
-.it-log-row:hover { border-left-color: var(--mf-gold); }
-
-.it-log-line1 {
-display: block;
-white-space: pre;
-font-weight: bold;
-}
-
-.it-log-subline {
-display: block;
-margin-left: 2.5rem;
-opacity: 0.9;
-font-size: 0.7rem;
-color: var(--text-message);
-white-space: pre;
-}
-
-.it-val-gold { color: var(--mf-gold); }
-.it-val-white { color: var(--text-output); }
-.it-val-success { color: var(--status-success); }
-.it-val-error { color: var(--status-error); }
-
-/* --- ACTIONS --- */
-.it-action-footer { display: flex; gap: 10px; padding-top: 10px; }
-.it-btn-primary {
-background-color: var(--mf-gold);
-color: var(--input-foreground);
-font-weight: bold;
-flex: 1;
-border: 1px solid rgba(0,0,0,0.3);
-border-radius: 3px;
-padding: 8px 16px;
-cursor: pointer;
-}
-.it-btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
-
-.it-handoff-area {
-padding: 15px;
-background: var(--bg-main);
-border-top: 1px solid var(--bg-accent);
-text-align: right;
-display: none;
-}
+    /* --- VARIOUS ARTISTS GENRE QUESTION (native modal <dialog>) --- */
+    .it-genre-dialog {
+        width: min(32rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .it-genre-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .it-genre-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .it-genre-dialog p { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.45; }
+    .it-genre-dialog label { display: block; margin-bottom: 0.25rem; color: var(--mf-gold); font-size: 0.875rem; font-weight: 700; }
+    .it-genre-dialog select { width: 100%; padding: 0.4rem 0.5rem; font-size: 1rem; margin-bottom: 1rem; }
+    .it-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
 </style>
+
 <div class="mf-page-head">
     <h1 id="it-header" class="main" tabindex="-1">Intelli-Tagger</h1>
     <button type="button" class="mf-help-btn" data-mf-help="intelli-tagger" data-mf-help-name="Intelli-Tagger">Help</button>
@@ -235,80 +188,87 @@ display: none;
 
 <div class="active_stage">
 <div class="it-workbench-wrapper">
-<aside class="it-input-silo">
-	<div class="mf-toggle-container" 
-             onclick="metaforge.intelli_tagger.toggleDatabase(this)"
-             onkeydown="if(event.key===' ' || event.key==='Enter'){ event.preventDefault(); metaforge.intelli_tagger.toggleDatabase(this); }">
-            
-            <div class="mf-toggle-wrapper" role="switch" aria-checked="true" tabindex="0" aria-label="Toggle Database Writing" id="it-db-toggle">
-                <div class="mf-toggle-knob"></div>
+
+    <!-- LEFT: THE ALBUM. Begin Tagging is the form's submit button, so
+         Enter in any field starts the run once Artist and Album are filled. -->
+    <div class="it-input-silo">
+        <form id="it-form" novalidate>
+            <fieldset id="it-fieldset">
+
+                <div class="it-field">
+                    <label for="it-path">Source Directory</label>
+                    <div class="it-path-row">
+                        <input type="text" id="it-path" class="it-input it-input-mono" readonly placeholder="Select album folder...">
+                        <button type="button" id="it-browse-btn" class="mf-button-gold-fixed">Browse</button>
+                    </div>
+                </div>
+
+                <div class="it-field">
+                    <label for="it-artist">Filing Artist (Required)</label>
+                    <input type="text" id="it-artist" class="it-input" placeholder="e.g. Pink Floyd" required>
+                </div>
+
+                <div class="it-field">
+                    <label for="it-album">Album Title (Required)</label>
+                    <input type="text" id="it-album" class="it-input" placeholder="e.g. The Wall" required>
+                </div>
+
+                <div class="it-field">
+                    <label for="it-mb-country">Artist Native Country (Recommended)</label>
+                    <input type="text" id="it-mb-country" class="it-input" placeholder="e.g. US, GB, XW">
+                </div>
+
+                <details class="it-ids" id="it-ids" open>
+                    <summary>MusicBrainz IDs <span class="it-ids-state" id="it-ids-state">(Recommended)</span></summary>
+                    <div class="it-ids-body">
+                        <div class="it-field">
+                            <label for="it-mb-artist-id">MusicBrainz Artist Id</label>
+                            <input type="text" id="it-mb-artist-id" class="it-input it-input-mono">
+                        </div>
+                        <div class="it-field">
+                            <label for="it-mb-album-id">MusicBrainz Album Id</label>
+                            <input type="text" id="it-mb-album-id" class="it-input it-input-mono">
+                        </div>
+                        <div class="it-field">
+                            <label for="it-mb-group-id">MusicBrainz Release Group Id</label>
+                            <input type="text" id="it-mb-group-id" class="it-input it-input-mono">
+                        </div>
+                        <button type="button" id="it-search-mb-btn" class="mf-button-gold-fixed" hidden>Find them in MusicBrainz IDs (step 2)</button>
+                    </div>
+                </details>
+
+                <div class="it-field">
+                    <div class="it-switch-row">
+                        <input type="checkbox" id="it-db-write" switch checked aria-describedby="it-db-hint">
+                        <label for="it-db-write">Also write to the MetaForge database</label>
+                    </div>
+                    <p class="it-hint" id="it-db-hint">Album Personnel and Bio Builder read from the database.</p>
+                </div>
+
+                <div class="it-actions">
+                    <button type="submit" id="it-start-btn" class="mf-button-gold-fixed" disabled>Begin Tagging</button>
+                </div>
+
+            </fieldset>
+        </form>
+    </div>
+
+    <!-- RIGHT: PROGRESS, THE ACTIVITY LOG, THE NEXT STEPS -->
+    <section class="it-output-silo" aria-label="Tagging progress and results">
+        <div class="it-progress">
+            <div id="it-progress-container" role="progressbar" aria-label="Intelli-Tagger progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="it-progress-fill" class="it-progress-fill mf-progress-shimmer"></div>
             </div>
-            <span class="mf-toggle-label" id="it-toggle-label">Also Write to <br>MetaForge Database: On</span>
-        </div>
-        <div class="it-group">
-            <label for="it-path">Source Directory</label>
-            <div style="display: flex; gap: 5px;">
-                <input type="text" id="it-path" class="it-input-text" style="color:#000000!important;" readonly placeholder="Select album folder...">
-                <button type="button" class="mf-button-gold-fixed" onclick="metaforge.intelli_tagger.pickFolder()">Browse</button>
-            </div>
-        </div>
-		
-		<div class="it-action-footer">
-            <button type="button" id="it-search-mb-btn" class="mf-button-gold-fixed" style="display:none;" onclick="metaforge.intelli_tagger.backtrackToMB()">
-                Search MusicBrainz
-            </button>
-            <button type="button" id="it-start-btn" class="it-btn-primary" disabled onclick="metaforge.intelli_tagger.run()">
-                Begin Tagging
-            </button>
-        </div>
-		
-        <div class="it-group">
-            <label for="it-artist">Filing Artist (Required)</label>
-            <input type="text" id="it-artist" class="it-input-text" style="color:#000000;" placeholder="e.g. Pink Floyd">
+            <p id="it-progress-label">Standing By</p>
         </div>
 
-        <div class="it-group">
-            <label for="it-album">Album Title (Required)</label>
-            <input type="text" id="it-album" class="it-input-text" style="color:#000000!important;" placeholder="e.g. The Wall">
-        </div>
-		
-		<div class="it-group" style="margin-bottom:1rem;">
-                <label for="it-mb-country">Artist Native Country (Recommended)</label>
-                <input type="text" id="it-mb-country" class="it-input-text" style="color:#000000;" placeholder="e.g. US, GB, XW">
+        <div id="it-console-outer">
+            <!-- role="log" but NOT live: steps, problems and the finish are
+                 spoken by the shared announcer (MFAnnounce). -->
+            <div id="it-console" class="it-console mf-hide-native-scrollbar" role="log" aria-live="off" aria-label="Activity log">
+                <p class="it-log-intro">Choose the album folder to begin.</p>
             </div>
-
-        <div id="it-mb-fields" style="display: flex; flex-direction: column; gap: 12px;">
-            <div class="it-group">
-                <label for="it-mb-artist-id">MusicBrainz Artist Id (Recommended)</label>
-                <input type="text" id="it-mb-artist-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
-            </div>
-            <div class="it-group">
-                <label for="it-mb-album-id">MusicBrainz Album Id (Recommended)</label>
-                <input type="text" id="it-mb-album-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
-            </div>
-            <div class="it-group">
-                <label for="it-mb-group-id"><abbr title="MusicBrainz">MB</abbr> Release Group Id (Recommended)</label>
-                <input type="text" id="it-mb-group-id" class="it-input-text" style="color:#000000;" placeholder="Forensic ID...">
-            </div>
-            
-        </div>
-
-    </aside>
-
-    <main class="it-output-silo">
-        <div id="it-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100">
-            <div id="it-progress-fill" class="it-progress-fill mf-progress-shimmer"></div>
-            <br><br><h3 id="it-progress-label" class="it-progress-text" style="padding:6px!important;border-bottom: 1px solid var(--mf-gold); z-index:200; background-color: var(--bg-main); margin-left:10px; margin-right:15px; max-width:97%;">Standing By</h3>
-        </div>
-
-        <div id="it-console-outer" style="flex: 1; display: flex; min-height: 0;">
-            <div id="it-console" class="it-console mf-hide-native-scrollbar" aria-live="polite">
-                <div class="tool_notes">Waiting for files to be loaded...</div>
-            </div>
-            <!-- Custom scrollbar, shared implementation (John's report,
-                 2026-08-11) -- see layout.css section 10 and
-                 metaforge_core.js's MFScrollbar for the full history and
-                 the shared CSS/JS. No per-tool JS needed. -->
+            <!-- Custom scrollbar, shared implementation (layout.css section 10 / MFScrollbar). -->
             <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="it-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
                 <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
                 <div class="mf-scroll-track">
@@ -318,22 +278,42 @@ display: none;
             </div>
         </div>
 
-        <div id="it-handoff-area" class="it-handoff-area">
-            <button class="mf-button-gold-fixed" onclick="metaforge.intelli_tagger.advance()">
-                Optional: Add Personnel
-            </button>
+        <!-- Next-step bar (shared .mf-handoff): only after a clean run with
+             database writing on. Both steps are optional. -->
+        <div class="mf-handoff" id="it-handoff" hidden>
+            <p id="it-next-desc"><span class="mf-handoff-kicker">Optional next steps.</span> Album Personnel adds who played on each track (used by the Intelligent Playlist Maker). Bio Builder adds the artist's biography (used by the Library Viewer).</p>
+            <div class="mf-handoff-actions">
+                <button type="button" class="mf-button-gold-fixed" id="it-personnel-btn" aria-describedby="it-next-desc">Add Album Personnel</button>
+                <button type="button" class="mf-button-gold-fixed" id="it-bio-btn" aria-describedby="it-next-desc">Build Artist Bio</button>
+            </div>
         </div>
-    </main>
+    </section>
 
 </div>
 </div>
+
+<!-- Various Artists genre question: native modal <dialog> (Esc / Skip =
+     let the AI decide; Enter or Confirm = use the chosen genre). -->
+<dialog id="it-genre-dialog" class="it-genre-dialog" aria-labelledby="it-genre-title">
+    <form method="dialog">
+        <h2 id="it-genre-title">Confirm the album's genre</h2>
+        <p>This album is filed under "Various Artists". The track artists are often obscure enough that the AI's genre guess drifts from track to track. Choose a parent genre to keep every track consistent, or let the AI decide per track.</p>
+        <label for="it-genre-select">Parent genre</label>
+        <select id="it-genre-select"></select>
+        <div class="it-dialog-actions">
+            <button type="submit" value="confirm" class="mf-button-gold-fixed">Confirm</button>
+            <button type="submit" value="skip" class="mf-button-gold-fixed" formnovalidate>Skip: let the AI decide</button>
+        </div>
+    </form>
+</dialog>
+
 <script>
 (function awakener() {
-if (window.metaforge?.intelli_tagger?.init) {
-window.metaforge.intelli_tagger.init();
-} else {
-setTimeout(awakener, 50);
-}
+    if (window.metaforge?.intelli_tagger?.init) {
+        window.metaforge.intelli_tagger.init();
+    } else {
+        setTimeout(awakener, 50);
+    }
 })();
 </script>
 <!-- --- END OF FILE intelli-tagger.mfi --- -->

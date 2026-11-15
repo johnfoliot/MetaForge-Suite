@@ -4,6 +4,7 @@
 
 import json
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from datetime import datetime
 
 
@@ -18,9 +19,9 @@ def initialize_audit_pair(root_path, seeds):
             with open(manifest_path, 'r', encoding='utf-8') as f:
                 manifest_data = json.load(f)
         except Exception as e:
-            yield f'<div class="it-log-entry it-val-red">⚠ Manifest Corrupt: {str(e)}</div>'
+            yield event("warning", f"manifest.json couldn't be read ({e}), so a fresh one is being started")
     else:
-        yield '<div class="it-log-entry">🛰️ Initializing new forensic trail...</div>'
+        yield event("info", "No manifest.json yet, so a new one is being started")
 
     manifest_data.update({
         "artist_seed": seeds.get('artist'),
@@ -37,7 +38,7 @@ def initialize_audit_pair(root_path, seeds):
         with open(manifest_path, 'w', encoding='utf-8') as f:
             json.dump(manifest_data, f, indent=4)
     except Exception as e:
-        yield f'<div class="it-log-entry it-val-red">🔥 Cannot write manifest: {str(e)}</div>'
+        yield event("error", f"manifest.json couldn't be written: {e}")
 
     if not log_path.exists():
         try:
@@ -85,7 +86,8 @@ def update_audit_trail(
     personnel,
     db_write,
     release_year,
-    health_summary=None
+    health_summary=None,
+    inside_run=False
 ):
     """
     Appends an "Intelli-Tagger" block to MetaForge.log -- same header/
@@ -100,11 +102,18 @@ def update_audit_trail(
     log_path = root_path / "MetaForge.log"
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    log_content = [
-        f"\n{'='*60}",
-        f"METAFORGE AUDIT LOG | {timestamp}",
-        "MetaForge Process: Intelli-Tagger",
-        f"{'-'*60}",
+    if inside_run:
+        # v2: a SUMMARY section inside the run's own block (common/
+        # mf_events.run_stream writes the header, every event and footer).
+        log_content = ["", "SUMMARY"]
+    else:
+        log_content = [
+            f"\n{'='*60}",
+            f"METAFORGE AUDIT LOG | {timestamp}",
+            "MetaForge Process: Intelli-Tagger",
+            f"{'-'*60}",
+        ]
+    log_content += [
         f"Health Check: {_health_check_summary_line(health_summary)}",
         "Tagging:",
     ]
@@ -117,7 +126,7 @@ def update_audit_trail(
         else:
             log_content.append(f'filename: "{f_path.name}"  - Complete')
 
-    log_content.append(f"{'='*60}\n")
+    log_content.append("" if inside_run else f"{'='*60}\n")
 
     try:
         with open(log_path, "a", encoding="utf-8") as f:

@@ -489,10 +489,34 @@ window.MFEvents = {
             const file = document.createElement('span');
             file.className = 'mf-ev-track-file';
             file.textContent = ev.file || '';
-            const did = document.createElement('span');
-            did.className = 'mf-ev-track-did';
-            did.textContent = ev.text || '';
-            body.append(file, did);
+            body.append(file);
+            // Optional structured details: lines of [label, value] pairs
+            // (Intelli-Tagger's per-track results). Nothing is truncated;
+            // pairs wrap. Without details, the plain text line is shown.
+            if (Array.isArray(ev.details) && ev.details.length) {
+                ev.details.forEach((line) => {
+                    const row = document.createElement('span');
+                    row.className = 'mf-ev-track-did mf-ev-pairs';
+                    line.forEach(([label, value]) => {
+                        const pair = document.createElement('span');
+                        pair.className = 'mf-ev-pair';
+                        const k = document.createElement('span');
+                        k.className = 'mf-ev-pair-k';
+                        k.textContent = label;
+                        const v = document.createElement('span');
+                        v.className = 'mf-ev-pair-v';
+                        v.textContent = value;
+                        pair.append(k, ' ', v);
+                        row.append(pair);
+                    });
+                    body.append(row);
+                });
+            } else {
+                const did = document.createElement('span');
+                did.className = 'mf-ev-track-did';
+                did.textContent = ev.text || '';
+                body.append(did);
+            }
             row.append(body);
             log.append(row);
             return row;

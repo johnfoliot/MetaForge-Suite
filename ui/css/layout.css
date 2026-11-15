@@ -649,6 +649,15 @@ input, textarea, select {
     font-size: 0.8125rem;
     color: var(--text-muted);
 }
+/* Labelled details inside a track entry: "Genre Soul · BPM 98 · ...".
+   Pairs wrap as whole units. The separating dot is CSS-generated with a
+   comma as its alt text, so screen readers pause between pairs ("1974,
+   Release year") instead of announcing "dot" or running them together. */
+.mf-ev-pairs { display: flex; flex-wrap: wrap; column-gap: 0.25rem; }
+.mf-ev-pair { white-space: nowrap; }
+.mf-ev-pair + .mf-ev-pair::before { content: "·" / ","; margin-right: 0.35rem; color: var(--text-muted); }
+.mf-ev-pair-k { color: var(--text-muted); }
+.mf-ev-pair-v { color: var(--text-primary); white-space: normal; overflow-wrap: anywhere; }
 .mf-ev-thumb {
     width: 2.5rem;
     height: 2.5rem;
@@ -793,6 +802,8 @@ input, textarea, select {
     color: var(--text-primary);
 }
 .mf-handoff button { flex: none; }
+/* More than one next step (e.g. Intelli-Tagger: Personnel and Bio Builder) */
+.mf-handoff-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .mf-handoff-kicker {
     display: block;
     font-size: 0.8125rem;

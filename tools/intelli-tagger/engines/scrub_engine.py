@@ -6,6 +6,7 @@
 # Physical Location: \tools\intelli-tagger\engines\scrub_engine.py
 # ======================================================================
 from pathlib import Path
+from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from common import tag_engine
 
 # --- [ THE AUTHORITATIVE WHITELIST ] ---
@@ -48,14 +49,14 @@ def scrub_tags(root_path):
     if not files:
         return
 
-    yield '<div class="it-log-entry it-val-gold" style="margin-top:25px;"><img src="/ui/images/cleaning.png" alt="" style="height:32px; width:auto; margin-bottom:-10px;"> Scrubbing metadata...</div>'
+    yield event("step", "Step 2: Scrubbing old metadata")
 
     scrub_count = 0
     vanished_count = 0
     for f in files:
         if not f.exists():
             vanished_count += 1
-            yield f'<div class="it-log-entry it-val-red" style="margin-left:15px;">🔥 MISSING BEFORE SCRUB: {f.name} was found by the initial scan but is gone from disk.</div>'
+            yield event("error", "File went missing before its old metadata could be scrubbed", file=f.name)
             continue
 
         # tag_engine.sanitize_file logic protects frames starting with whitelist entries.
@@ -64,10 +65,10 @@ def scrub_tags(root_path):
         if success:
             scrub_count += 1
             if scrub_count % 5 == 0 or scrub_count == len(files):
-                yield f'<div class="it-log-entry" style="margin-left:36px;">✅ Cleaned {scrub_count}/{len(files)} files.</div>'
+                yield event("detail", f"Scrubbed {scrub_count} of {len(files)} files")
         else:
-            yield f'<div class="it-log-entry it-val-red" style="margin-left:36px;">🔥 Scrub failed on {f.name}: {message}</div>'
+            yield event("error", f"Scrub failed: {message}", file=f.name)
 
     if vanished_count > 0:
-        yield f'<div class="it-log-entry it-val-red" style="margin-top:5px; margin-left:36px;">⚠️ SAFETY ALERT: {vanished_count} file(s) went missing during the scrub pass.</div>'
+        yield event("warning", f"{vanished_count} file{'s' if vanished_count != 1 else ''} went missing during the scrub")
 # --- END OF FILE scrub_engine.py ---
