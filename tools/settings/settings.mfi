@@ -1,63 +1,366 @@
 <!-- --- START OF FILE settings.mfi --- -->
-<!-- --- SETTINGS TOOL UI --- -->
+<!-- ======================================================================
+     MetaForge Interface: Settings
+     v2 (2026-11-15): per-tool pass.
+      - One row of real tabs (focusgroup="tablist": arrow keys move between
+        them, Tab goes into the panel) replaces the role=button list items
+        and the second row of sub-tabs. The tabs stay put; only the panel
+        scrolls (position: relative, so hidden screen-reader text can't
+        escape and scroll the page).
+      - No inline styles; theme tokens throughout; every field has its own
+        visible label; groups that end in an action are real <form>s (Enter
+        runs the action).
+      - Configuration: plain-language labels (the .env name is the hint),
+        the library layout is a 3-way choice, Unpack consent is a checkbox.
+      - Updates: shows this version and when it was last checked; test mode
+        is announced on screen (dev/use_update_test.py).
+      - Genre list: track counts, a review step before changes that affect
+        tagged tracks, refuses blanks and duplicates, says when there are
+        unsaved changes.
+      - The dependency check is gone (developer task, John 2026-11-15).
+     ====================================================================== -->
+<style>
+    .set-stage {
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr);
+        gap: 1rem;
+        flex: 1;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+    }
+
+    /* --- TABS (vertical) --- */
+    .set-tabs {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        position: relative;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.25rem 0.75rem 0.25rem 0;
+        border-inline-end: 1px solid var(--border-subtle);
+    }
+    .set-tabs button {
+        all: unset;
+        box-sizing: border-box;
+        position: relative;
+        display: block;
+        padding: 0.5rem 0.9rem 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        color: var(--text-secondary) !important;   /* global button rule forces dark text */
+        font-family: var(--font-main);
+        font-size: 0.9375rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .set-tabs button:hover { background: var(--surface-raised); color: var(--text-primary) !important; }
+    .set-tabs button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    /* Selected: colour AND a bar (never colour alone); no size change. */
+    .set-tabs button[aria-selected="true"] { color: var(--mf-gold) !important; background: var(--surface-raised); }
+    .set-tabs button[aria-selected="true"]::before {
+        content: "";
+        position: absolute;
+        inset: 0.35rem auto 0.35rem 0;
+        border-inline-start: 4px solid var(--mf-gold);
+    }
+
+    /* --- PANELS (all in one grid cell; only this area scrolls) --- */
+    .set-panels {
+        display: grid;
+        position: relative;
+        min-height: 0;
+        overflow-y: auto;
+        scroll-padding-bottom: 5rem;
+    }
+    .set-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+    .set-panel-in { display: flex; flex-direction: column; gap: 1rem; padding: 0.25rem 0.5rem 0 0.25rem; min-height: 100%; box-sizing: border-box; }
+    .set-panel-in h2 { margin: 0; font-size: 1.25rem; color: var(--mf-gold); }
+    .set-panel-in h3 { margin: 0; font-size: 1.0625rem; color: var(--text-primary); }
+    .set-intro { margin: 0; max-width: 70ch; font-size: 0.9375rem; line-height: 1.45; color: var(--text-secondary); }
+
+    .set-hint { margin: 0; font-size: 0.875rem; line-height: 1.4; color: var(--text-muted); }
+    .set-hint code { font-family: var(--font-mono); font-size: 0.8125rem; }
+    .set-status { margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    .set-status.is-ok { color: var(--status-success); }
+    .set-status.is-error { color: var(--status-error); }
+    .set-status.is-warning { color: var(--status-warning); }
+    .set-status:empty { display: none; }
+
+    /* Action row pinned to the bottom of the scrolling area. */
+    .set-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.75rem;
+        margin-top: auto;
+        padding: 0.75rem 0;
+        background: var(--surface-page);
+        border-top: 1px solid var(--border-subtle);
+    }
+    .set-secondary {
+        background: transparent !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border-ui) !important;
+    }
+    .set-link-btn {
+        all: unset;
+        cursor: pointer;
+        color: var(--mf-gold) !important;
+        text-decoration: underline;
+        text-underline-offset: 0.15em;
+        font-size: 0.9375rem;
+    }
+    .set-link-btn:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
+    /* Fields */
+    .set-field { display: flex; flex-direction: column; gap: 0.25rem; max-width: 40rem; }
+    .set-field > label, .set-label { color: var(--text-primary); font-size: 0.9375rem; font-weight: 700; }
+    .set-input, .set-select {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 0.4rem 0.5rem;
+        font-family: var(--font-main);
+        font-size: 1rem;
+        background: var(--surface-field);
+        color: var(--input-foreground2);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+    }
+    .set-input.is-code { font-family: var(--font-mono); font-size: 0.9375rem; }
+    .set-input:focus-visible, .set-select:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+    .set-input[aria-invalid="true"] { border-color: var(--status-error); }
+    .set-check { display: flex; align-items: flex-start; gap: 0.6rem; max-width: 60ch; }
+    .set-check input { flex: none; width: 1.2rem; height: 1.2rem; margin: 0.15rem 0 0; accent-color: var(--mf-gold); }
+    .set-check label { font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    .set-fieldset { margin: 0; padding: 0.75rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.9rem; border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .set-fieldset legend { padding: 0 0.35rem; color: var(--mf-gold); font-size: 1rem; font-weight: 700; }
+
+    /* --- THEME --- */
+    .set-theme-grid { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0; padding: 0; border: 0; }
+    .set-theme-card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 15rem;
+        padding: 0.75rem;
+        background: var(--surface-raised);
+        border: 2px solid var(--border-subtle);
+        border-radius: 6px;
+        cursor: pointer;
+    }
+    .set-theme-card:has(input:checked) { border-color: var(--mf-gold); }
+    .set-theme-card:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
+    .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
+    .set-palette { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
+    .set-palette li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; font-size: 0.8125rem; color: var(--text-secondary); }
+    .set-swatch { width: 1rem; height: 1rem; flex: none; border: 1px solid var(--border-ui); border-radius: 2px; }
+
+    /* --- TOOLBAR (table rendered by js/toolbar_engine.js) --- */
+    #toolbar-customizer-grid { font-size: 0.9375rem; }
+    .tb-sep-line { display: inline-block; width: 18px; border-top: 2px solid var(--border-ui); }
+    .tb-sep-remove {
+        font-family: var(--font-main) !important; font-size: 0.875rem !important; font-weight: normal !important;
+        padding: 0.15rem 0.6rem !important;
+        color: var(--text-output) !important; background: transparent !important;
+        border: 1px solid var(--border-ui) !important; border-radius: 4px;
+    }
+    .tb-sep-actions { display: grid; gap: 0.35rem; justify-items: start; margin-top: 0.75rem; max-width: 60ch; }
+    .mf-pref-row { display: grid; gap: 0.3rem; max-width: 60ch; }
+    .mf-pref-control { display: flex; align-items: center; gap: 0.6rem; }
+    .mf-pref-control input { width: 1.2rem; height: 1.2rem; margin: 0; accent-color: var(--mf-gold); }
+    .mf-pref-control label { font-size: 0.9375rem; font-weight: 600; color: var(--text-output); }
+    .mf-pref-hint { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+    .mf-pref-status { margin: 0; font-size: 0.875rem; color: var(--text-message); min-height: 1.2em; }
+
+    /* --- GENRE LIST --- */
+    .set-about { max-width: 75ch; font-size: 0.9375rem; line-height: 1.45; color: var(--text-secondary); }
+    .set-about summary { cursor: pointer; color: var(--mf-gold); font-weight: 700; width: fit-content; }
+    .set-about summary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .set-about h3 { margin: 0.9rem 0 0.25rem; font-size: 1rem; color: var(--text-primary); }
+    .set-about p, .set-about ul { margin: 0.4rem 0; }
+
+    .set-genres {
+        display: grid;
+        grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr);
+        gap: 1rem;
+        min-height: 18rem;
+        flex: 1;
+    }
+    /* Larger text (e.g. 200%): stack the two columns instead of squeezing them. */
+    #set-panel-genres .set-panel-in { container-type: inline-size; }
+    @container (width < 45rem) {
+        .set-genres { grid-template-columns: minmax(0, 1fr); }
+    }
+    .set-genre-col, .set-sub-col {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        min-height: 0;
+        padding: 0.75rem;
+        background: var(--surface-page);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+    }
+    .set-genre-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        position: relative;
+        overflow-y: auto;
+        max-height: 22rem;
+        border: 1px solid var(--border-subtle);
+    }
+    .set-genre-list li + li { border-top: 1px solid var(--border-subtle); }
+    .set-genre-btn {
+        all: unset;
+        box-sizing: border-box;
+        position: relative;
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.4rem 0.6rem 0.4rem 0.9rem;
+        cursor: pointer;
+        color: var(--text-primary) !important;
+        font-size: 0.9375rem;
+    }
+    .set-genre-btn:hover { background: var(--surface-raised); }
+    .set-genre-btn:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .set-genre-btn[aria-current="true"] { background: var(--surface-raised); color: var(--mf-gold) !important; }
+    .set-genre-btn[aria-current="true"]::before { content: ""; position: absolute; inset: 0.25rem auto 0.25rem 0; border-inline-start: 4px solid var(--mf-gold); }
+    .set-count { color: var(--text-muted); font-size: 0.8125rem; white-space: nowrap; align-self: center; }
+    .set-new-flag { color: var(--status-warning); font-size: 0.8125rem; white-space: nowrap; align-self: center; }
+
+    .set-add-row { display: flex; gap: 0.5rem; align-items: center; }
+    .set-add-row .set-input { flex: 1; min-width: 0; }
+    .set-add-row button { flex: none; }
+
+    /* One grid for all rows (subgrid), so every name field is the same width. */
+    .set-sub-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.4rem 0.6rem; align-items: center; }
+    .set-sub-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+    .set-sub-row .set-count, .set-sub-row .set-new-flag { justify-self: end; }
+    .set-del-btn {
+        background: transparent !important;
+        color: var(--status-error) !important;
+        border: 1px solid var(--status-error) !important;
+        padding: 0.25rem 0.75rem;
+    }
+    .set-genre-foot { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; padding-top: 0.75rem; border-top: 1px solid var(--border-subtle); }
+    .set-dirty { margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--status-warning); }
+    .set-dirty[hidden] { display: none; }
+
+    /* --- CONFIGURATION --- */
+    .set-config { display: flex; flex-direction: column; gap: 1.25rem; }
+    .set-config a { color: var(--mf-gold); }
+
+    /* --- UPDATES --- */
+    .set-test-banner {
+        margin: 0;
+        max-width: 70ch;
+        padding: 0.6rem 0.8rem;
+        border: 2px dashed var(--status-warning);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-size: 0.9375rem;
+    }
+    .set-test-banner strong { color: var(--status-warning); }
+    .set-test-banner[hidden] { display: none; }
+    .set-facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 0; font-size: 0.9375rem; }
+    .set-facts dt { color: var(--text-secondary); }
+    .set-facts dd { margin: 0; color: var(--text-primary); font-weight: 700; }
+    .set-update-card {
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        max-width: 70ch;
+        padding: 0.9rem 1rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .set-update-card[hidden] { display: none; }
+    .set-update-card p { margin: 0; font-size: 0.9375rem; line-height: 1.45; }
+    .set-update-notes { white-space: pre-line; color: var(--text-secondary); }
+    .set-update-card .set-required { color: var(--status-warning); font-weight: 700; }
+    .set-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+    /* --- HELP FILES --- */
+    .set-help-list { display: flex; flex-direction: column; gap: 0.5rem; max-width: 80ch; }
+    .set-help-list details { background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .set-help-list summary { cursor: pointer; padding: 0.6rem 0.8rem; color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
+    .set-help-list summary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .set-help-body { padding: 0.25rem 1rem 0.9rem; border-top: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 0.9375rem; line-height: 1.5; }
+
+    /* --- CONFIRM DIALOG --- */
+    .set-dialog {
+        margin: auto;   /* a global margin reset otherwise pins it top-left */
+        width: min(38rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .set-dialog:modal { overscroll-behavior: contain; }
+    .set-dialog::backdrop { background: rgb(0 0 0 / 0.6); overflow: hidden; overscroll-behavior: contain; }
+    .set-dialog h2 { margin: 0 0 0.6rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .set-dialog-body { font-size: 0.9375rem; line-height: 1.45; max-height: 50vh; overflow-y: auto; position: relative; }
+    .set-dialog-body p { margin: 0 0 0.6rem; }
+    .set-dialog-body ul { margin: 0 0 0.75rem; padding-left: 1.25rem; }
+    .set-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
+
+    @media (forced-colors: active) {
+        .set-tabs button[aria-selected="true"]::before,
+        .set-genre-btn[aria-current="true"]::before { border-color: Highlight; }
+    }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Settings</h1>
     <button type="button" class="mf-help-btn" data-mf-help="settings" data-mf-help-name="Settings">Help</button>
 </div>
 
-<div class="active_stage" id="settings-stage">
-    <!-- Main Settings Navigation -->
-    <nav class="settings-nav-sidebar" role="navigation" aria-label="Settings categories">
-        <ul class="settings-nav-list">
-            <li class="nav-tab active" 
-                role="button" 
-                tabindex="0" 
-                onclick="showSettingsPanel('personalization', this)" 
-                onkeydown="if(event.key==='Enter'||event.key===' ') showSettingsPanel('personalization', this)">Personalization</li>
-            <li class="nav-tab" 
-                role="button" 
-                tabindex="0" 
-                onclick="showSettingsPanel('api-keys', this)" 
-                onkeydown="if(event.key==='Enter'||event.key===' ') showSettingsPanel('api-keys', this)">Config &amp; API keys</li>
-            <li class="nav-tab" 
-                role="button" 
-                tabindex="0" 
-                onclick="showSettingsPanel('updates', this)" 
-                onkeydown="if(event.key==='Enter'||event.key===' ') showSettingsPanel('updates', this)">Check for updates</li>
-            <li class="nav-tab" 
-                role="button" 
-                tabindex="0" 
-                onclick="showSettingsPanel('help', this)" 
-                onkeydown="if(event.key==='Enter'||event.key===' ') showSettingsPanel('help', this)">Help files</li>
-        </ul>
-    </nav>
+<div class="active_stage">
+<div class="set-stage" id="settings-stage">
+    <div class="set-tabs" focusgroup="tablist block nomemory" aria-label="Settings" aria-orientation="vertical" id="set-tabs">
+        <button type="button" id="set-tab-theme" aria-selected="true" focusgroupstart>Theme</button>
+        <button type="button" id="set-tab-toolbar" aria-selected="false">Toolbar</button>
+        <button type="button" id="set-tab-genres" aria-selected="false">Genre list</button>
+        <button type="button" id="set-tab-config" aria-selected="false">Configuration &amp; keys</button>
+        <button type="button" id="set-tab-updates" aria-selected="false">Updates</button>
+        <button type="button" id="set-tab-help" aria-selected="false">Help files</button>
+    </div>
 
-    <!-- Content Area -->
-    <div id="settings-viewport" class="settings-viewport-container">
-        
-        <!-- Tab: Personalization -->
-        <div id="panel-personalization" class="settings-panel">
-            <div class="sub-nav-container">
-                <button id="sub-nav-theme" class="sub-nav-btn active" onclick="showSubPanel('theme', this)" >Theme switcher</button>
-                <button id="sub-nav-toolbar" class="sub-nav-btn" onclick="showSubPanel('toolbar', this)">Toolbar customization</button>
-                <button id="sub-nav-taxonomy" class="sub-nav-btn" onclick="showSubPanel('taxonomy', this)" >Modify taxonomy</button>
-            </div>
+    <div class="set-panels" id="set-panels">
 
-            <!-- Sub-Pane: Theme Discovery -->
-            <div id="sub-panel-theme" class="personalization-sub-panel" style="display:block;">
-                <!-- h2 class="mf-grid-heading" tabindex="-1">Theme discovery</h2 -->
-                <div id="theme-selector-grid" class="mf-selection-grid">
-                    <p class="tool_notes">Searching for theme fragments...</p>
+        <!-- THEME -->
+        <div role="tabpanel" id="set-panel-theme" aria-labelledby="set-tab-theme">
+            <form class="set-panel-in" id="set-theme-form">
+                <h2>Theme</h2>
+                <p class="set-intro">Choosing a theme shows it straight away. Choose <strong>Save theme</strong> to keep it the next time MetaForge starts.</p>
+                <fieldset class="set-theme-grid" id="theme-selector-grid">
+                    <legend class="mf-visually-hidden">Theme</legend>
+                    <p class="set-hint">Loading the themes…</p>
+                </fieldset>
+                <div class="set-actions">
+                    <button type="submit" class="mf-button-gold-fixed">Save theme</button>
+                    <p class="set-status" id="set-theme-status"></p>
                 </div>
-                <button onclick="metaforge.settings.themes.save()">Commit theme selection</button>
-            </div>
+            </form>
+        </div>
 
-            <!-- Sub-Pane: Toolbar Layout -->
-            <div id="sub-panel-toolbar" class="personalization-sub-panel" style="display:none;">
-                <h2 class="mf-grid-heading" tabindex="-1">Workbench toolbar</h2>
-                <!-- v2 (2026-11-13): toolbar names preference. Default off. A native
-                     checkbox carrying the `switch` attribute: it renders as a switch
-                     where the browser supports that, and as a normal checkbox elsewhere. -->
+        <!-- TOOLBAR -->
+        <div role="tabpanel" id="set-panel-toolbar" aria-labelledby="set-tab-toolbar" hidden="until-found">
+            <form class="set-panel-in" id="set-toolbar-form">
+                <h2>Toolbar</h2>
                 <div class="mf-pref-row">
                     <div class="mf-pref-control">
                         <input type="checkbox" switch id="pref-toolbar-labels" aria-describedby="pref-toolbar-labels-hint">
@@ -67,225 +370,125 @@
                     <p class="mf-pref-status" id="pref-toolbar-labels-status" role="status"></p>
                 </div>
                 <div id="toolbar-customizer-grid">
-                    <p class="tool_notes">Loading tool manifests...</p>
+                    <p class="set-hint">Loading the tools…</p>
                 </div>
-                <button onclick="metaforge.settings.toolbar.save()" style="margin-top:1rem;">Update toolbar</button>
-            </div>
+                <div class="set-actions">
+                    <button type="submit" class="mf-button-gold-fixed">Update toolbar</button>
+                    <p class="set-status" id="set-toolbar-status"></p>
+                </div>
+            </form>
+        </div>
 
-            <!-- Sub-Pane: Taxonomy Manager -->
-            <div id="sub-panel-taxonomy" class="personalization-sub-panel" style="display:none;">
-                <h2 class="mf-grid-heading" tabindex="-1">Taxonomy manager</h2>
-                
-                <!-- Global Taxonomy Controls -->
-                <div class="taxonomy-header-block" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; gap: 20px;">
-                    <div style="flex: 1; min-width: 0;">
-                        <div id="taxonomy-instruction-drawer" class="mf-drawer">
-                            <div class="mf-drawer-content" id="tax-drawer-content">
-                                <p>The MetaForge Intelli-Tagger operates on a Fixed Taxonomy model designed to solve the "folksonomy" problem — the inconsistent, subjective tagging that dilutes the value of a music library. By replacing broad, crowd-sourced opinions with a hardened hierarchy, MetaForge Intelli-Tagger ensures your library moves from "Garbage In, Garbage Out" to "Goodness In, Goodness Out."</p>
+        <!-- GENRE LIST -->
+        <div role="tabpanel" id="set-panel-genres" aria-labelledby="set-tab-genres" hidden="until-found">
+            <div class="set-panel-in">
+                <h2>Genre list</h2>
+                <p class="set-intro">The genres and sub-genres Intelli-Tagger may choose from. Changes here don't retag any tracks.</p>
+                <details class="set-about">
+                    <summary>About the genre list</summary>
+                    <p>Intelli-Tagger uses a fixed list of genres so the same kind of music always gets the same name, instead of the inconsistent, crowd-sourced tags most music files arrive with.</p>
+                    <h3>Two levels</h3>
+                    <ul>
+                        <li><strong>Genre:</strong> a broad family, for example Blues.</li>
+                        <li><strong>Sub-genre:</strong> a specific style within it, for example Chicago Blues.</li>
+                    </ul>
+                    <p>Moving from general to specific keeps a search for “Rock” useful while a search for “Hardcore Punk” stays precise.</p>
+                    <h3>Keep it focused</h3>
+                    <p>You can add genres and sub-genres, but too many choices dilute the list and too few make it rigid. The list exists to make tracks easy to find and to build playlists from, so add with care. You have the final say.</p>
+                </details>
 
-                                <h3>Structure: The "Is-A" Hierarchy</h3>
-                                <p>MetaForge utilizes a two-tier "Is-A" model to enforce categorical rigor. Every track is assigned a specific relationship:</p>
-                                <ul>
-                                    <li><strong>Genre (The Parent):</strong> A broad, vertical domain (e.g., Blues).</li>
-                                    <li><strong>Sub-Genre (The Instance):</strong> A specific realization of that domain (e.g., Chicago Blues).</li>
-                                </ul>
-
-                                <p>This approach follows the archival standard of moving from General to Specific, ensuring that a search for "Rock" remains relevant while a search for "Hardcore Punk" remains precise.</p>
-
-                                <h3>The Balance of Breadth and Depth</h3>
-                                <p>While the Taxonomy Editor allows you to add custom Genres and Sub-Genres, the system is optimized for a balance of breadth (how many choices you see) and depth (how many Sub Genres are associated to the primary Genre).</p>
-
-                                <ul>
-                                    <li><strong>The Constraint:</strong> Providing too many options overloads the the taxonomy pool and dilutes the value; providing too few makes the library too rigid. It's a balancing act, but YOU have the final say.</li>
-                                    <li><strong>The Recommendation:</strong> Users are encouraged to exercise discretion. The goal of MetaForge Intelli-Tagger is to narrow "opinions" into a definitive set of options.</li>
-                                </ul>
-
-                                <h3>User Autonomy</h3>
-                                <p>Intelli-Tagger ships with a "Definitively Paired" default taxonomy leveraging AI-driven consensus. You retain the power to expand this list, but you are cautioned against over-expansion. Judgment is left to the curator to ensure the taxonomy remains a tool for relevance, retrieval, AND PLAYLIST GENERATION, rather than a collection of clutter.</p>
+                <form id="set-genres-form" class="set-genres" novalidate>
+                    <div class="set-genre-col">
+                        <h3 id="set-genre-list-label">Genres</h3>
+                        <ul class="set-genre-list" id="set-genre-list" aria-labelledby="set-genre-list-label"></ul>
+                        <div class="set-field">
+                            <label for="set-new-genre">New genre</label>
+                            <div class="set-add-row">
+                                <input type="text" class="set-input" id="set-new-genre" form="set-add-genre-form" autocomplete="off">
+                                <button type="submit" form="set-add-genre-form">Add genre</button>
                             </div>
-                            <button id="tax-drawer-toggle" 
-                                    class="mf-drawer-toggle-btn" 
-                                    onclick="metaforge.settings.taxonomy.toggleDrawer()" 
-                                    aria-expanded="false" 
-                                    aria-controls="tax-drawer-content" style="color:var(--mf-gold)!important; text-decoration:none!important;">Learn  more...</button>
                         </div>
                     </div>
-                    <button class="mf-button-gold-fixed" onclick="metaforge.settings.taxonomy.save()" style="white-space: nowrap;">Commit taxonomy changes</button>
-                </div>
+                    <div class="set-sub-col" id="set-sub-col">
+                        <p class="set-hint">Choose a genre to see and edit its sub-genres.</p>
+                    </div>
+                </form>
+                <form id="set-add-genre-form" hidden></form>
+                <form id="set-add-sub-form" hidden></form>
 
-                <div id="taxonomy-manager-container" class="taxonomy-editor-container">
-                    <p class="tool_notes">Initializing taxonomy matrix...</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Api Keys -->
-        <div id="panel-api-keys" class="settings-panel" style="display:none;">
-            <!-- Real layout bug fixed here (John, 2026-07-13): this used
-                 to be a float:right aside plus a pair of matched
-                 position:relative;top:-80px hacks (here and on the
-                 table in api_engine.js) to visually pull the form back
-                 up level with the aside. That only ever worked because
-                 the aside's height happened to roughly match; it broke
-                 the moment the AcoustID help text grew from one line to
-                 two. Replaced with a real flex layout -- no magic
-                 offsets, reflows correctly regardless of how tall either
-                 side is, and wraps on narrow viewports for free. -->
-            <div class="api-keys-layout">
-                <div class="api-keys-main">
-                    <h2 class="data-text api-main-heading" tabindex="-1">Configuation &amp; API keys</h2>
-                    <div id="api-form-container"></div>
-                    <button onclick="metaforge.settings.api.save()">Save Settings</button>
-                </div>
-                <div class="api-help-aside">
-                    <h3 class="data-text" style="font-size: 0.9rem;">Getting your keys</h3>
-                    <ul class="api-help-list">
-                        <li>AcoustID (Application key, used for every lookup): register at
-                            <a href="https://acoustid.org/my-applications" onclick="window.metaforge.openExternalLink(this.href); return false;">acoustid.org/my-applications</a>
-                        </li>
-                        <li>AcoustID (User key, only needed to submit new fingerprints): shown on
-                            <a href="https://acoustid.org/api-key" onclick="window.metaforge.openExternalLink(this.href); return false;">acoustid.org/api-key</a>
-                            once you're signed in
-                        </li>
-                        <li>Discogs: visit <a href="https://www.discogs.com/settings/developers" onclick="window.metaforge.openExternalLink(this.href); return false;">Discogs Developers</a></li>
-                        <li>Gemini: visit <a href="https://aistudio.google.com/app/api-keys" onclick="window.metaforge.openExternalLink(this.href); return false;">Google AI Studio</a></li>
-                    </ul>
+                <div class="set-actions">
+                    <button type="submit" form="set-genres-form" class="mf-button-gold-fixed">Save genre list</button>
+                    <button type="button" class="set-secondary" id="set-genres-discard">Discard changes</button>
+                    <p class="set-dirty" id="set-genres-dirty" hidden>Unsaved changes</p>
+                    <p class="set-status" id="set-genres-status"></p>
                 </div>
             </div>
         </div>
 
-        <!-- Tab: Check for Updates -->
-        <div id="panel-updates" class="settings-panel" style="display:none;">
-            <h2 class="mf-grid-heading" tabindex="-1">Check for Updates</h2>
-            <p class="data-text" style="font-size: 0.85rem; margin-bottom: 15px;">
-                Checking to ensure your workbench and dependencies are current.
-            </p>
-            <button class="mf-button-gold-fixed" onclick="metaforge.settings.updates.run()">Check for Updates</button>
-            
-            <!-- Target container for the Silent State or Announcement Card -->
-            <div id="binary-audit-container">
-                <p class="tool_notes" style="margin-top: 20px;">System scan pending...</p>
+        <!-- CONFIGURATION & KEYS -->
+        <div role="tabpanel" id="set-panel-config" aria-labelledby="set-tab-config" hidden="until-found">
+            <form class="set-panel-in" id="set-config-form" novalidate>
+                <h2>Configuration &amp; keys</h2>
+                <p class="set-intro">Stored in MetaForge's <code>.env</code> file. Only the settings you change are written; the file's notes and order are kept.</p>
+                <div class="set-config" id="api-form-container">
+                    <p class="set-hint">Loading the configuration…</p>
+                </div>
+                <div class="set-actions">
+                    <button type="submit" class="mf-button-gold-fixed">Save configuration</button>
+                    <p class="set-status" id="set-config-status"></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- UPDATES -->
+        <div role="tabpanel" id="set-panel-updates" aria-labelledby="set-tab-updates" hidden="until-found">
+            <div class="set-panel-in">
+                <h2>Updates</h2>
+                <p class="set-test-banner" id="set-upd-test" hidden><strong>Test mode.</strong> Updates are being read from a local test file (<code>dev/update_test.json</code>), not from GitHub. Run <code>python dev\use_update_test.py off</code> to switch back.</p>
+                <dl class="set-facts">
+                    <dt>This version</dt><dd id="set-upd-current">—</dd>
+                    <dt>Last checked</dt><dd id="set-upd-last">Never</dd>
+                </dl>
+                <div class="set-row">
+                    <button type="button" class="mf-button-gold-fixed" id="set-upd-check">Check for updates</button>
+                    <p class="set-status" id="set-upd-status"></p>
+                </div>
+                <section class="set-update-card" id="set-upd-card" aria-labelledby="set-upd-title" hidden>
+                    <h3 id="set-upd-title"></h3>
+                    <p id="set-upd-released"></p>
+                    <p class="set-required" id="set-upd-required" hidden>This is a required update.</p>
+                    <p class="set-update-notes" id="set-upd-notes"></p>
+                    <p id="set-upd-nolink" hidden>No download page was given for this update.</p>
+                    <div class="set-row">
+                        <button type="button" class="mf-button-gold-fixed" id="set-upd-open">Open the release page on GitHub</button>
+                        <button type="button" class="set-secondary" id="set-upd-dismiss">Don't remind me about this version</button>
+                    </div>
+                    <p class="set-hint">You download and install the update yourself; MetaForge doesn't change anything.</p>
+                </section>
             </div>
         </div>
 
-        <!-- Tab: Help -->
-        <div id="panel-help" class="settings-panel" style="display:none;">
-            <h2 class="mf-grid-heading" tabindex="-1">MetaForge documentation</h2>
-            <div id="help-aggregator"></div>
+        <!-- HELP FILES -->
+        <div role="tabpanel" id="set-panel-help" aria-labelledby="set-tab-help" hidden="until-found">
+            <div class="set-panel-in">
+                <h2>Help files</h2>
+                <p class="set-intro">The help for every tool, in one place.</p>
+                <div class="set-help-list" id="help-aggregator">
+                    <p class="set-hint">Loading the help files…</p>
+                </div>
+            </div>
         </div>
-
-        <div id="save-status" role="status" aria-live="polite"></div>
     </div>
 </div>
+</div>
 
-<style>
-    /* LOCALIZED TOOL STYLES (Build 5.3.7) */
-    .settings-nav-sidebar { font-size: 0.85rem; width: 10rem; border-right: 1px solid var(--mf-gold); padding: 5px; }
-    .settings-nav-list { list-style-type: none; padding: 0; }
-    .settings-nav-list .nav-tab { cursor: pointer; padding: 6px; color: var(--text-message); font-size: 0.85rem; }
-    .settings-nav-list .nav-tab.active { color: var(--mf-gold); font-weight: bold; }
-    .settings-viewport-container { flex: 1; padding: 0 10px; }
-    
-    .sub-nav-container { display: flex; gap: 2px; margin-bottom: 15px; border-bottom: 1px solid var(--bg-accent); }
-    
-    .sub-nav-btn {
-        background: var(--bg-main);
-        border: 1px solid var(--bg-accent);
-        border-bottom: none;
-        border-radius: 4px 4px 0 0;
-        color: var(--text-message);
-        font-size: 0.75rem;
-        padding: 6px 12px;
-        cursor: pointer;
-        transition: background 0.1s;
-    }
-    .sub-nav-btn.active { background: var(--bg-stage); border-color: var(--bg-accent); color: var(--mf-gold); position: relative; z-index: 5; }
-	
-	#toolbar-customizer-grid { font-size: 75%; }
-    /* v2 user-placed toolbar separators */
-    .tb-sep-line { display: inline-block; width: 18px; border-top: 2px solid var(--border-ui); }
-    .tb-sep-remove {
-        font-family: var(--font-main) !important; font-size: 0.8rem !important; font-weight: normal !important;
-        padding: 0.15rem 0.6rem !important;
-        color: var(--text-output) !important; background: transparent !important;
-        border: 1px solid var(--border-ui) !important; border-radius: 4px;
-    }
-    .tb-sep-actions { display: grid; gap: 0.35rem; justify-items: start; margin-top: 0.75rem; max-width: 60ch; }
-    /* v2 toolbar-names preference */
-    .mf-pref-row { display: grid; gap: 0.3rem; margin: 0 0 1.25rem; max-width: 60ch; }
-    .mf-pref-control { display: flex; align-items: center; gap: 0.6rem; }
-    .mf-pref-control input { width: 1.2rem; height: 1.2rem; margin: 0; accent-color: var(--mf-gold); }
-    .mf-pref-control label { font-size: 0.9375rem; font-weight: 600; color: var(--text-output); }
-    .mf-pref-hint { margin: 0; font-size: 0.875rem; color: var(--text-muted); }
-    .mf-pref-status { margin: 0; font-size: 0.875rem; color: var(--text-message); min-height: 1.2em; }
-
-    /* --- TAXONOMY DRAWER ENGINE --- */
-    .mf-drawer { display: flex; flex-direction: column; }
-    .mf-drawer-content { 
-        max-height: 4rem; 
-        overflow: hidden; 
-        transition: max-height 0.4s ease-in-out; 
-        position: relative;
-    }
-    .mf-drawer-content p, .mf-drawer-content li, .mf-drawer-content h3 { 
-        font-size: 0.75rem !important; 
-        line-height: 1.4; 
-        margin-bottom: 8px;
-        color: var(--text-message);
-    }
-    .mf-drawer-content h3 { color: var(--mf-gold); margin-top: 12px; font-weight: bold; }
-    .mf-drawer-content ul { padding-left: 18px; list-style-type: square; margin-bottom: 8px; }
-    .mf-drawer.open .mf-drawer-content { max-height: 1200px; }
-
-    .mf-drawer-toggle-btn {
-        align-self: flex-start;
-        background: none;
-        border: none;
-        color: var(--mf-gold);
-        font-family: var(--font-mono);
-        font-size: 0.7rem;
-        text-decoration: underline;
-        padding: 4px 0;
-        margin-top: 2px;
-        cursor: pointer;
-        display: block;
-        min-height: 24px;
-    }
-    .mf-drawer-toggle-btn:hover, .mf-drawer-toggle-btn:focus-visible { color: var(--text-output); outline: none; }
-    
-    .taxonomy-editor-container { 
-        margin-top: 10px; 
-        background: var(--bg-stage); 
-        padding: 15px; 
-        border: 1px solid var(--bg-accent); 
-        border-radius: 4px;
-        color: var(--text-output);
-    }
-    
-    .taxonomy-item { 
-        cursor: pointer; 
-        padding: 4px 10px; 
-        border-bottom: 1px solid var(--bg-accent); 
-        color: var(--text-message); 
-        font-size: 0.85rem; 
-        transition: all 0.05s ease; 
-    }
-    .taxonomy-item.active { 
-        background-color: var(--mf-gold) !important; 
-        color: var(--input-foreground) !important; 
-        font-weight: 900; 
-        padding-left: 15px; 
-        border-left: 4px solid var(--input-foreground); 
-    }
-	
-    .sub-genre-input { color: var(--mf-gold) !important; font-weight: bold; }
-
-    .api-keys-layout { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-    .api-keys-main { flex: 1 1 400px; min-width: 0; }
-    .api-help-aside { flex: 0 0 300px; padding: 1rem; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; }
-    .api-help-list {font-size: 0.8rem; margin-top: 10px; line-height: 1.4;}
-    .api-help-list a { color: var(--mf-gold); }
-    .api-main-heading { margin-bottom: 10px; font-size: 1.1rem; color: var(--mf-gold); }
-</style>
-<!-- --- SETTINGS TOOL UI END --- -->
+<!-- Shared confirmation (native modal <dialog>; Esc = the safe choice). -->
+<dialog id="set-confirm" class="set-dialog" aria-labelledby="set-confirm-title">
+    <h2 id="set-confirm-title"></h2>
+    <div class="set-dialog-body" id="set-confirm-body"></div>
+    <form method="dialog" class="set-dialog-actions">
+        <button type="submit" value="ok" id="set-confirm-ok"></button>
+        <button type="submit" value="cancel" class="set-secondary" id="set-confirm-cancel" autofocus></button>
+    </form>
+</dialog>
 <!-- --- END OF FILE settings.mfi --- -->

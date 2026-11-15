@@ -1,0 +1,8 @@
+{
+    "schema_version": 3,
+    "latest_version": "2.0.1",
+    "priority": "optional",
+    "title": "TEST SCENARIO: a link that isn't GitHub",
+    "notes": "The link below points away from GitHub, so MetaForge must refuse to show it.",
+    "url": "https://example.com/not-github"
+}

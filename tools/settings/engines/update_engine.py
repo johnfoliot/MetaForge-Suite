@@ -1,124 +1,139 @@
 # --- START OF FILE update_engine.py ---
 # ======================================================================
-# MetaForge Mini-Engine: Update Engine
+# MetaForge Mini-Engine: Update Check
 # Physical Location: \tools\settings\engines\update_engine.py
-# Build 5.3.19: Implemented Heartbeat Timestamping and UI Echo.
+# v2 (2026-11-15) rewrite. 1.x problems fixed:
+#  - It crashed on every check ("System config mismatch": it relied on a
+#    config_handler.UPDATE_MANIFEST that doesn't exist).
+#  - The "installed version" was a JSON file the screen overwrote when you
+#    clicked View details OR Dismiss, so the app could claim to be updated
+#    with nothing installed. The version is now common/version.APP_VERSION.
+#  - "Newer" was "different" (string inequality); now a real version order.
+#  - HTTPS certificate checks were switched off and the remote text was put
+#    into the page as HTML; now verified HTTPS, plain text, GitHub-only links.
+# What an update does (John, 2026-11-15): announce it and link to the GitHub
+# release page; you download it yourself. An installer comes later.
 # ======================================================================
 import json
-import urllib.request
-import ssl
-import traceback
 import time
-from flask import jsonify, request
-from common import config_handler
+import urllib.request
+from pathlib import Path
+from urllib.parse import urlparse
 
-# --- CONFIGURATION ---
-REMOTE_MANIFEST_URL = "https://raw.githubusercontent.com/johnfoliot/MetaForge-Suite/main/deploy/updates.json"
+from flask import jsonify, request
+
+from common import config_handler
+from common.version import APP_VERSION, is_newer, parse_version
+
+REMOTE_URL = "https://raw.githubusercontent.com/johnfoliot/MetaForge-Suite/main/deploy/updates.json"
+ALLOWED_LINK_HOSTS = {"github.com", "www.github.com"}
+
+# TEST MODE (developers only): if this file exists, it's read INSTEAD of
+# GitHub, and the screen says so. dev/use_update_test.py switches between
+# the ready-made scenarios in dev/update_tests/. It lives in the build
+# folder's dev/ (never in data/, which the 1.x build shares).
+TEST_FILE = config_handler.PROJECT_ROOT / "dev" / "update_test.json"
+
+
+def _prefs_path():
+    return config_handler.APPDATA_MF / "preferences.json" if hasattr(config_handler, "APPDATA_MF") \
+        else Path.home() / "AppData" / "Roaming" / "MetaForge" / "preferences.json"
+
+
+def _read_prefs():
+    try:
+        return json.loads(_prefs_path().read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_prefs(changes):
+    p = _prefs_path()
+    prefs = _read_prefs()
+    prefs.update(changes)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(prefs, indent=4), encoding="utf-8")
+
+
+def _fetch_remote():
+    """Returns (data, source_label). Verified HTTPS (the default context)."""
+    if TEST_FILE.exists():
+        return json.loads(TEST_FILE.read_text(encoding="utf-8-sig")), f"TEST FILE {TEST_FILE}"
+    req = urllib.request.Request(f"{REMOTE_URL}?t={int(time.time())}", headers={"User-Agent": f"MetaForgeStudio/{APP_VERSION}"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8-sig")), "GitHub"
+
+
+def _normalise(remote):
+    """
+    Current format (schema 3):
+      {"schema_version": 3, "latest_version": "2.0.1", "released": "2026-12-01",
+       "priority": "optional" | "required", "title": "...", "notes": "plain text",
+       "url": "https://github.com/johnfoliot/MetaForge-Suite/releases/tag/v2.0.1"}
+    The 1.x-era file on GitHub (schema 2: manifest_metadata.installed_version)
+    is still understood: its version is treated as the latest published one.
+    """
+    if "latest_version" in remote:
+        return remote
+    meta = remote.get("manifest_metadata") or {}
+    return {"latest_version": meta.get("installed_version"), "title": "", "notes": "", "url": "", "priority": "optional"}
+
+
+def _safe_link(url):
+    try:
+        u = urlparse(url or "")
+        return url if u.scheme == "https" and u.hostname in ALLOWED_LINK_HOSTS else ""
+    except Exception:
+        return ""
+
 
 def check_for_updates():
-    """
-    The Update Logic: Compares manifests and updates the local 'last_checked' heartbeat.
-    """
+    now = time.strftime("%Y-%m-%d %H:%M", time.localtime())
     try:
-        if not hasattr(config_handler, 'UPDATE_MANIFEST'):
-            return jsonify({"status": "error", "message": "System config mismatch."}), 500
-
-        local_path = config_handler.UPDATE_MANIFEST
-        
-        # 1. Load Local State
-        if not local_path.exists():
-            return jsonify({"status": "error", "message": "Local manifest missing."}), 404
-        
-        raw_local = local_path.read_text(encoding='utf-8-sig').strip()
-        local_data = json.loads(raw_local)
-
-        # 2. Fetch Remote State (Cache-Busted)
-        cache_buster = f"?v={int(time.time())}"
-        target_url = REMOTE_MANIFEST_URL + cache_buster
-        
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-
-        with urllib.request.urlopen(target_url, timeout=10, context=ctx) as response:
-            remote_data = json.loads(response.read().decode('utf-8-sig'))
-
-        # 3. Heartbeat Update: Always update the local 'last_checked' timestamp
-        current_time_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        current_time_display = time.strftime("%Y-%m-%d", time.gmtime())
-        
-        local_data["manifest_metadata"]["last_checked"] = current_time_iso
-        
-        # 4. Extraction & Comparison
-        local_meta = local_data.get("manifest_metadata", {})
-        remote_meta = remote_data.get("manifest_metadata", {})
-        local_msg = local_data.get("announcements", {})
-        remote_msg = remote_data.get("announcements", {})
-
-        version_mismatch = remote_meta.get("installed_version") != local_meta.get("installed_version")
-        is_new_id = str(remote_msg.get("message_id")) != str(local_msg.get("message_id"))
-        was_dismissed = local_msg.get("is_dismissed", False) if not is_new_id else False
-
-        # Physical Write: Commit the heartbeat to the local file immediately
-        local_path.write_text(json.dumps(local_data, indent=4), encoding='utf-8')
-
-        if version_mismatch or is_new_id or (not was_dismissed):
-            if not version_mismatch and not is_new_id and was_dismissed:
-                return jsonify({
-                    "update_available": False,
-                    "message": "✅ Rest easy, your system is up to date. Happy tagging!",
-                    "last_checked": current_time_display
-                })
-
-            return jsonify({
-                "update_available": True,
-                "priority": remote_msg.get("priority", "optional"),
-                "message_id": remote_msg.get("message_id"),
-                "title": remote_msg.get("title", "Update Available"),
-                "body": remote_msg.get("body_text", ""),
-                "action_url": remote_msg.get("action_url", ""),
-                "remote_version": remote_meta.get("installed_version"),
-                "last_checked": current_time_display
-            })
-
-        return jsonify({
-            "update_available": False,
-            "message": "✅ Rest easy, your system is up to date. Happy tagging!",
-            "last_checked": current_time_display
-        })
-
-    except Exception:
-        return jsonify({"status": "error", "trace": traceback.format_exc()}), 500
-
-def commit_update():
-    """
-    Physically overwrites the local updates.json to synchronize state.
-    Triggered when the user clicks 'Accept' or 'Dismiss'.
-    """
-    try:
-        local_path = config_handler.UPDATE_MANIFEST
-        payload = request.json 
-        
-        new_manifest = {
-            "manifest_metadata": {
-                "schema_version": "1.0.0",
-                "last_checked": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "installed_version": payload.get("remote_version")
-            },
-            "announcements": {
-                "message_id": payload.get("message_id"),
-                "priority": payload.get("priority", "optional"),
-                "is_dismissed": payload.get("dismissed", False),
-                "title": payload.get("title"),
-                "body_text": payload.get("body"),
-                "action_url": payload.get("action_url")
-            }
-        }
-        
-        local_path.write_text(json.dumps(new_manifest, indent=4), encoding='utf-8')
-        return jsonify({"status": "success"})
+        remote, source = _fetch_remote()
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "current_version": APP_VERSION,
+                        "message": f"Couldn't reach the update information ({e.__class__.__name__}). "
+                                   "Check the internet connection and try again."})
+    info = _normalise(remote)
+    latest = info.get("latest_version")
+    if parse_version(latest) is None:
+        return jsonify({"status": "error", "current_version": APP_VERSION,
+                        "message": "The update information couldn't be read (no valid version number in it)."})
 
-# --- SETTINGS UPDATE ENGINE END ---
+    prefs = _read_prefs()
+    _write_prefs({"last_update_check": now})
+    newer = is_newer(latest, APP_VERSION)
+    required = (info.get("priority") or "").lower() == "required"
+    dismissed = newer and not required and prefs.get("dismissed_update_version") == latest
+
+    return jsonify({
+        "status": "update_available" if newer and not dismissed else "up_to_date",
+        "current_version": APP_VERSION,
+        "latest_version": latest,
+        "dismissed_version": latest if dismissed else None,
+        "priority": "required" if required else "optional",
+        "title": str(info.get("title") or f"MetaForge Studio {latest}"),
+        "notes": str(info.get("notes") or ""),
+        "released": str(info.get("released") or ""),
+        "url": _safe_link(info.get("url")),
+        "last_checked": now,
+        "test_mode": source.startswith("TEST"),
+        "source": source,
+    })
+
+
+def dismiss_update():
+    """'Don't tell me about this version again.' Never touches the app's version."""
+    version = (request.json or {}).get("version")
+    if parse_version(version) is None:
+        return jsonify({"status": "error", "message": "No valid version to dismiss."}), 400
+    _write_prefs({"dismissed_update_version": version})
+    return jsonify({"status": "success"})
+
+
+def last_checked():
+    return jsonify({"current_version": APP_VERSION, "last_checked": _read_prefs().get("last_update_check"),
+                    "test_mode": TEST_FILE.exists()})
+
 # --- END OF FILE update_engine.py ---

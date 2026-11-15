@@ -1,106 +1,135 @@
 // --- START OF FILE api_engine.js ---
 /**
- * Standalone API & Config Manager. Build 5.2.4
- * Role: Handles environmental variable auditing, editing, and persistence.
- * Build 5.2.4: WCAG 1.4.10 Reflow compliance and Accessibility Hardening.
+ * Settings > Configuration & keys. v2 (2026-11-15) rewrite.
+ *  - Plain-language labels; the .env name is shown as a hint (John).
+ *  - MF_FILING_POLICY is a 3-way choice; MF_UNPACKER_CONSENT a checkbox.
+ *  - DOM-built (1.x put values straight into value="" HTML) with theme
+ *    tokens (1.x hard-coded white fields at 12.8px).
+ *  - Only changed settings are sent; the server keeps the file's notes and
+ *    order. Keys are not masked for now: hiding them without a login would
+ *    be false security (John; a Settings login is on the to-do list).
  */
+(function () {
+    const S = window.metaforge.settings;
+    const $ = (id) => document.getElementById(id);
+    const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids); return n; };
+    let loaded = {};
 
-window.metaforge.settings.api = {
-    /**
-     * Entry Point: Fetches current .env configuration from Python.
-     */
-    load: async function() {
-        const container = document.getElementById('api-form-container');
-        if(!container) return;
+    // kind: text | code | select | consent. link: [text, url] for "Get a key".
+    const GROUPS = [
+        { legend: 'Your library', fields: [
+            { key: 'LIBRARY_ROOT', label: 'Music library folder', kind: 'code', hint: 'The top folder of your music library (for example, F:\\).' },
+            { key: 'MF_FILING_POLICY', label: 'How your library folders are organised', kind: 'select', options: [
+                ['BASIC', 'Basic: album folders at the top level'],
+                ['STANDARD', 'Standard: Artist, then Album'],
+                ['ENHANCED', 'Enhanced: Category, then Artist, then Album']] },
+            { key: 'USER_EMAIL', label: 'Your email address (for MusicBrainz)', kind: 'text', type: 'email', hint: 'Sent to MusicBrainz with each lookup, as they ask, so they can contact you about heavy use.' }
+        ]},
+        { legend: 'Unpack & Convert', fields: [
+            { key: 'MF_UNPACKER_CONSENT', label: 'Unpack & Convert may delete original archives and old metadata', kind: 'consent', hint: 'Turn this off to be asked again the next time you use Unpack & Convert.' },
+            { key: 'MF_UNPACKER_LOCKED_CATEGORY', label: 'Locked filing category', kind: 'text', hint: 'Leave empty for no lock. Set from Unpack & Convert\u2019s lock button.' },
+            { key: 'MF_UNPACKER_LOCKED_ARTIST', label: 'Locked filing artist', kind: 'text', hint: 'Leave empty for no lock. Set from Unpack & Convert\u2019s lock button.' }
+        ]},
+        { legend: 'Service keys', fields: [
+            { key: 'ACOUSTID_APPLICATION_KEY', label: 'AcoustID application key', kind: 'code', hint: 'Used for every audio-fingerprint lookup.', link: ['Get one at acoustid.org', 'https://acoustid.org/my-applications'] },
+            { key: 'ACOUSTID_USER_KEY', label: 'AcoustID user key', kind: 'code', hint: 'Only needed to submit new fingerprints.', link: ['Shown at acoustid.org once you\u2019re signed in', 'https://acoustid.org/api-key'] },
+            { key: 'GEMINI_KEY', label: 'Google Gemini API key', kind: 'code', hint: 'Used by Intelli-Tagger and Bio Builder.', link: ['Get one at Google AI Studio', 'https://aistudio.google.com/app/api-keys'] },
+            { key: 'DISCOGS_TOKEN', label: 'Discogs personal token', kind: 'code', hint: 'Used for credits and artist photos.', link: ['Get one at Discogs Developers', 'https://www.discogs.com/settings/developers'] }
+        ]}
+    ];
 
-        container.innerHTML = '<p class="tool_notes">Synchronizing environment variables...</p>';
-
-        try {
-            const res = await fetch('/run_tool_logic/settings/get_env');
-            const data = await res.json();
-            this.render(data);
-        } catch (e) {
-            container.innerHTML = `<p class="error-text">Configuration load failure: ${e.message}</p>`;
+    function field(f, value) {
+        const id = `set-env-${f.key}`, hintId = `${id}-hint`;
+        const hint = el('p', { className: 'set-hint', id: hintId },
+            ...(f.hint ? [f.hint + ' '] : []), 'Stored as ', el('code', { textContent: f.key }), '.');
+        if (f.link) {
+            const a = el('a', { href: f.link[1], textContent: f.link[0] });
+            a.addEventListener('click', (e) => { e.preventDefault(); window.metaforge.openExternalLink(a.href); });
+            hint.append(' ', a, '.');
         }
-    },
-
-    /**
-     * Renders a dense table of configuration inputs.
-     * Hardened for WCAG 2.2 AA Reflow compliance.
-     */
-    render: function(data) {
-        const container = document.getElementById('api-form-container');
-        
-        let html = `
-            <table class="meta-table" style="border-spacing: 0 10px; border-collapse: separate; margin-bottom: 20px; width: 100%;">
-                <tbody>`;
-        
-        const sortedKeys = Object.keys(data).sort();
-
-        for (const key of sortedKeys) {
-            const value = data[key];
-            html += `
-                <tr>
-                    <td style="padding-right: 20px; vertical-align: middle; width: 25%;">
-                        <span class="data-text" style="color: var(--mf-gold); font-size: 0.75rem; font-weight: bold; font-family: var(--font-mono); white-space: nowrap;">
-                            ${key}
-                        </span>
-                    </td>
-                    <td style="vertical-align: middle;">
-                        <input type="text" 
-                               id="env-${key}" 
-                               class="mf-input env-input" 
-                               data-key="${key}" 
-                               value="${value}" 
-                               spellcheck="false"
-                               aria-label="Value for ${key}"
-                               style="width: 100%; 
-                                      max-width: 350px; 
-                                      background-color: #ffffff !important; 
-                                      color: #000000 !important; 
-                                      border: 1px solid #444; 
-                                      padding: 4px 8px; 
-                                      font-family: var(--font-mono); 
-                                      font-size: 0.8rem;
-                                      margin-top: 0;">
-                    </td>
-                </tr>`;
+        if (f.kind === 'consent') {
+            const box = el('input', { type: 'checkbox', id, checked: String(value).toUpperCase() === 'TRUE' });
+            box.dataset.key = f.key;
+            box.setAttribute('aria-describedby', hintId);
+            return el('div', { className: 'set-field' }, el('div', { className: 'set-check' }, box, el('label', { htmlFor: id, textContent: f.label })), hint);
         }
-        
-        html += '</tbody></table>';
-        container.innerHTML = html;
-    },
-
-    /**
-     * Persists the modified configuration back to the .env file.
-     * Implements the Surgical Emoji Scrub for AT users.
-     */
-    save: async function() {
-        const status = document.getElementById('save-status');
-        const inputs = document.querySelectorAll('.env-input');
-        const config = {};
-        
-        inputs.forEach(i => config[i.getAttribute('data-key')] = i.value);
-
-        status.innerHTML = "<span class='data-text'>Writing environment...</span>";
-
-        try {
-            const res = await fetch('/run_tool_logic/settings/save_env', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            const result = await res.json();
-            
-            if (result.status === 'success') {
-                // Applied aria-hidden to the checkmark symbol
-                status.innerHTML = "<span style='color:var(--status-success); font-size:0.75rem;'><span aria-hidden='true'>✓</span> Configuration physically committed.</span>";
-                setTimeout(() => { status.innerHTML = ""; }, 3000);
-            }
-        } catch (e) {
-            status.innerHTML = "<span style='color:var(--status-error);'>Configuration write failure.</span>";
+        let control;
+        if (f.kind === 'select') {
+            control = el('select', { className: 'set-select', id });
+            const v = String(value || 'STANDARD').toUpperCase();
+            for (const [val, text] of f.options) control.append(el('option', { value: val, textContent: text, selected: val === v }));
+        } else {
+            control = el('input', { type: f.type || 'text', className: 'set-input' + (f.kind === 'code' ? ' is-code' : ''), id, value: value || '', autocomplete: 'off', spellcheck: false });
         }
+        control.dataset.key = f.key;
+        control.setAttribute('aria-describedby', hintId);
+        return el('div', { className: 'set-field' }, el('label', { htmlFor: id, textContent: f.label }), control, hint);
     }
-};
 
-// --- SETTINGS MINI-ENGINE: api_engine.js END ---
+    function valueOf(c) {
+        if (c.type === 'checkbox') return c.checked ? 'TRUE' : 'FALSE';
+        return c.value.trim();
+    }
+
+    S.api = {
+        load: async function () {
+            const box = $('api-form-container');
+            const form = $('set-config-form');
+            if (!box || !form) return;
+            if (!form.dataset.wired) {
+                form.dataset.wired = 'true';
+                form.addEventListener('submit', (e) => { e.preventDefault(); this.save(); });
+            }
+            try {
+                loaded = await (await fetch('/run_tool_logic/settings/get_env')).json();
+                this.render();
+            } catch (e) {
+                S.say('set-config-status', `The configuration couldn't be loaded: ${e.message}`, 'error');
+            }
+        },
+
+        render: function () {
+            const known = new Set(GROUPS.flatMap(g => g.fields.map(f => f.key)));
+            const sets = GROUPS.map(g => el('fieldset', { className: 'set-fieldset' },
+                el('legend', { textContent: g.legend }), ...g.fields.map(f => field(f, loaded[f.key]))));
+            const others = Object.keys(loaded).filter(k => !known.has(k)).sort();
+            if (others.length) {
+                sets.push(el('fieldset', { className: 'set-fieldset' }, el('legend', { textContent: 'Other settings' }),
+                    ...others.map(k => field({ key: k, label: k, kind: 'code' }, loaded[k]))));
+            }
+            $('api-form-container').replaceChildren(...sets);
+        },
+
+        save: async function () {
+            const changes = {};
+            const email = $('set-env-USER_EMAIL');
+            if (email && email.value.trim() && !email.checkValidity()) {
+                email.setAttribute('aria-invalid', 'true');
+                email.focus();
+                S.say('set-config-status', 'That email address doesn\u2019t look complete (for example name@example.com).', 'error');
+                return;
+            }
+            if (email) email.removeAttribute('aria-invalid');
+            for (const c of document.querySelectorAll('#api-form-container [data-key]')) {
+                const k = c.dataset.key, v = valueOf(c);
+                const before = k in loaded ? String(loaded[k]) : null;
+                const same = before === null ? (v === '' || (c.type === 'checkbox' && v === 'FALSE') || (c.tagName === 'SELECT' && v === 'STANDARD'))
+                                             : (c.type === 'checkbox' || c.tagName === 'SELECT' ? before.toUpperCase() === v : before === v);
+                if (!same) changes[k] = v;
+            }
+            const n = Object.keys(changes).length;
+            if (!n) { S.say('set-config-status', 'Nothing has changed, so there was nothing to save.'); return; }
+            try {
+                const r = await (await fetch('/run_tool_logic/settings/save_env', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(changes)
+                })).json();
+                if (r.status !== 'success') throw new Error(r.message || 'unknown error');
+                Object.assign(loaded, changes);
+                S.say('set-config-status', `Saved ${n} ${n === 1 ? 'setting' : 'settings'}.`, 'ok');
+            } catch (e) {
+                S.say('set-config-status', `The configuration wasn't saved: ${e.message}`, 'error');
+            }
+        }
+    };
+})();
+// --- END OF FILE api_engine.js ---

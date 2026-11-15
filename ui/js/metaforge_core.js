@@ -38,6 +38,17 @@ window.applyThemeFile = function(themeFileName) {
     document.documentElement.setAttribute('data-theme', themeName);
 };
 
+// The logo that goes with each theme (John, 2026-11-15: Lavender Lemonade
+// and Festive Folk Christmas have their own). One place, used at start-up
+// and by Settings > Theme when previewing.
+window.mfLogoForTheme = function(themeFile) {
+    const f = String(themeFile || '');
+    if (f.includes('light')) return '/ui/images/logo_blue.svg';
+    if (f.includes('lavender')) return '/ui/images/logo_lavender.svg';
+    if (f.includes('festive')) return '/ui/images/logo_festive.svg';
+    return '/ui/images/logo.svg';
+};
+
 window.initializeMetaForgeBranding = async function() {
     try {
         const response = await fetch('/run_tool_logic/settings/get_prefs');
@@ -47,9 +58,7 @@ window.initializeMetaForgeBranding = async function() {
             if (prefs.theme_file) window.applyThemeFile(prefs.theme_file);
             window.mfApplyToolbarLabels(prefs.toolbar_labels === true);
             const mainLogo = document.getElementById('mf-main-logo');
-            if (mainLogo && prefs.theme_file) {
-                mainLogo.src = (prefs.theme_file.includes('light')) ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
-            }
+            if (mainLogo && prefs.theme_file) mainLogo.src = window.mfLogoForTheme(prefs.theme_file);
         }
     } catch (e) { console.warn("Branding Boot Error"); }
 };
@@ -319,11 +328,6 @@ window.loadTool = async function(toolId) {
                 if (toolNamespace && typeof toolNamespace.init === 'function') {
                     console.log(`METAFORGE: Synchronizing Lifecycle for ${toolId}`);
                     toolNamespace.init();
-                }
-
-                // Specialized Settings Handler
-                if (toolId === 'settings' && typeof window.showSettingsPanel === 'function') {
-                    window.showSettingsPanel('personalization');
                 }
             }, 30); // 30ms paint guard
         };

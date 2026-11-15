@@ -12,16 +12,26 @@ window.metaforge.settings.toolbar = {
     load: async function() {
         this.initLabelsPref();
         const grid = document.getElementById('toolbar-customizer-grid');
-        if(!grid) return;
+        const form = document.getElementById('set-toolbar-form');
+        if(!grid || !form) return;
 
-        grid.innerHTML = '<p class="tool_notes">Synchronizing workbench matrix...</p>';
+        // v2 (2026-11-15): Update toolbar is the form's submit (Enter in an
+        // order box runs it); separator buttons are wired here, not inline.
+        if (!form.dataset.wired) {
+            form.dataset.wired = 'true';
+            form.addEventListener('submit', (e) => { e.preventDefault(); this.save(); });
+            grid.addEventListener('click', (e) => {
+                if (e.target.closest('.tb-sep-remove')) this.removeSeparator(e.target.closest('.tb-sep-remove'));
+                else if (e.target.closest('.tb-sep-add')) this.addSeparator();
+            });
+        }
 
         try {
             const res = await fetch('/run_tool_logic/settings/get_discovery');
             const data = await res.json();
             this.render(data);
         } catch (e) {
-            grid.innerHTML = `<p class="error-text">Discovery failure: ${e.message}</p>`;
+            this.say(`The toolbar layout couldn't be loaded: ${e.message}`, 'error');
         }
     },
 
@@ -110,7 +120,7 @@ window.metaforge.settings.toolbar = {
 
         html += `</tbody></table>
             <div class="tb-sep-actions">
-                <button type="button" onclick="metaforge.settings.toolbar.addSeparator()">Add separator</button>
+                <button type="button" class="tb-sep-add">Add separator</button>
                 <p class="mf-pref-hint">Separators draw a line between tools in the toolbar. Give a separator the order number of the tool it should sit above (1 puts it straight after Dashboard). Dashboard always stays at the top and Settings at the bottom.</p>
             </div>`;
         grid.innerHTML = html;
@@ -124,7 +134,7 @@ window.metaforge.settings.toolbar = {
                         <div style="display:flex; align-items:center; gap:10px;">
                             <span class="tb-sep-line" aria-hidden="true"></span>
                             <span class="data-text" style="font-size:0.85rem;">Separator</span>
-                            <button type="button" class="tb-sep-remove" onclick="metaforge.settings.toolbar.removeSeparator(this)">Remove<span class="mf-visually-hidden"> this separator</span></button>
+                            <button type="button" class="tb-sep-remove">Remove<span class="mf-visually-hidden"> this separator</span></button>
                         </div>
                     </td>
                     <td style="padding:8px; text-align:center;">
@@ -152,9 +162,8 @@ window.metaforge.settings.toolbar = {
         this.say('Separator removed. Choose Update toolbar to save.');
     },
 
-    say: function(msg) {
-        const status = document.getElementById('save-status');
-        if (status) status.textContent = msg;
+    say: function(msg, kind = '') {
+        window.metaforge.settings.say('set-toolbar-status', msg, kind);
     },
 
     /**
@@ -165,7 +174,6 @@ window.metaforge.settings.toolbar = {
      * Settings last.
      */
     save: async function() {
-        const status = document.getElementById('save-status');
         const orderInputs = Array.from(document.querySelectorAll('#toolbar-customizer-rows .tool-order'));
 
         const items = orderInputs.map((input, index) => {
@@ -186,7 +194,7 @@ window.metaforge.settings.toolbar = {
             { id: "settings", visible: true }
         ];
 
-        status.textContent = 'Saving the toolbar...';
+        this.say('Saving the toolbar…');
         try {
             const res = await fetch('/run_tool_logic/settings/save_toolbar', {
                 method: 'POST',
@@ -195,13 +203,13 @@ window.metaforge.settings.toolbar = {
             });
             const result = await res.json();
             if (result.status === 'success') {
-                status.innerHTML = "<span style='color:var(--status-success);'><span aria-hidden='true'>✓</span> Toolbar saved. Reloading to apply it...</span>";
+                this.say('Toolbar saved. Reloading to apply it…', 'ok');
                 setTimeout(() => { location.reload(); }, 1200);
             } else {
                 throw new Error(result.message || 'unknown error');
             }
         } catch (e) {
-            status.innerHTML = `<span style='color:var(--status-error);'>The toolbar couldn't be saved: ${e.message}</span>`;
+            this.say(`The toolbar couldn't be saved: ${e.message}`, 'error');
         }
     }
 };

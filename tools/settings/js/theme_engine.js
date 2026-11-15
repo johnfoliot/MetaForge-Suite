@@ -1,129 +1,101 @@
 // --- START OF FILE theme_engine.js ---
 /**
- * Standalone Theme Discovery & Swapper. Build 5.2.3
- * Role: Handles the Canadian Palette Audit and physical CSS link-tag swapping.
- * Build 5.2.3: Accessibility Hardening (Emoji Scrub) for persistence yields.
+ * Settings > Theme. v2 (2026-11-15): a native radio group of cards (was
+ * role=button divs with interpolated onclick strings). Choosing a card
+ * previews the theme; Save theme (the form's submit) keeps it. The logo for
+ * each theme comes from window.mfLogoForTheme (metaforge_core.js).
  */
+(function () {
+    const S = window.metaforge.settings;
+    const LABELS = {
+        '--bg-main': 'Background',
+        '--bg-stage': 'Panels',
+        '--bg-accent': 'Raised areas',
+        '--mf-gold': 'Brand colour',
+        '--text-output': 'Text',
+        '--text-message': 'Secondary text',
+        '--status-success': 'Success',
+        '--status-error': 'Error',
+        '--input-background': 'Buttons'
+    };
 
-window.metaforge.settings.themes = {
-    /**
-     * Entry Point: Fetches discovered theme fragments from Python.
-     */
-    load: async function() {
-        const grid = document.getElementById('theme-selector-grid');
-        if (!grid) return;
-
-        grid.innerHTML = '<p class="tool_notes">Auditing colour palettes...</p>';
-
-        try {
-            const res = await fetch('/run_tool_logic/settings/get_themes');
-            const themes = await res.json();
-
-            if (!themes || themes.length === 0) {
-                grid.innerHTML = '<p class="error-text">No theme fragments discovered.</p>';
-                return;
-            }
-
-            this.render(themes);
-        } catch (e) { 
-            grid.innerHTML = `<p class="error-text">Theme discovery failure: ${e.message}</p>`; 
-        }
-    },
-
-    /**
-     * Renders the expert-level palette matrix.
-     */
-    render: function(themes) {
-        const grid = document.getElementById('theme-selector-grid');
-        
-        // Semantic Canadian Label Map for the Audit
-        const labelMap = {
-            '--bg-main': 'background colour',
-            '--bg-stage': 'main stage colour',
-            '--mf-gold': 'branding colour',
-            '--text-output': 'text colour',
-            '--text-message': 'message colour',
-            '--status-success': 'success message',
-            '--status-error': 'error message',
-            '--input-foreground': 'form input-foreground',
-            '--input-background': 'form input-background'
-        };
-
-        let html = '';
-        themes.forEach(theme => {
-            let paletteHtml = '<div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">';
-            for (const [varName, label] of Object.entries(labelMap)) {
-                const hex = theme.palette[varName] || '#333';
-                paletteHtml += `
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <span class="data-text" style="font-size: 0.65rem; color: var(--text-message);">${label}:</span>
-                        <div class="mf-swatch" style="background: ${hex}; width: 14px; height: 14px; border: 1px solid rgba(255,255,255,0.1);"></div>
-                    </div>`;
-            }
-            paletteHtml += '</div>';
-
-            html += `
-                <div role="button" 
-                     tabindex="0" 
-                     class="mf-selection-card" 
-                     style="width: 220px;"
-                     onclick="metaforge.settings.themes.preview('${theme.file}')" 
-                     onkeydown="if(event.key==='Enter'||event.key===' ') metaforge.settings.themes.preview('${theme.file}')">
-                    
-                    <h4 class="data-text" style="color: var(--mf-gold); border-bottom: 1px solid var(--bg-accent); margin-bottom: 8px; padding-bottom: 4px;">${theme.name}</h4>
-                    ${paletteHtml}
-                </div>`;
-        });
-        grid.innerHTML = html;
-    },
-
-    /**
-     * Visual Preview: Performs physical link-tag swap via the core bridge.
-     */
-    preview: function(themeFile) {
-        // 1. Dispatch to Global Link Swapper in core.js
-        if (typeof window.applyThemeFile === 'function') {
-            window.applyThemeFile(themeFile);
-        }
-
-        // 2. Handle the Branding Logo Swap (Brute Force)
-        const mainLogo = document.getElementById('mf-main-logo');
-        if (mainLogo) {
-            mainLogo.src = (themeFile.includes('light')) ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
-        }
-
-        // 3. UI Status Feedback
-        const status = document.getElementById('save-status');
-        if (status) {
-            status.innerHTML = `<span style="color:var(--mf-gold); font-size:0.75rem;">Previewing [${themeFile}]. Click commit to save.</span>`;
-        }
-    },
-
-    /**
-     * Physically commits the selection to preferences.json.
-     * Implements Surgical Emoji Scrub for confirmational checkmark.
-     */
-    save: async function() {
-        const themeLink = document.getElementById('mf-theme-stylesheet');
-        const themeFile = themeLink.href.split('/').pop().split('?')[0];
-        const status = document.getElementById('save-status');
-        
-        try {
-            const response = await fetch('/run_tool_logic/settings/save_prefs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ "theme_file": themeFile })
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                // Wrapped checkmark symbol in aria-hidden span
-                status.innerHTML = "<span style='color:var(--status-success); font-size:0.75rem;'><span aria-hidden='true'>✓</span> Theme choice physically committed.</span>";
-                setTimeout(() => { status.innerHTML = ""; }, 3000);
-            }
-        } catch (e) { 
-            console.error("Theme Save Error:", e); 
-        }
+    function currentFile() {
+        const link = document.getElementById('mf-theme-stylesheet');
+        return link ? link.href.split('/').pop().split('?')[0] : 'default_theme.css';
     }
-};
 
-// --- SETTINGS MINI-ENGINE: theme_engine.js END ---
+    function apply(file) {
+        if (typeof window.applyThemeFile === 'function') window.applyThemeFile(file);
+        const logo = document.getElementById('mf-main-logo');
+        if (logo && window.mfLogoForTheme) logo.src = window.mfLogoForTheme(file);
+    }
+
+    S.themes = {
+        load: async function () {
+            const grid = document.getElementById('theme-selector-grid');
+            const form = document.getElementById('set-theme-form');
+            if (!grid || !form) return;
+            if (!form.dataset.wired) {
+                form.dataset.wired = 'true';
+                form.addEventListener('submit', (e) => { e.preventDefault(); this.save(); });
+                grid.addEventListener('change', (e) => {
+                    if (!e.target.matches('input[type="radio"]')) return;
+                    apply(e.target.value);
+                    S.say('set-theme-status', `Showing ${e.target.dataset.name}. Choose Save theme to keep it.`);
+                });
+            }
+            try {
+                const themes = await (await fetch('/run_tool_logic/settings/get_themes')).json();
+                if (!Array.isArray(themes) || !themes.length) throw new Error('no themes were found');
+                this.render(themes);
+            } catch (e) {
+                S.say('set-theme-status', `The themes couldn't be loaded: ${e.message}`, 'error');
+            }
+        },
+
+        render: function (themes) {
+            const grid = document.getElementById('theme-selector-grid');
+            const legend = grid.querySelector('legend');
+            const now = currentFile();
+            const cards = themes.map(t => {
+                const card = document.createElement('label');
+                card.className = 'set-theme-card';
+                const name = document.createElement('span');
+                name.className = 'set-theme-name';
+                const radio = Object.assign(document.createElement('input'), { type: 'radio', name: 'set-theme', value: t.file, checked: t.file === now });
+                radio.dataset.name = t.name;
+                name.append(radio, document.createTextNode(t.name));
+                const list = document.createElement('ul');
+                list.className = 'set-palette';
+                list.setAttribute('aria-hidden', 'true');   // decorative sample; the name is the choice
+                for (const [v, label] of Object.entries(LABELS)) {
+                    const li = document.createElement('li');
+                    const sw = document.createElement('span');
+                    sw.className = 'set-swatch';
+                    sw.style.background = (t.palette && t.palette[v]) || 'transparent';
+                    li.append(document.createTextNode(label), sw);
+                    list.append(li);
+                }
+                card.append(name, list);
+                return card;
+            });
+            grid.replaceChildren(legend, ...cards);
+        },
+
+        save: async function () {
+            const chosen = document.querySelector('#theme-selector-grid input:checked');
+            if (!chosen) { S.say('set-theme-status', 'Choose a theme first.', 'error'); return; }
+            try {
+                const r = await (await fetch('/run_tool_logic/settings/save_prefs', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ theme_file: chosen.value })
+                })).json();
+                if (r.status !== 'success') throw new Error(r.message || 'unknown error');
+                S.say('set-theme-status', `Saved. MetaForge will start with ${chosen.dataset.name}.`, 'ok');
+            } catch (e) {
+                S.say('set-theme-status', `The theme couldn't be saved: ${e.message}`, 'error');
+            }
+        }
+    };
+})();
+// --- END OF FILE theme_engine.js ---

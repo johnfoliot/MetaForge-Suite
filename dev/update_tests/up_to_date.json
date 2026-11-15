@@ -1,0 +1,9 @@
+{
+    "schema_version": 3,
+    "latest_version": "2.0.0-dev",
+    "released": "2026-11-15",
+    "priority": "optional",
+    "title": "MetaForge Studio 2.0.0-dev",
+    "notes": "TEST SCENARIO. Same version as this build: should report up to date.",
+    "url": "https://github.com/johnfoliot/MetaForge-Suite/releases"
+}

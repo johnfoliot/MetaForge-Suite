@@ -213,3 +213,5 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Settings > Check for updates test mode (dev/use_update_test.py); never commit
+dev/update_test.json

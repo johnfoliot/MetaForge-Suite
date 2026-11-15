@@ -1,0 +1,9 @@
+{
+    "schema_version": 3,
+    "latest_version": "2.0.2",
+    "released": "2026-12-15",
+    "priority": "required",
+    "title": "MetaForge Studio 2.0.2 (required)",
+    "notes": "TEST SCENARIO. A required update: it can't be dismissed.",
+    "url": "https://github.com/johnfoliot/MetaForge-Suite/releases/tag/v2.0.2"
+}

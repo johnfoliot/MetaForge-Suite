@@ -28,4 +28,4 @@ import app as mf  # noqa: E402  (importing does not start the window; only __mai
 
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 5050
 print(f"[dev] MetaForge UI-only server for {ROOT} on http://127.0.0.1:{port}")
-mf.app.run(port=port, debug=False, use_reloader=False, threaded=True)
+mf.app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False, threaded=True)   # this PC only (see ui/app.py run_flask)
