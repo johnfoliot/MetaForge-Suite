@@ -97,6 +97,23 @@ window.metaforge.unpack_convert = {
                 }
                 this.applyArtistLockState();
 
+                // v2 (2026-11-16): a folder handed over by YouTube to MP3
+                // (mfAdvanceWorkflow) fills in the path, and the album and
+                // artist it was saved under; a locked Filing Artist stays.
+                if (window.mf_context_path) {
+                    const pathIn = document.getElementById('upk-path');
+                    if (pathIn) pathIn.value = window.mf_context_path;
+                    const meta = window.mf_context_album;
+                    if (meta) {
+                        const albumIn = document.getElementById('upk-album');
+                        const artistIn = document.getElementById('upk-artist');
+                        if (albumIn && meta.album) albumIn.value = meta.album;
+                        if (artistIn && meta.artist && !this.artistLocked) artistIn.value = meta.artist;
+                    }
+                    window.mf_context_path = null;
+                    window.mf_context_album = null;
+                }
+
                 if (data.stored_consent === true) {
                     if (consentGate) consentGate.hidden = true;
                     const consentCheckbox = document.getElementById('upk-consent');

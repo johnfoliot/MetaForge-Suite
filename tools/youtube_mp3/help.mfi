@@ -1,5 +1,11 @@
 <h3 class="white">YouTube to MP3</h3>
-<p>YouTube to MP3 help content</p>
-
-
-<p class="tool_notes">Note: YouTube to MP3 notes</p>
+<p>Sometimes YouTube is the only place a recording can be found. This tool turns a YouTube link into MP3s, one per song, ready for Unpack &amp; Convert.</p>
+<ul>
+    <li><strong>A song:</strong> one video becomes one MP3.</li>
+    <li><strong>A playlist</strong> (the link contains <code>list=</code>): each video becomes its own MP3, numbered in playlist order. Untick any that don't belong.</li>
+    <li><strong>A whole album in one video:</strong> choose “A whole album”, check the track titles (one per line, in order), then <strong>Find the tracks</strong>. MetaForge downloads the audio and works out where each song starts: from the video's chapters or the times in its description if it has them, otherwise from the quiet gaps between songs, placed using the track lengths MusicBrainz has for the album.</li>
+    <li><strong>Check the cuts:</strong> every start time can be played (a few seconds either side) and corrected before anything is made. Cuts marked <em>Check</em> are the ones to listen to.</li>
+    <li><strong>Where they go:</strong> a new folder named “Artist - Album” in the folder you choose (remembered for next time). <strong>Continue to Unpack &amp; Convert</strong> carries the folder, artist and album over.</li>
+    <li><strong>Quality:</strong> YouTube's best audio (about 130 kbps) is converted once to MP3 V0, the same as the rest of MetaForge. It can't be better than YouTube's copy.</li>
+</ul>
+<p class="tool_notes">Note: YouTube changes often. If links stop working, yt-dlp (in the bin folder) needs updating.</p>

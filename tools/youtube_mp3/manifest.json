@@ -2,7 +2,7 @@
   "name": "YouTube to MP3",
   "id": "youtube_mp3",
   "version": "1.0.0",
-  "description": "Sometimes the ONLY source of a music file is from YouTube. This tool to the rescue.",
+  "description": "Turns a YouTube song, playlist or whole-album video into MP3s, one per song",
   "entry_point": "youtube_mp3.py",
   "ui_template": "youtube_mp3.mfi",
   "icon": "youtube.svg",
