@@ -21,7 +21,7 @@ window.metaforge.youtube_mp3 = {
         const $ = (id) => document.getElementById(id);
         $('yt-lookup').addEventListener('submit', (e) => { e.preventDefault(); this.lookup(); });
         $('yt-form').addEventListener('submit', (e) => { e.preventDefault(); this.go(); });
-        $('yt-form').addEventListener('input', (e) => { this.clearError(e.target); this.updateFolderName(); });
+        $('yt-form').addEventListener('input', (e) => this.clearError(e.target));
         $('yt-url').addEventListener('input', (e) => this.clearError(e.target));
         $('yt-form').addEventListener('change', (e) => {
             if (e.target.name === 'kind') this.setStage(e.target.value === 'album' ? 'album-list' : 'song');
@@ -40,18 +40,9 @@ window.metaforge.youtube_mp3 = {
             $('yt-lookup-btn').disabled = true;
             this.setProgress(0, 'The last run is finishing. Come back in a moment.');
         }
-        this.loadSettings();
     },
 
     destroy: function () { this.stopPlaying(); },
-
-    loadSettings: async function () {
-        try {
-            const s = await (await fetch('/run_tool_logic/youtube_mp3/settings')).json();
-            const f = document.getElementById('yt-folder');
-            if (f && s.folder) f.value = s.folder;
-        } catch (e) { /* the folder is chosen again */ }
-    },
 
     // --- [ LOOK UP ] ---------------------------------------------------------
     lookup: async function () {
@@ -118,7 +109,6 @@ window.metaforge.youtube_mp3 = {
             $('yt-kind-song').checked = !d.looks_like_album;
             this.setStage(d.looks_like_album ? 'album-list' : 'song');
         }
-        this.updateFolderName();
         document.querySelector('.yt-scroll').scrollTop = 0;
         $('yt-found-h').focus();
         window.MFAnnounce(`Found: ${d.heading}. ${$('yt-found-meta').textContent}.`);
@@ -165,7 +155,7 @@ window.metaforge.youtube_mp3 = {
         // the cuts are what's on screen.
         $('yt-details').hidden = stage === 'album-review';
         if (stage === 'album-review') {
-            $('yt-saving').textContent = `Saving to ${$('yt-folder').value}\\${$('yt-folder-name').textContent}`;
+            $('yt-saving').textContent = `Saving to ${$('yt-folder').value}`;
         }
         show('yt-title-field', stage === 'song');
         show('yt-titles-field', stage === 'album-list');
@@ -188,22 +178,12 @@ window.metaforge.youtube_mp3 = {
         }
     },
 
-    updateFolderName: function () {
-        const a = document.getElementById('yt-artist')?.value.trim() || 'Artist';
-        const b = document.getElementById('yt-album')?.value.trim() || 'Album';
-        const el = document.getElementById('yt-folder-name');
-        if (el) el.textContent = `${a} - ${b}`;
-    },
-
     chooseFolder: async function () {
         const f = document.getElementById('yt-folder');
         const path = await window.pywebview?.api?.select_folder();
         if (!path || !f) return;
         f.value = path;
         this.clearError(f);
-        fetch('/run_tool_logic/youtube_mp3/settings', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: path })
-        }).catch(() => {});
     },
 
     // --- [ CHECKING THE FIELDS ] ---------------------------------------------
@@ -320,8 +300,8 @@ window.metaforge.youtube_mp3 = {
                 else if (refused !== null) {
                     // Nothing was started: say so, and go to what needs changing.
                     this.setProgress(0, 'Not started: see the message');
-                    const to = /folder named/.test(refused) ? (this.stage === 'album-review' ? 'yt-back' : 'yt-album')
-                        : /folder to save/.test(refused) ? 'yt-folder-btn'
+                    // The folder controls are folded away while the cuts are checked.
+                    const to = /folder/.test(refused) ? (this.stage === 'album-review' ? 'yt-back' : 'yt-folder-btn')
                         : /artist/.test(refused) ? 'yt-artist' : 'yt-go';
                     $(to)?.focus();
                 }

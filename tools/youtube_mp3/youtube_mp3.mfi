@@ -209,7 +209,7 @@
             <p class="yt-error" id="yt-url-error">Error: paste the address of a YouTube video or playlist.</p>
         </form>
 
-        <p class="yt-intro" id="yt-intro">Paste a link and choose Look up. Each song becomes its own MP3 (V0), saved in a new folder named after the artist and album, ready for Unpack &amp; Convert.</p>
+        <p class="yt-intro" id="yt-intro">Paste a link and choose Look up. Each song becomes its own MP3 (V0), saved in the album folder you choose, ready for Unpack &amp; Convert.</p>
 
         <form class="yt-form" id="yt-form" hidden novalidate>
                 <h2 class="yt-found-h" id="yt-found-h" tabindex="-1"></h2>
@@ -242,13 +242,13 @@
                 </div>
 
                 <div class="yt-field">
-                    <label for="yt-folder">Save in</label>
-                    <p class="yt-hint" id="yt-folder-hint">A new folder named “<span id="yt-folder-name">Artist - Album</span>” is made here.</p>
+                    <label for="yt-folder">Album folder</label>
+                    <p class="yt-hint" id="yt-folder-hint">The MP3s go straight into this folder. Make and name it first (the picker has a New folder button). It mustn't have MP3s in it already.</p>
                     <div class="yt-row">
                         <input type="text" id="yt-folder" name="folder" readonly required aria-describedby="yt-folder-hint" data-error="yt-folder-error">
                         <button type="button" class="mf-button-gold-fixed" id="yt-folder-btn">Choose…</button>
                     </div>
-                    <p class="yt-error" id="yt-folder-error">Error: choose the folder to save in.</p>
+                    <p class="yt-error" id="yt-folder-error">Error: choose the album folder.</p>
                 </div>
                 </div>
 

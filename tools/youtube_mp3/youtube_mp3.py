@@ -2,9 +2,10 @@
 # ======================================================================
 # MetaForge Tool Logic: YouTube to MP3
 # v2 (2026-11-16): built (the 1.x tool was an empty shell). John's
-# decisions the same day: V0 MP3s, each album in its own "Artist - Album"
-# folder for Unpack & Convert, and a review of the cut points before a
-# whole-album video is split.
+# decisions the same day: V0 MP3s saved straight into an album folder the
+# user makes and names (never a folder made by the tool), ready for Unpack
+# & Convert, and a review of the cut points before a whole-album video is
+# split.
 #
 # Three kinds of link:
 #   song      one video -> one MP3
@@ -22,7 +23,7 @@
 # Files:
 #   %APPDATA%\MetaForge\youtube_mp3\<id>\   downloaded audio, deleted
 #                                            once its MP3s are made
-#   data\youtube_mp3\settings.json          the remembered "Save in" folder
+# The album folder isn't remembered: each album goes in its own folder.
 # ======================================================================
 import json
 import os
@@ -50,25 +51,6 @@ YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.co
 
 def _work_root():
     return Path(config_handler.APPDATA_MF) / "youtube_mp3"
-
-
-def _settings_file():
-    return Path(config_handler.DATA_DIR) / "youtube_mp3" / "settings.json"
-
-
-def _load_settings():
-    try:
-        return json.loads(_settings_file().read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_settings(s):
-    f = _settings_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_suffix(".tmp")
-    tmp.write_text(json.dumps(s, indent=2), encoding="utf-8")
-    os.replace(tmp, f)
 
 
 # --- [ LINKS ] --------------------------------------------------------------
@@ -436,15 +418,19 @@ def _remove_work(vid):
 
 
 def _album_folder(data):
-    parent = (data.get("folder") or "").strip()
-    if not parent or not Path(parent).is_dir():
-        raise ValueError("Choose the folder to save in.")
+    """The folder the user chose IS the album folder: the MP3s go straight
+    into it. The user makes and names it, so folder names stay consistent
+    across the library (John, 2026-11-16). Other files (a cover scan, say)
+    are fine; MP3s already there are not, so two albums never mix."""
+    chosen = (data.get("folder") or "").strip()
+    if not chosen or not Path(chosen).is_dir():
+        raise ValueError("Choose the album folder to save to.")
     artist, album = (data.get("artist") or "").strip(), (data.get("album") or "").strip()
     if not artist or not album:
         raise ValueError("Fill in the artist and the album.")
-    folder = Path(parent) / safe_name(f"{artist} - {album}")
-    if folder.exists() and any(folder.iterdir()):
-        raise ValueError(f'A folder named "{folder.name}" already has files in it. Change the album name, or move that folder first.')
+    folder = Path(chosen)
+    if any(f.suffix.lower() == ".mp3" for f in folder.iterdir() if f.is_file()):
+        raise ValueError(f'The folder "{folder.name}" already has MP3s in it. Choose an empty folder for this album.')
     return folder
 
 
@@ -677,13 +663,6 @@ def run_logic(action, tools_dir, env_path):
             return jsonify({"status": "error", "message": "YouTube took too long to answer. Try again."})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)})
-    if action == "settings":
-        if request.method == "POST":
-            s = _load_settings()
-            s["folder"] = (request.get_json(silent=True) or {}).get("folder", "")
-            _save_settings(s)
-        return jsonify({"status": "ok", "folder": _load_settings().get("folder", ""),
-                        "running": _run_state()["lock"].locked()})
     if action == "preview":
         vid = request.args.get("id", "")
         src = _source_file(_work_root() / vid) if ID_RE.match(vid) else None

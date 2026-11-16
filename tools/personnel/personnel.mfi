@@ -33,6 +33,9 @@
         border: 3px solid var(--surface-raised);
         box-sizing: border-box;
     }
+    /* Parts keep their natural height so the panel scrolls, instead of
+       squashing the Wikipedia results to a sliver (John, 2026-11-16). */
+    .p-left > * { flex-shrink: 0; }
     #p-form { display: flex; flex-direction: column; gap: 0.6rem; }
     .p-field { display: flex; flex-direction: column; gap: 0.25rem; }
     .p-field > label {
@@ -81,7 +84,8 @@
     }
     .p-source-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        /* Two columns while they fit; one at large text sizes. */
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
         gap: 0.6rem 1rem;
     }
     .p-source {
