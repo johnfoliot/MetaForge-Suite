@@ -132,6 +132,13 @@ def artist_from_channel(ch):
     return re.sub(r"VEVO$", "", ch).strip()
 
 
+def gap_to_dash(raw):
+    """Some uploaders separate artist and song with a wide gap instead of a
+    dash ('Dutch Mason   Sweet Little Angel'). Three or more spaces count as
+    the dash; call this BEFORE clean_title, which squeezes spaces."""
+    return re.sub(r"\s{3,}", " - ", raw or "", count=1)
+
+
 def split_artist(title):
     """'Artist - Title' -> (artist, title); no dash -> ('', title)."""
     parts = DASH.split(title, maxsplit=1)
@@ -605,7 +612,7 @@ def inspect(url):
             artist = guess_a
         tracks = []
         for e in entries:
-            t = clean_title(e.get("title") or "")
+            t = clean_title(gap_to_dash(e.get("title")))
             a, rest = split_artist(t)
             if a and artist and a.lower() == artist.lower():
                 t = rest
@@ -618,10 +625,15 @@ def inspect(url):
     duration = info.get("duration") or 0
     raw = info.get("title") or ""
     artist = info.get("artist") or info.get("creator") or ""
-    a, rest = split_artist(clean_title(raw))
-    artist = (artist.split(",")[0].strip() if artist else "") or a or artist_from_channel(info.get("channel") or info.get("uploader"))
+    a, rest = split_artist(clean_title(gap_to_dash(raw)))
+    channel = artist_from_channel(info.get("channel") or info.get("uploader"))
+    artist = (artist.split(",")[0].strip() if artist else "") or a or channel
     title = info.get("track") or (rest if a else clean_title(raw))
-    album_name = info.get("album") or title
+    # A channel named "Artist - Album" (one album's songs as separate
+    # videos, e.g. "Dutch Mason - Live Off The Floor") names the album.
+    ch_artist, ch_album = split_artist(channel)
+    from_channel = ch_album if ch_artist and artist and ch_artist.lower() == artist.lower() else ""
+    album_name = info.get("album") or from_channel or title
     chapters = [c for c in info.get("chapters") or [] if c.get("title") is not None]
     found = None
     if len(chapters) >= 2:
