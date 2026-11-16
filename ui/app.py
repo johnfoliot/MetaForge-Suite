@@ -140,6 +140,14 @@ def initialize_database():
             cursor.execute(f"SELECT {col_name} FROM edges LIMIT 1")
         except sqlite3.OperationalError:
             cursor.execute(f"ALTER TABLE edges ADD COLUMN {col_name} {col_type}")
+    # Lookups by artist/album across the personnel links and tracks
+    # (Dashboard, Album Personnel, MB Submit, Bio Builder). Without these
+    # the Dashboard's bios count read all of edges per artist: >2 min vs
+    # 1.5 s. Added to John's live DB 2026-11-16 with his OK (backup in
+    # AppData\MetaForge\backups\dashboard). Data is unchanged by an index.
+    cursor.execute("CREATE INDEX IF NOT EXISTS ix_edges_target ON edges(target_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS ix_edges_source ON edges(source_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS ix_tracks_artist ON tracks(mf_artist_id)")
     conn.commit()
     conn.close()
 
