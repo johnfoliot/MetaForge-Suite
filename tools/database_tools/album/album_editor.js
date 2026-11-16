@@ -1,574 +1,375 @@
-/* --- START OF FILE [D:\MetaForge Suite\tools\database_tools\album\album_editor.js] --- */
+// --- START OF FILE album_editor.js ---
 /**
- * MetaForge Studio: Database Tools - Album Editor Spoke
- * Build 1.8.11: Remediated Syntax and Personnel Hydration Fix.
+ * MetaForge Studio: Database Tools - Albums tab
+ * v2 (2026-11-15). Search, edit details, tracks and credits; track
+ * details dialog; credits from JSON.
+ *  - Genre is only written when the user chooses one. An album whose
+ *    tracks have different genres says so and offers "leave them as they
+ *    are" (saving used to give every track the first track's genre).
+ *  - A new title or album artist is previewed and confirmed first (the
+ *    album's ID is a hash of both; engines/identity_ops.py re-keys it).
+ *  - Per-track artists are shown only on compilations: on a single-artist
+ *    album every track has the album's artist.
  */
-
 window.metaforge = window.metaforge || {};
 window.metaforge.database_tools = window.metaforge.database_tools || {};
 
-window.metaforge.database_tools.album = {
-    taxonomyData: null,
-    moodsData: null,
-
-    // 24 keys (12 notes x Major/Minor), sharps only -- matches
-    // acoustic_engine.py's own note-name convention exactly. The
-    // algorithm itself only ever detects Major ("Simplified for Major
-    // only as per legacy" per its own code comment), so Minor is only
-    // ever reachable via this manual dropdown -- a real, known blind
-    // spot in the automated detection (relative major/minor share a key
-    // signature, a classic source of algorithmic confusion), not a
-    // vocabulary gap in this list.
-    KEY_OPTIONS: (() => {
+(function () {
+    const D = window.metaforge.database_tools;
+    const B = D.album = { current: null, coverPath: null, taxonomy: null, moods: null };
+    const KEEP = '__keep__';
+    const KEYS = (() => {
         const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const out = [];
-        notes.forEach(n => out.push(`${n}Maj`));
-        notes.forEach(n => out.push(`${n}Min`));
-        return out;
-    })(),
+        return notes.map(n => `${n}Maj`).concat(notes.map(n => `${n}Min`));
+    })();
+    let tracker;
 
-    escapeHTML: function(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
-    },
+    B.wire = function () {
+        tracker = D.dirtyTracker('dbt-album', 'dbt-al-dirty', () => (B.current ? B.current.album_title : 'this album'));
+        tracker.clean();
+        D.$('dbt-album-find').addEventListener('submit', (e) => { e.preventDefault(); B.search(D.$('dbt-album-q').value); });
+        D.$('dbt-album-matches').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-id]');
+            if (b) B.load(b.dataset.id);
+        });
+        const form = D.$('dbt-album-form');
+        form.addEventListener('submit', (e) => { e.preventDefault(); B.save(); });
+        form.addEventListener('input', () => tracker.mark());
+        form.addEventListener('change', () => tracker.mark());
+        D.$('dbt-al-genre').addEventListener('change', () => { B.fillSubs(D.$('dbt-al-sub'), D.$('dbt-al-genre').value, ''); B.genreHint(); });
+        D.$('dbt-al-cover-btn').addEventListener('click', () => B.browseCover());
+        D.$('dbt-al-cover').addEventListener('error', (e) => {
+            if (!e.target.src.endsWith('/no-cover.png')) e.target.src = '/ui/images/no-cover.png';
+        });
+        D.$('dbt-al-add-credit').addEventListener('click', () => { const row = B.addCredit({}); tracker.mark(); row.querySelector('input').focus(); });
+        D.$('dbt-al-credits').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-remove]');
+            if (!b) return;
+            const row = b.closest('tr');
+            const next = row.nextElementSibling || row.previousElementSibling;
+            row.remove();
+            B.renumberCredits();
+            tracker.mark();
+            (next ? next.querySelector('input') : D.$('dbt-al-add-credit')).focus();
+            D.say('dbt-al-status', 'Credit removed from the list. Save changes to keep it that way.');
+        });
+        D.$('dbt-al-tracks').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-path]');
+            if (b) B.openTrack(b.dataset.path, b.dataset.title);
+        });
+        D.$('dbt-al-json-btn').addEventListener('click', () => {
+            D.$('dbt-json-text').value = '';
+            D.say('dbt-json-status', '');
+            D.$('dbt-json').showModal();
+        });
+        D.$('dbt-json-form').addEventListener('submit', (e) => { e.preventDefault(); B.importJson(); });
+        D.$('dbt-track-form').addEventListener('submit', (e) => { e.preventDefault(); B.saveTrack(); });
+        D.$('dbt-tr-genre').addEventListener('change', () => B.fillSubs(D.$('dbt-tr-sub'), D.$('dbt-tr-genre').value, ''));
+        D.$('dbt-tr-reanalyze').addEventListener('click', () => B.reanalyze());
+    };
 
-    // Shared by initTaxonomy (album-level) and openTrackModal (track-level)
-    // -- one fetch, cached, both dropdowns' data comes from the exact same
-    // taxonomy.json/moods.json the server-side validation checks against.
-    loadTaxonomyAndMoods: async function() {
-        if (this.taxonomyData) return;
-        try {
-            const res = await fetch('/run_tool_logic/database_tools/get_taxonomy');
-            const data = await res.json();
-            if (data.status === "success") {
-                this.taxonomyData = data.taxonomy;
-                this.moodsData = data.moods || null;
-            }
-        } catch (e) { console.error("Taxonomy error:", e); }
-    },
+    B.loadTaxonomy = async function () {
+        if (B.taxonomy) return;
+        const r = await D.api('get_taxonomy');
+        if (r.status === 'success') { B.taxonomy = r.taxonomy || {}; B.moods = r.moods || {}; }
+        else B.taxonomy = {};
+    };
 
-    initTaxonomy: async function(selectedGenre, selectedSubGenre) {
-        await this.loadTaxonomyAndMoods();
+    const opt = (value, text, selected) => D.el('option', { value, selected: !!selected }, text);
 
-        const genreSelect = document.getElementById('alb-genre');
-        if (!genreSelect) return;
+    B.fillSubs = function (select, genre, current) {
+        const subs = (B.taxonomy && B.taxonomy[genre]) ? [...B.taxonomy[genre]].sort() : [];
+        select.replaceChildren(opt('', subs.length ? 'Choose a sub-genre' : '(none)', !current), ...subs.map(s => opt(s, s, s === current)));
+        select.disabled = !genre || genre === KEEP;
+    };
 
-        genreSelect.innerHTML = '<option value="">-- Modify Genre --</option>';
-        if (this.taxonomyData) {
-            Object.keys(this.taxonomyData).sort().forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g; opt.textContent = g;
-                genreSelect.appendChild(opt);
-            });
+    B.search = async function (q) {
+        q = (q || '').trim();
+        if (!q) return;
+        D.$('dbt-album-matches-box').hidden = true;
+        D.say('dbt-album-find-status', 'Searching…');
+        const r = await D.api('search_album', { params: { album: q } });
+        if (r.status === 'multiple') {
+            D.say('dbt-album-find-status', `${r.candidates.length} albums match “${q}”.`);
+            D.$('dbt-album-matches').replaceChildren(...r.candidates.map(c => D.el('li', {},
+                D.el('button', { type: 'button', className: 'dbt-match', dataset: { id: c.mf_id } },
+                    D.el('span', {}, c.album_title), D.el('small', {}, c.artist_name || 'Unknown artist')))));
+            D.$('dbt-album-matches-box').hidden = false;
+        } else if (r.status === 'success') {
+            D.say('dbt-album-find-status', '');
+            await B.load(r.album.mf_id);
+        } else {
+            D.say('dbt-album-find-status', r.message || 'No album found.', 'warning');
         }
+    };
 
-        genreSelect.onchange = () => this.populateSubGenres(genreSelect.value, null);
-        if (selectedGenre) {
-            genreSelect.value = selectedGenre;
-            this.populateSubGenres(selectedGenre, selectedSubGenre);
-        }
-    },
+    B.load = async function (mfId, { force = false } = {}) {
+        if (!force && tracker.dirty && !(B.current && B.current.mf_id === mfId) && !(await tracker.ask())) return;
+        await B.loadTaxonomy();
+        const r = await D.api('get_album_details', { params: { mf_id: mfId } });
+        if (r.status !== 'success') { D.say('dbt-album-find-status', r.message || "That album couldn't be loaded.", 'error'); return; }
+        D.$('dbt-album-matches-box').hidden = true;
+        D.say('dbt-album-find-status', '');
+        B.render(r.album);
+    };
 
-    populateSubGenres: function(parentGenre, activeSubGenre) {
-        const subSelect = document.getElementById('alb-subgenre');
-        if (!subSelect) return;
-        subSelect.innerHTML = '<option value="">-- Modify Sub Genre --</option>';
-        if (this.taxonomyData && parentGenre && this.taxonomyData[parentGenre]) {
-            this.taxonomyData[parentGenre].sort().forEach(sg => {
-                const opt = document.createElement('option');
-                opt.value = sg; opt.textContent = sg;
-                subSelect.appendChild(opt);
-            });
-        }
-        if (activeSubGenre) subSelect.value = activeSubGenre;
-    },
+    B.render = function (a) {
+        B.current = a;
+        B.coverPath = null;
+        D.$('dbt-album-form').hidden = false;
+        D.$('dbt-album-h').textContent = a.album_title || 'Album';
+        D.$('dbt-al-title').value = a.album_title || '';
+        D.$('dbt-al-artist').value = a.artist_name || '';
+        D.$('dbt-al-year').value = a.original_year || '';
+        D.$('dbt-al-label').value = a.label || '';
+        D.$('dbt-al-country').value = a.country || '';
+        D.$('dbt-al-stamp').textContent = a.last_updated ? `Last updated ${a.last_updated}` : '';
+        D.$('dbt-al-cover').src = `/ui/covers/${encodeURIComponent(a.mf_id)}.jpg?t=${Date.now()}`;
+        D.$('dbt-al-cover-name').textContent = "The album folder's folder.jpg";
 
-    search: async function() {
-        const query = document.getElementById('search-album').value.trim();
-        if (!query) return;
+        // Genre: "leave as they are" when the tracks differ.
+        const genres = Object.keys(B.taxonomy || {}).sort();
+        const g = D.$('dbt-al-genre');
+        g.replaceChildren(
+            a.genre_mixed ? opt(KEEP, 'Tracks differ: leave them as they are', true) : opt('', a.genre ? '(not in the genre list)' : '(none)', !a.genre),
+            ...genres.map(x => opt(x, x, !a.genre_mixed && x === a.genre)));
+        if (!a.genre_mixed && a.genre && !genres.includes(a.genre)) g.prepend(opt(a.genre, a.genre, true));
+        B.fillSubs(D.$('dbt-al-sub'), a.genre_mixed ? KEEP : a.genre, a.sub_genre || '');
+        B.initialGenre = g.value;
+        B.initialSub = D.$('dbt-al-sub').value;
+        B.genreHint();
 
-        document.getElementById('album-workspace').style.display = 'none';
-        document.getElementById('album-multiple-matches-container').style.display = 'none';
+        // Tracks
+        const comp = !!a.is_compilation;
+        D.$('dbt-al-artist-col').hidden = !comp;
+        D.$('dbt-al-tracks-hint').textContent = comp
+            ? 'This is a compilation, so each track has its own artist.'
+            : "Every track has the album artist. Change the album artist above to change them all.";
+        const tracks = [...(a.tracks || [])].sort((x, y) => (x.file_path || '').localeCompare(y.file_path || '', undefined, { numeric: true }));
+        D.$('dbt-al-tracks').replaceChildren(...(tracks.length ? tracks.map((t, i) => B.trackRow(t, i + 1, comp))
+            : [D.el('tr', {}, D.el('td', { colSpan: 5, className: 'dbt-hint' }, 'This album has no tracks in the database.'))]));
 
-        try {
-            const res = await fetch(`/run_tool_logic/database_tools/search_album?album=${encodeURIComponent(query)}`);
-            const data = await res.json();
-            if (data.status === "multiple") this.renderDisambiguation(data.candidates);
-            else if (data.status === "success") this.render(data.album);
-            else alert(data.message || "Album not found.");
-        } catch (e) { console.error(e); }
-    },
+        // Credits
+        D.$('dbt-al-credits').replaceChildren();
+        (a.personnel || []).forEach(p => B.addCredit({ id: p.id, name: p.name, role: p.role, scope: p.evidence_detail }));
+        B.renumberCredits();
 
-    // Real bug, found live 2026-07-29 (John's report): search_album used
-    // to jump straight into whichever album the database returned first
-    // for a substring match, with no indication more than one album
-    // matched. This mirrors artist_editor.js's renderDisambiguation --
-    // same pattern, album-specific IDs -- and shows the artist name
-    // alongside each title since two different artists can share one.
-    renderDisambiguation: function(candidates) {
-        const container = document.getElementById('album-multiple-matches-container');
-        const list = document.getElementById('album-matches-list');
-        if (!container || !list) return;
+        D.$('dbt-al-problems').hidden = true;
+        D.say('dbt-al-status', '');
+        tracker.clean();
+    };
 
-        container.style.display = 'block';
-        list.innerHTML = candidates.map(c => `
-            <div style="border: 1px solid var(--mf-gold); padding: 8px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-accent);">
-                <span style="color:var(--text-output); font-family: 'Cascadia Mono', monospace;">${this.escapeHTML(c.album_title)} <span style="color:var(--mf-gold);">&mdash; ${this.escapeHTML(c.artist_name || 'Unknown Artist')}</span></span>
-                <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.selectMatch('${c.mf_id}')">Select</button>
-            </div>
-        `).join('');
-    },
+    B.genreHint = function () {
+        const v = D.$('dbt-al-genre').value;
+        const mixed = B.current && B.current.genre_mixed;
+        D.$('dbt-al-genre-hint').textContent = mixed
+            ? (v === KEEP ? "This album's tracks have different genres; saving leaves each track's genre as it is. Choose a genre only if every track should have it."
+                          : `Saving gives every track on this album the genre ${v}.`)
+            : 'Changing the genre changes it for every track on this album.';
+    };
 
-    selectMatch: function(mfId) {
-        document.getElementById('album-multiple-matches-container').style.display = 'none';
-        this.load(mfId);
-    },
+    B.trackRow = function (t, n, comp) {
+        const conf = Number(t.orig_year_conf || 0);
+        const noteId = `dbt-al-yr-note-${n}`;
+        const note = t.original_year
+            ? `${t.orig_year_source || 'Unknown source'}, ${conf}% sure${conf < 50 ? ': worth checking' : ''}`
+            : 'No original year yet';
+        const title = t.title || `Track ${n}`;
+        return D.el('tr', { dataset: { path: t.file_path || '' } },
+            D.el('td', { className: 'dbt-num' }, String(n)),
+            D.el('td', {}, D.el('input', { type: 'text', className: 'dbt-input dbt-tr-title', value: t.title || '', 'aria-label': `Title, track ${n}` })),
+            comp ? D.el('td', {}, D.el('input', { type: 'text', className: 'dbt-input dbt-tr-artist', value: t.artist || '', 'aria-label': `Artist, track ${n}: ${title}` })) : null,
+            D.el('td', {},
+                D.el('input', { type: 'text', className: 'dbt-input dbt-tr-year', value: t.original_year || '', inputMode: 'numeric', maxLength: 4,
+                                'aria-label': `Original year, track ${n}: ${title}`, 'aria-describedby': noteId }),
+                D.el('span', { id: noteId, className: 'dbt-year-note' + (t.original_year && conf < 50 ? ' is-low' : '') }, note)),
+            D.el('td', {}, D.el('button', { type: 'button', className: 'dbt-secondary', dataset: { path: t.file_path || '', title },
+                                             'aria-label': `More details, track ${n}: ${title}` }, 'More…')));
+    };
 
-    load: async function(mfId) {
-        try {
-            const res = await fetch(`/run_tool_logic/database_tools/get_album_details?mf_id=${mfId}`);
-            const data = await res.json();
-            if (data.status === "success") this.render(data.album);
-            else alert("Load error: " + data.message);
-        } catch (e) { console.error(e); }
-    },
+    B.addCredit = function ({ id, name = '', role = '', scope = '' }) {
+        const row = D.el('tr', { dataset: id !== undefined && id !== null ? { edgeId: String(id) } : {} },
+            D.el('td', {}, D.el('input', { type: 'text', className: 'dbt-input dbt-cr-name', value: name || '' })),
+            D.el('td', {}, D.el('input', { type: 'text', className: 'dbt-input dbt-cr-role', value: role || '' })),
+            D.el('td', {}, D.el('input', { type: 'text', className: 'dbt-input dbt-cr-scope', value: scope || '', size: 6 })),
+            D.el('td', {}, D.el('button', { type: 'button', className: 'dbt-danger-outline', dataset: { remove: '1' } }, 'Remove')));
+        D.$('dbt-al-credits').append(row);
+        B.renumberCredits();
+        return row;
+    };
 
-    render: function(data) {
-        const workspace = document.getElementById('album-workspace');
-        if (workspace) workspace.style.display = 'flex';
-        window.metaforge.database_tools.state.activeId = data.mf_id;
+    // Each field's name says which credit it belongs to (row number + who).
+    B.renumberCredits = function () {
+        [...D.$('dbt-al-credits').rows].forEach((row, i) => {
+            const n = i + 1;
+            const who = row.querySelector('.dbt-cr-name').value || 'new credit';
+            row.querySelector('.dbt-cr-name').setAttribute('aria-label', `Name, credit ${n}`);
+            row.querySelector('.dbt-cr-role').setAttribute('aria-label', `Role, credit ${n}`);
+            row.querySelector('.dbt-cr-scope').setAttribute('aria-label', `Tracks, credit ${n}`);
+            row.querySelector('button[data-remove]').setAttribute('aria-label', `Remove credit ${n}: ${who}`);
+        });
+    };
 
-        document.getElementById('alb-title').value = data.album_title || '';
-        document.getElementById('alb-artist').value = data.artist_name || '';
-        document.getElementById('alb-year').value = data.original_year || '';
-        document.getElementById('alb-label').value = data.label || '';
-        document.getElementById('alb-last-update').textContent = data.last_updated || 'MM-DD-YYYY';
-        document.getElementById('alb-country').value = data.country || '';
-
-        this.initTaxonomy(data.genre, data.sub_genre);
-
-        const img = document.getElementById('alb-img');
-        if (img) {
-            img.onerror = () => { img.style.display = 'none'; };
-            img.src = `/ui/covers/${data.mf_id}.jpg?t=${new Date().getTime()}`;
-            img.style.display = 'block';
-        }
-
-        const trackBody = document.getElementById('album-track-list');
-        if (trackBody) {
-            trackBody.innerHTML = '';
-            if (data.tracks) {
-                data.tracks.sort((a,b) => (parseInt((a.file_path||'').split('/').pop())||999) - (parseInt((b.file_path||'').split('/').pop())||999)).forEach((t, idx) => {
-                    const tr = document.createElement('tr');
-                    const conf = t.orig_year_conf || 0;
-                    const flagColor = conf >= 90 ? 'transparent' : (conf >= 50 ? 'var(--mf-gold)' : 'var(--status-error)');
-                    const confId = `track-year-conf-${idx}`;
-                    const confText = t.original_year
-                        ? `${this.escapeHTML(t.orig_year_source || 'Unknown')} · conf ${conf}`
-                        : 'No data';
-                    tr.innerHTML = `
-					    <td style="border-bottom:1px solid #ccc; padding: 6px 8px; width: 50px; font-family: 'Cascadia Mono', monospace; color: var(--input-foreground2); vertical-align: middle;">${idx + 1}</td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 40%;">
-                            <input type="text" class="mb-input-text track-title" value="${t.title || ''}" data-path="${t.file_path || ''}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; border:0;">
-                        </td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 28%;">
-                            <input type="text" class="mb-input-text track-artist" value="${t.artist || ''}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; Border:0">
-                       </td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 100px;">
-                            <input type="text" class="mb-input-text track-year" value="${t.original_year || ''}" aria-label="Original year, track ${idx + 1}: ${this.escapeHTML(t.title || '')}" aria-describedby="${confId}" style="width: 100%; box-sizing: border-box; background: var(--input-background2); color: var(--input-foreground2); padding: 4px; border: 0; border-left: 3px solid ${flagColor};">
-                            <span id="${confId}" style="display:block; font-size: 0.6rem; margin-top: 2px; color: ${flagColor === 'transparent' ? 'var(--input-foreground2)' : flagColor};">${confText}</span>
-                        </td>
-                        <td style="border-bottom:1px solid #ccc; padding: 4px; width: 60px; text-align:center;">
-                            <button type="button" class="mf-button-gold-fixed" style="padding: 4px 8px; font-size: 0.7rem;" onclick="window.metaforge.database_tools.album.openTrackModal('${(t.file_path || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')" aria-label="Edit detailed track data for ${this.escapeHTML(t.title || 'track ' + (idx + 1))}">Edit</button>
-                        </td>
-						`;
-                    trackBody.appendChild(tr);
-                });
-            }
-        }
-
-        const pContainer = document.getElementById('personnel-rows-container');
-        if (pContainer) {
-            pContainer.innerHTML = '';
-            if (data.personnel) data.personnel.forEach(p => this.appendPersonnelRow(p.role, p.name, p.id, p.evidence_detail));
-        }
-    },
-
-    browseCover: async function() {
-        const res = await fetch('/select_file');
-        const data = await res.json();
-        if (!data.path) return;
-
-        window.metaforge.database_tools.state.stagedCoverPath = data.path;
-
-        // Best-effort local preview; falls back silently to the existing
-        // cover art if the webview blocks the file:// URI.
-        const img = document.getElementById('alb-img');
-        if (img) {
-            const normalized = data.path.replace(/\\/g, '/');
-            img.onerror = () => { img.style.display = 'none'; };
-            img.src = 'file:///' + normalized;
-            img.style.display = 'block';
-        }
-    },
-
-    addBlankPersonnel: function() { this.appendPersonnelRow('', '', null, ''); },
-
-    appendPersonnelRow: function(role, name, id, trackScope) {
-        const pContainer = document.getElementById('personnel-rows-container');
-        if (!pContainer) return;
-        const div = document.createElement('div');
-        div.className = "personnel-edit-row";
-        // Carries the row's existing edges.id (if any) so save() can tell
-        // the backend "update this exact row" instead of "here's a fresh
-        // list, wipe and rebuild everything" -- untouched rows (including
-        // ones sourced from MB/Discogs/Wikipedia) are then left alone
-        // rather than losing their provenance/confidence on every save.
-        if (id !== undefined && id !== null) div.dataset.edgeId = id;
-        div.style = "display: flex; gap: 6px; align-items: center; margin-bottom: 4px;";
-        // Real bug, found live 2026-07-16: name/role were interpolated raw
-        // into the value="..." attribute with no escaping -- a name
-        // containing a literal double quote (e.g. Willie "Big Eyes" Smith,
-        // a real credit in this library) prematurely terminated the
-        // attribute, corrupting the markup and producing a garbled
-        // &quot;-laden duplicate artist row on save. escapeHTML() already
-        // exists in this file (used elsewhere for track titles) and
-        // already handles quotes correctly -- it just was never called
-        // here.
-        //
-        // Dedicated Track(s) field -- real bug, John's report 2026-08-01:
-        // the only way to scope a manual credit to specific tracks used to
-        // be typing "(1, 2, 3)" straight into the Name field, which was
-        // never parsed back out -- it just became part of the artist's
-        // name, splintering a real person into a bogus separate identity
-        // ("Emory Smith (1, 2, 3, 4, 6, 7, 9)"). This field keeps that data
-        // out of the name entirely; save() sends it as track_scope, which
-        // the backend maps straight to evidence_scope/evidence_detail.
-        div.innerHTML = `
-			<input type="text" class="mb-input-text p-name" placeholder="Name" value="${this.escapeHTML(name || '')}" style="flex: 1.5; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Mono', monospace; padding: 4px;">
-            <input type="text" class="mb-input-text p-role" placeholder="Role" value="${this.escapeHTML(role || '')}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
-            <input type="text" class="mb-input-text p-track-scope" placeholder="Track(s), e.g. 1, 3, 5" title="Leave blank for the whole album. Comma-separated track numbers to scope this credit to specific tracks only." value="${this.escapeHTML(trackScope || '')}" style="flex: 1; background: var(--input-background2); color: var(--input-foreground2); font-family: 'Cascadia Code', monospace; padding: 4px;">
-			<button class="mf-button-gold-fixed" style="background: var(--status-error) !important; width: 30px; min-width: 30px; height: 28px; padding: 0;" onclick="this.parentElement.remove()" aria-label="Remove Row" title="Remove Row">&times;</button>`;
-        pContainer.appendChild(div);
-    },
-
-    save: async function() {
-        const trackRows = document.querySelectorAll('#album-track-list tr');
-        const tracks = Array.from(trackRows).map(tr => ({
-            file_path: tr.querySelector('.track-title').getAttribute('data-path'),
-            title: tr.querySelector('.track-title').value.trim(),
-            artist: tr.querySelector('.track-artist').value.trim(),
-            original_year: tr.querySelector('.track-year').value.trim()
-        }));
-        const pRows = document.querySelectorAll('.personnel-edit-row');
-        const personnel = Array.from(pRows).map(row => ({
-            role: row.querySelector('.p-role').value.trim(),
-            name: row.querySelector('.p-name').value.trim(),
-            track_scope: row.querySelector('.p-track-scope').value.trim(),
-            id: row.dataset.edgeId ? parseInt(row.dataset.edgeId, 10) : null
-        })).filter(p => p.name && p.role);
-
-        const payload = {
-            mf_id: window.metaforge.database_tools.state.activeId,
-            title: document.getElementById('alb-title').value.trim(),
-            artist: document.getElementById('alb-artist').value.trim(),
-            year: document.getElementById('alb-year').value.trim(),
-            label: document.getElementById('alb-label').value.trim(),
-            genre: document.getElementById('alb-genre').value,
-            sub_genre: document.getElementById('alb-subgenre').value,
-            country: document.getElementById('alb-country').value.trim(),
-            cover_path: window.metaforge.database_tools.state.stagedCoverPath || null,
-            tracks: tracks,
-            personnel: personnel
-        };
-        try {
-            const res = await fetch('/run_tool_logic/database_tools/save_album', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            if ((await res.json()).status === "success") alert("Database updated.");
-        } catch (e) { console.error("Save album error:", e); }
-    },
-
-    openModal: function() {
-        if (document.getElementById("p-json-modal")) return;
-        const modal = document.createElement('div');
-        modal.id = "p-json-modal";
-        modal.style = "position:fixed; top:20%; left:30%; width:40%; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000;";
-        modal.innerHTML = `
-            <h3 style="color:var(--mf-gold); margin-top:0;">Import JSON Credits</h3>
-            <textarea id="p-json-input" style="width:100%; height:200px; background:var(--input-background2); color:var(--input-foreground2);"></textarea>
-            <div style="margin-top:10px; display:flex; gap:10px; justify-content:flex-end;">
-                <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.album.processJson()">Import Data</button>
-                <button class="mf-button-gold-fixed" onclick="document.getElementById('p-json-modal').remove()">Cancel</button>
-            </div>
-        `;
-        document.body.appendChild(modal);
-    },
-
-    processJson: function() {
-        try {
-            const raw = document.getElementById('p-json-input').value;
-            const data = JSON.parse(raw);
-            if (!Array.isArray(data)) throw new Error("Expected an array.");
-            data.forEach(entry => this.appendPersonnelRow(entry.role, entry.name, null, entry.track_scope));
-            document.getElementById('p-json-modal').remove();
-        } catch (e) { alert("Error: " + e.message); }
-    },
-
-    // =========================================================
-    // TRACK-LEVEL DETAIL MODAL (2026-07-17)
-    // =========================================================
-    // Fields the main track table can't expose (Title/Artist/Original Year
-    // already have their own inline inputs there): Genre/Sub-Genre/Mood/
-    // Sonic Texture/Emotional Flavor, the measured BPM/Key/Intensity trio
-    // (plus a per-track "Re-analyze from Audio" action -- deliberately NOT
-    // a full album re-run, so a 5-disc box set doesn't need reprocessing
-    // to fix one track's BPM), and forensic MB/AcoustID IDs tucked into a
-    // collapsed Advanced section. Personnel is out of scope -- has its own
-    // tool (Personnel Scout).
-    openTrackModal: async function(filePath) {
-        if (document.getElementById("track-detail-modal")) return;
-
-        await this.loadTaxonomyAndMoods();
-
-        let track = null;
-        try {
-            const res = await fetch(`/run_tool_logic/database_tools/get_track_detail?file_path=${encodeURIComponent(filePath)}`);
-            const data = await res.json();
-            if (data.status !== "success") { alert(data.message || "Track not found."); return; }
-            track = data.track;
-        } catch (e) {
-            console.error("Track detail fetch error:", e);
-            alert("Failed to load track detail.");
+    B.save = async function () {
+        if (!B.current) return;
+        const title = D.$('dbt-al-title').value.trim();
+        const artist = D.$('dbt-al-artist').value.trim();
+        for (const [id, v] of [['dbt-al-title', title], ['dbt-al-artist', artist]]) D.$(id).toggleAttribute('aria-invalid', !v);
+        if (!title || !artist) {
+            D.say('dbt-al-status', 'The album needs a title and an album artist.', 'error');
+            D.$(!title ? 'dbt-al-title' : 'dbt-al-artist').focus();
             return;
         }
-
-        const genres = this.taxonomyData ? Object.keys(this.taxonomyData).sort() : [];
-        const moods = this.moodsData ? (this.moodsData.anchors || []) : [];
-        const textures = this.moodsData ? ((this.moodsData.modifiers || {}).Sonic_Texture || []) : [];
-        const flavors = this.moodsData ? ((this.moodsData.modifiers || {}).Emotional_Flavor || []) : [];
-
-        const buildOptions = (list, current) => ['<option value="">-- Unset --</option>'].concat(
-            list.map(v => `<option value="${this.escapeHTML(v)}" ${v === current ? 'selected' : ''}>${this.escapeHTML(v)}</option>`)
-        ).join('');
-
-        // Wrapper takes over the fixed positioning/sizing role; modal itself
-        // becomes a plain flex:1 child alongside the custom scrollbar. This
-        // modal is created dynamically (not present at tool-load time), so
-        // MFScrollbar.attach() is called explicitly below rather than
-        // relying on autoAttachAll() (which only runs once, on tool load).
-        const modalOuter = document.createElement('div');
-        modalOuter.id = "track-detail-modal-outer";
-        modalOuter.style = "position:fixed; top:6%; left:26%; width:48%; max-height:88vh; display:flex; z-index:10000; box-shadow: 0 0 20px rgba(0,0,0,0.5);";
-
-        const modal = document.createElement('div');
-        modal.id = "track-detail-modal";
-        modal.className = "mf-hide-native-scrollbar";
-        modal.setAttribute('role', 'dialog');
-        modal.setAttribute('aria-modal', 'true');
-        modal.setAttribute('aria-labelledby', 'track-detail-title');
-        modal.dataset.filePath = filePath;
-        modal.style = "flex:1; overflow-y:auto; background:var(--bg-main); border:1px solid var(--mf-gold); border-right:none; padding:20px;";
-        modal.innerHTML = `
-            <h3 id="track-detail-title" style="color:var(--mf-gold); margin-top:0;">Track Detail: ${this.escapeHTML(track.title || filePath.split('/').pop())}</h3>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:14px;">
-                <div><label class="mf-card-label" style="color:var(--mf-gold);">Genre</label>
-                    <select id="tm-genre" class="mb-input-text" style="width:100%; background:white; color:black;">
-                        <option value="">-- Unset --</option>
-                        ${genres.map(g => `<option value="${this.escapeHTML(g)}" ${g === track.genre ? 'selected' : ''}>${this.escapeHTML(g)}</option>`).join('')}
-                    </select>
-                </div>
-                <div><label class="mf-card-label" style="color:var(--mf-gold);">Sub-Genre</label>
-                    <select id="tm-subgenre" class="mb-input-text" style="width:100%; background:white; color:black;"></select>
-                </div>
-                <div><label class="mf-card-label" style="color:var(--mf-gold);">Mood</label>
-                    <select id="tm-mood" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(moods, track.mood)}</select>
-                </div>
-                <div><label class="mf-card-label" style="color:var(--mf-gold);">Sonic Texture</label>
-                    <select id="tm-texture" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(textures, track.sonic_texture)}</select>
-                </div>
-                <div><label class="mf-card-label" style="color:var(--mf-gold);">Emotional Flavor</label>
-                    <select id="tm-flavor" class="mb-input-text" style="width:100%; background:white; color:black;">${buildOptions(flavors, track.emotional_flavor)}</select>
-                </div>
-            </div>
-
-            <div style="border-top:1px solid var(--bg-accent); padding-top:12px; margin-bottom:14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <strong style="color:var(--mf-gold); font-size:0.8rem;">Measured</strong>
-                    <button type="button" class="mf-button-gold-fixed" id="tm-reanalyze-btn" style="font-size:0.7rem; padding:4px 8px;">Re-analyze from Audio</button>
-                </div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">BPM</label>
-                        <input type="number" id="tm-bpm" class="mb-input-text" value="${track.bpm != null ? track.bpm : ''}" style="width:100%; background:white; color:black;">
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">Key</label>
-                        <select id="tm-key" class="mb-input-text" style="width:100%; background:white; color:black;">
-                            <option value="">-- Unset --</option>
-                            ${this.KEY_OPTIONS.map(k => `<option value="${k}" ${k === track.key_val ? 'selected' : ''}>${k}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">Intensity (1-10)</label>
-                        <input type="number" id="tm-intensity" min="1" max="10" class="mb-input-text" value="${track.intensity != null ? track.intensity : ''}" style="width:100%; background:white; color:black;">
-                    </div>
-                </div>
-                <div id="tm-reanalyze-status" role="status" aria-live="polite" style="font-size:0.7rem; color:var(--text-message); margin-top:6px;"></div>
-            </div>
-
-            <details style="margin-bottom:16px;">
-                <summary style="color:var(--mf-gold); cursor:pointer; font-size:0.8rem;">Advanced / Forensic IDs</summary>
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Track ID</label>
-                        <input type="text" id="tm-mbtrack" class="mb-input-text" value="${this.escapeHTML(track.mb_track_id || '')}" style="width:100%; background:white; color:black;">
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Recording ID</label>
-                        <input type="text" id="tm-mbrecording" class="mb-input-text" value="${this.escapeHTML(track.mb_recording_id || '')}" style="width:100%; background:white; color:black;">
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Work ID</label>
-                        <input type="text" id="tm-mbwork" class="mb-input-text" value="${this.escapeHTML(track.mb_work_id || '')}" style="width:100%; background:white; color:black;">
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">MB Artist ID</label>
-                        <input type="text" id="tm-mbartist" class="mb-input-text" value="${this.escapeHTML(track.mb_artist_id || '')}" style="width:100%; background:white; color:black;">
-                    </div>
-                    <div><label class="mf-card-label" style="color:var(--mf-gold);">AcoustID</label>
-                        <input type="text" id="tm-acoustid" class="mb-input-text" value="${this.escapeHTML(track.acoustid || '')}" style="width:100%; background:white; color:black;">
-                    </div>
-                </div>
-            </details>
-
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button type="button" class="mf-button-gold-fixed" id="tm-save-btn">Save</button>
-                <button type="button" class="mf-button-gold-fixed" id="tm-cancel-btn">Cancel</button>
-            </div>
-        `;
-
-        const scrollbar = document.createElement('div');
-        scrollbar.className = 'mf-custom-scrollbar';
-        scrollbar.setAttribute('role', 'scrollbar');
-        scrollbar.setAttribute('aria-controls', 'track-detail-modal');
-        scrollbar.setAttribute('aria-orientation', 'vertical');
-        scrollbar.setAttribute('aria-valuemin', '0');
-        scrollbar.setAttribute('aria-valuemax', '100');
-        scrollbar.setAttribute('aria-valuenow', '0');
-        scrollbar.innerHTML = '<button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button><div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div><button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>';
-
-        modalOuter.appendChild(modal);
-        modalOuter.appendChild(scrollbar);
-        document.body.appendChild(modalOuter);
-        if (window.MFScrollbar) window.MFScrollbar.attach(scrollbar);
-
-        this.populateTrackSubGenres(track.genre, track.sub_genre);
-        document.getElementById('tm-genre').addEventListener('change', (e) => this.populateTrackSubGenres(e.target.value, null));
-        document.getElementById('tm-reanalyze-btn').addEventListener('click', () => this.reanalyzeTrackDetail());
-        document.getElementById('tm-save-btn').addEventListener('click', () => this.saveTrackDetail());
-        document.getElementById('tm-cancel-btn').addEventListener('click', () => this.closeTrackModal());
-        document.getElementById('tm-genre').focus();
-    },
-
-    populateTrackSubGenres: function(parentGenre, activeSubGenre) {
-        const subSelect = document.getElementById('tm-subgenre');
-        if (!subSelect) return;
-        subSelect.innerHTML = '<option value="">-- Unset --</option>';
-        if (this.taxonomyData && parentGenre && this.taxonomyData[parentGenre]) {
-            this.taxonomyData[parentGenre].sort().forEach(sg => {
-                const opt = document.createElement('option');
-                opt.value = sg; opt.textContent = sg;
-                subSelect.appendChild(opt);
-            });
+        const genre = D.$('dbt-al-genre').value;
+        const sub = D.$('dbt-al-sub').value;
+        const genreChanged = genre !== KEEP && (genre !== B.initialGenre || sub !== B.initialSub);
+        const tracks = [...D.$('dbt-al-tracks').rows].filter(r => r.dataset.path).map(r => ({
+            file_path: r.dataset.path,
+            title: r.querySelector('.dbt-tr-title').value.trim(),
+            artist: r.querySelector('.dbt-tr-artist') ? r.querySelector('.dbt-tr-artist').value.trim() : '',
+            original_year: r.querySelector('.dbt-tr-year').value.trim()
+        }));
+        const personnel = [...D.$('dbt-al-credits').rows].map(r => ({
+            id: r.dataset.edgeId ? parseInt(r.dataset.edgeId, 10) : null,
+            name: r.querySelector('.dbt-cr-name').value.trim(),
+            role: r.querySelector('.dbt-cr-role').value.trim(),
+            track_scope: r.querySelector('.dbt-cr-scope').value.trim()
+        })).filter(p => p.name && p.role);
+        const body = {
+            mf_id: B.current.mf_id, title, artist,
+            year: D.$('dbt-al-year').value.trim(), label: D.$('dbt-al-label').value.trim(),
+            country: D.$('dbt-al-country').value.trim().toUpperCase(),
+            genre: genreChanged ? genre : '', sub_genre: genreChanged ? sub : '', genre_changed: genreChanged,
+            cover_path: B.coverPath, tracks, personnel
+        };
+        D.say('dbt-al-status', 'Saving…');
+        let r = await D.api('save_album', { body });
+        if (r.status === 'confirm') {
+            D.say('dbt-al-status', '');
+            const what = [title !== B.current.album_title ? `title “${title}”` : '', artist !== B.current.artist_name ? `album artist “${artist}”` : ''].filter(Boolean).join(' and ');
+            const yes = await D.confirm({ title: 'Save the new ' + (what.startsWith('title') && what.includes(' and ') ? 'title and artist?' : what.startsWith('title') ? 'title?' : 'album artist?'),
+                intro: `The album gets the ${what}. This changes:`, lines: D.previewLines(r), notes: r.notes, ok: 'Save' });
+            if (!yes) { D.say('dbt-al-status', 'Not saved. Your edits are still here.', 'warning'); return; }
+            D.say('dbt-al-status', 'Saving…');
+            r = await D.api('save_album', { body: { ...body, confirmed: true } });
         }
-        if (activeSubGenre) subSelect.value = activeSubGenre;
-    },
+        if (r.status !== 'success') { D.say('dbt-al-status', r.message || "Couldn't save.", 'error'); return; }
+        await B.load(r.mf_id || B.current.mf_id, { force: true });
+        B.showProblems(r.problems || []);
+    };
 
-    closeTrackModal: function() {
-        // Removes the outer wrapper (which also contains the custom
-        // scrollbar), not just the inner modal -- otherwise the wrapper
-        // and scrollbar would be orphaned in the DOM after "closing."
-        const modalOuter = document.getElementById('track-detail-modal-outer');
-        if (modalOuter) modalOuter.remove();
-    },
+    B.showProblems = function (problems) {
+        const ul = D.$('dbt-al-problems');
+        ul.replaceChildren(...problems.slice(0, 20).map(p => D.el('li', {}, p)),
+            problems.length > 20 ? D.el('li', {}, `…and ${problems.length - 20} more.`) : '');
+        ul.hidden = !problems.length;
+        D.say('dbt-al-status', problems.length
+            ? `Saved, but ${problems.length} file${problems.length === 1 ? '' : 's'} couldn't be updated (listed below).`
+            : 'Saved.', problems.length ? 'warning' : 'ok');
+    };
 
-    // Deliberately its own atomic action, independent of the modal's main
-    // Save button: writes straight to the DB + tags server-side (see
-    // intelli-tagger.py's reanalyze_track action) the moment it succeeds,
-    // rather than waiting for the user to also click Save.
-    reanalyzeTrackDetail: async function() {
-        const modal = document.getElementById('track-detail-modal');
-        if (!modal) return;
-        const statusEl = document.getElementById('tm-reanalyze-status');
-        const btn = document.getElementById('tm-reanalyze-btn');
-        if (statusEl) statusEl.textContent = "Re-analyzing from audio...";
-        if (btn) btn.disabled = true;
+    B.browseCover = async function () {
+        try {
+            const r = await (await fetch('/select_file')).json();
+            if (!r.path) return;
+            B.coverPath = r.path;
+            D.$('dbt-al-cover-name').textContent = `New cover: ${r.path}`;
+            tracker.mark();
+        } catch (e) { D.say('dbt-al-status', "The file picker couldn't open.", 'error'); }
+    };
 
+    B.importJson = function () {
+        let data;
+        try { data = JSON.parse(D.$('dbt-json-text').value); }
+        catch (e) { D.say('dbt-json-status', `That isn't valid JSON: ${e.message}`, 'error'); return; }
+        if (!Array.isArray(data)) { D.say('dbt-json-status', 'Expected a list in square brackets: [ … ].', 'error'); return; }
+        const good = data.filter(x => x && typeof x === 'object' && String(x.name || '').trim() && String(x.role || '').trim());
+        if (!good.length) { D.say('dbt-json-status', 'No credits found: each needs a name and a role.', 'error'); return; }
+        good.forEach(x => B.addCredit({ name: String(x.name).trim(), role: String(x.role).trim(), scope: String(x.track_scope || '').trim() }));
+        tracker.mark();
+        D.$('dbt-json').close();
+        const skipped = data.length - good.length;
+        D.say('dbt-al-status', `${good.length} credit${good.length === 1 ? '' : 's'} added to the list${skipped ? `; ${skipped} skipped (no name or role)` : ''}. Save changes to keep them.`);
+    };
+
+    // --- TRACK DETAILS DIALOG ---
+    B.openTrack = async function (path, title) {
+        await B.loadTaxonomy();
+        const r = await D.api('get_track_detail', { params: { file_path: path } });
+        if (r.status !== 'success') { D.say('dbt-al-status', r.message || "That track couldn't be loaded.", 'error'); return; }
+        const t = r.track;
+        B.trackPath = path;
+        D.$('dbt-track-h').textContent = `Track details: ${title || t.title || ''}`;
+        const fill = (id, list, cur, none = '(not set)') => {
+            const sel = D.$(id);
+            const items = [...list];
+            if (cur && !items.includes(cur)) items.unshift(cur);
+            sel.replaceChildren(opt('', none, !cur), ...items.map(x => opt(x, x, x === cur)));
+        };
+        const m = B.moods || {};
+        fill('dbt-tr-genre', Object.keys(B.taxonomy || {}).sort(), t.genre);
+        B.fillSubs(D.$('dbt-tr-sub'), t.genre || '', t.sub_genre || '');
+        fill('dbt-tr-mood', m.anchors || [], t.mood);
+        fill('dbt-tr-texture', (m.modifiers || {}).Sonic_Texture || [], t.sonic_texture);
+        fill('dbt-tr-flavor', (m.modifiers || {}).Emotional_Flavor || [], t.emotional_flavor);
+        fill('dbt-tr-key', KEYS, t.key_val);
+        D.$('dbt-tr-bpm').value = t.bpm ?? '';
+        D.$('dbt-tr-intensity').value = t.intensity ?? '';
+        D.$('dbt-tr-mbtrack').value = t.mb_track_id || '';
+        D.$('dbt-tr-mbrec').value = t.mb_recording_id || '';
+        D.$('dbt-tr-mbwork').value = t.mb_work_id || '';
+        D.$('dbt-tr-mbartist').value = t.mb_artist_id || '';
+        D.$('dbt-tr-acoustid').value = t.acoustid || '';
+        D.say('dbt-tr-status', '');
+        D.say('dbt-tr-reanalyze-status', '');
+        D.$('dbt-track').showModal();
+        D.$('dbt-tr-genre').focus();
+    };
+
+    B.saveTrack = async function () {
+        for (const [id, label, lo, hi] of [['dbt-tr-bpm', 'BPM', 1, 400], ['dbt-tr-intensity', 'Intensity', 1, 10]]) {
+            const v = D.$(id).value.trim();
+            const bad = v && !(/^\d+$/.test(v) && +v >= lo && +v <= hi);
+            D.$(id).toggleAttribute('aria-invalid', !!bad);
+            if (bad) { D.say('dbt-tr-status', `${label} must be a whole number from ${lo} to ${hi}, or blank.`, 'error'); D.$(id).focus(); return; }
+        }
+        const body = {
+            file_path: B.trackPath,
+            genre: D.$('dbt-tr-genre').value, sub_genre: D.$('dbt-tr-sub').value, mood: D.$('dbt-tr-mood').value,
+            sonic_texture: D.$('dbt-tr-texture').value, emotional_flavor: D.$('dbt-tr-flavor').value,
+            bpm: D.$('dbt-tr-bpm').value.trim(), key: D.$('dbt-tr-key').value, intensity: D.$('dbt-tr-intensity').value.trim(),
+            mb_track_id: D.$('dbt-tr-mbtrack').value.trim(), mb_recording_id: D.$('dbt-tr-mbrec').value.trim(),
+            mb_work_id: D.$('dbt-tr-mbwork').value.trim(), mb_artist_id: D.$('dbt-tr-mbartist').value.trim(),
+            acoustid: D.$('dbt-tr-acoustid').value.trim()
+        };
+        D.say('dbt-tr-status', 'Saving…');
+        const r = await D.api('save_track_detail', { body });
+        if (r.status !== 'success') { D.say('dbt-tr-status', r.message || "Couldn't save.", 'error'); return; }
+        D.$('dbt-track').close();
+        const p = r.problems || [];
+        D.say('dbt-al-status', p.length ? p[0] : 'Track details saved.', p.length ? 'warning' : 'ok');
+    };
+
+    B.reanalyze = async function () {
+        const btn = D.$('dbt-tr-reanalyze');
+        btn.disabled = true;
+        D.say('dbt-tr-reanalyze-status', 'Measuring… this takes a few seconds.');
         try {
             const res = await fetch('/run_tool_logic/intelli-tagger/reanalyze_track', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ file_path: modal.dataset.filePath })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file_path: B.trackPath })
             });
-            const data = await res.json();
-            if (data.status === "success") {
-                document.getElementById('tm-bpm').value = data.bpm;
-                document.getElementById('tm-key').value = data.key;
-                document.getElementById('tm-intensity').value = data.intensity;
-                if (statusEl) statusEl.textContent = "Re-analysis complete -- values updated and saved.";
-            } else if (statusEl) {
-                statusEl.textContent = "Re-analysis failed: " + (data.message || "unknown error");
-            }
-        } catch (e) {
-            console.error("Re-analyze error:", e);
-            if (statusEl) statusEl.textContent = "Re-analysis failed.";
-        } finally {
-            if (btn) btn.disabled = false;
-        }
-    },
-
-    saveTrackDetail: async function() {
-        const modal = document.getElementById('track-detail-modal');
-        if (!modal) return;
-
-        const payload = {
-            file_path: modal.dataset.filePath,
-            genre: document.getElementById('tm-genre').value,
-            sub_genre: document.getElementById('tm-subgenre').value,
-            mood: document.getElementById('tm-mood').value,
-            sonic_texture: document.getElementById('tm-texture').value,
-            emotional_flavor: document.getElementById('tm-flavor').value,
-            bpm: document.getElementById('tm-bpm').value,
-            key: document.getElementById('tm-key').value,
-            intensity: document.getElementById('tm-intensity').value,
-            mb_track_id: document.getElementById('tm-mbtrack').value.trim(),
-            mb_recording_id: document.getElementById('tm-mbrecording').value.trim(),
-            mb_work_id: document.getElementById('tm-mbwork').value.trim(),
-            mb_artist_id: document.getElementById('tm-mbartist').value.trim(),
-            acoustid: document.getElementById('tm-acoustid').value.trim()
-        };
-
-        try {
-            const res = await fetch('/run_tool_logic/database_tools/save_track_detail', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (data.status === "success") {
-                this.closeTrackModal();
+            const r = await res.json();
+            if (r.status === 'success') {
+                D.$('dbt-tr-bpm').value = r.bpm ?? '';
+                D.$('dbt-tr-key').value = r.key || '';
+                D.$('dbt-tr-intensity').value = r.intensity ?? '';
+                D.say('dbt-tr-reanalyze-status', 'Measured and saved.', 'ok');
             } else {
-                alert(data.message || "Save failed.");
+                D.say('dbt-tr-reanalyze-status', `Couldn't measure: ${r.message || 'unknown error'}`, 'error');
             }
         } catch (e) {
-            console.error("Save track detail error:", e);
-            alert("Save failed.");
-        }
-    }
-};
-
-window.metaforge.database_tools.album_editor = window.metaforge.database_tools.album;
-window.metaforge.album_importer = { openModal: () => window.metaforge.database_tools.album.openModal() };
-// --- END OF FILE ---
+            D.say('dbt-tr-reanalyze-status', "Couldn't measure: the server didn't answer.", 'error');
+        } finally { btn.disabled = false; }
+    };
+})();
+// --- END OF FILE album_editor.js ---

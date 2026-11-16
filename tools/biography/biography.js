@@ -136,6 +136,12 @@ window.metaforge.biography = {
 
     // ------------------------------------------------------------ context + search
     ingestContext: async function() {
+        // v2: Database Tools' "Write a biography" hands over the artist itself.
+        const artistId = window.mf_context_artist_id;
+        if (artistId) {
+            window.mf_context_artist_id = null;
+            return this.loadArtist(artistId);
+        }
         const path = window.mf_context_path;
         if (!path) return;
         window.mf_context_path = null;

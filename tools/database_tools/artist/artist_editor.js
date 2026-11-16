@@ -1,148 +1,212 @@
 // --- START OF FILE artist_editor.js ---
 /**
- * MetaForge Studio: Database Tools - Artist Editor Spoke
- * Physical Location: \tools\database_tools\artist\artist_editor.js
- * Build 1.8.9: Restored automatic downstream chain-loading for album collections.
+ * MetaForge Studio: Database Tools - Artists tab
+ * v2 (2026-11-15). Search, edit, rename (carried through), merge.
+ * A new name is previewed (counts of albums, tracks, credits and files)
+ * and confirmed before the server applies it; see engines/identity_ops.py.
  */
-
 window.metaforge = window.metaforge || {};
 window.metaforge.database_tools = window.metaforge.database_tools || {};
 
-window.metaforge.database_tools.artist_editor = {
+(function () {
+    const D = window.metaforge.database_tools;
+    const A = D.artist = { current: null, mergeOther: null };
+    let tracker;
 
-    search: async function() {
-        const query = document.getElementById('search-artist').value.trim();
-        if (!query) return;
+    A.wire = function () {
+        tracker = D.dirtyTracker('dbt-artist', 'dbt-art-dirty', () => (A.current ? A.current.artist_name : 'this artist'));
+        tracker.clean();
+        D.$('dbt-artist-find').addEventListener('submit', (e) => { e.preventDefault(); A.search(D.$('dbt-artist-q').value); });
+        D.$('dbt-artist-matches').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-id]');
+            if (b) A.load(b.dataset.id);
+        });
+        const form = D.$('dbt-artist-form');
+        form.addEventListener('submit', (e) => { e.preventDefault(); A.save(); });
+        form.addEventListener('input', () => tracker.mark());
+        D.$('dbt-art-photo-btn').addEventListener('click', () => A.browsePhoto());
+        D.$('dbt-art-bio-btn').addEventListener('click', () => A.openBioBuilder());
+        D.$('dbt-art-merge-btn').addEventListener('click', () => A.openMerge());
+        D.$('dbt-art-albums').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-id]');
+            if (b && D.album) { D.selectTab('album'); D.album.load(b.dataset.id); }
+        });
+        D.$('dbt-art-img').addEventListener('error', (e) => {
+            if (!e.target.src.endsWith('/no-photo.png')) e.target.src = '/ui/images/no-photo.png';
+        });
+        D.$('dbt-merge-find').addEventListener('submit', (e) => { e.preventDefault(); A.mergeSearch(); });
+        D.$('dbt-merge-form').addEventListener('submit', (e) => { e.preventDefault(); A.mergePreview(); });
+        D.$('dbt-merge-pick').addEventListener('change', () => A.mergeNames());
+    };
 
-        document.getElementById('artist-workspace').style.display = 'none';
-        document.getElementById('multiple-matches-container').style.display = 'none';
-
-        try {
-            const res = await fetch(`/run_tool_logic/database_tools/search_artist?artist=${encodeURIComponent(query)}`);
-            const data = await res.json();
-            
-            // Directive III.2: 10ms Paint Guard
-            setTimeout(() => {
-                if (data.status === "multiple") {
-                    this.renderDisambiguation(data.candidates);
-                } else if (data.status === "success") {
-                    this.render(data.artist);
-                } else {
-                    alert(data.message || "No results found.");
-                }
-            }, 10);
-        } catch (e) { console.error("Artist search error:", e); }
-    },
-
-    renderDisambiguation: function(candidates) {
-        const container = document.getElementById('multiple-matches-container');
-        const list = document.getElementById('matches-list');
-        if (!container || !list) return;
-
-        container.style.display = 'block';
-        list.innerHTML = candidates.map(c => `
-            <div style="border: 1px solid var(--mf-gold); padding: 8px; display: flex; justify-content: space-between; align-items: center; background: var(--bg-accent);">
-                <span style="color:var(--text-output); font-family: 'Cascadia Mono', monospace;">${c.artist_name}</span>
-                <button class="mf-button-gold-fixed" onclick="window.metaforge.database_tools.artist_editor.load('${c.mf_artist_id}')">Select</button>
-            </div>
-        `).join('');
-    },
-
-    load: async function(aid) {
-        document.getElementById('multiple-matches-container').style.display = 'none';
-        try {
-            const res = await fetch(`/run_tool_logic/database_tools/get_artist_details?mf_artist_id=${aid}`);
-            const data = await res.json();
-            
-            // Directive III.2: 10ms Paint Guard
-            setTimeout(() => {
-                if (data.status === "success") this.render(data.artist);
-                else alert("Error loading artist details: " + data.message);
-            }, 10);
-        } catch (e) { console.error("Load artist error:", e); }
-    },
-
-    render: function(data) {
-        const workspace = document.getElementById('artist-workspace');
-        if (workspace) workspace.style.display = 'grid';
-        
-        window.metaforge.database_tools.state.activeId = data.mf_artist_id;
-        
-        document.getElementById('art-name').value = data.artist_name || '';
-        document.getElementById('art-country').value = data.country || '';
-        document.getElementById('art-bio').value = data.biography || '';
-        document.getElementById('photo-path').value = data.photo_path || '';
-        
-        const img = document.getElementById('artist-img');
-        if (img) {
-            img.onerror = () => { img.src = '/ui/images/no-photo.png'; };
-            img.src = data.photo_path ? `/ui/artist_photo/${data.mf_artist_id}` : '/ui/images/no-photo.png';
-            img.style.display = 'block';
+    A.search = async function (q) {
+        q = (q || '').trim();
+        if (!q) return;
+        D.$('dbt-artist-matches-box').hidden = true;
+        D.say('dbt-artist-find-status', 'Searching…');
+        const r = await D.api('search_artist', { params: { artist: q } });
+        if (r.status === 'multiple') {
+            D.say('dbt-artist-find-status', `${r.candidates.length} artists match “${q}”.`);
+            D.$('dbt-artist-matches').replaceChildren(...r.candidates.map(c => D.el('li', {},
+                D.el('button', { type: 'button', className: 'dbt-match', dataset: { id: c.mf_artist_id } },
+                    D.el('span', {}, c.artist_name), D.el('small', {}, c.country && c.country !== 'Unknown' ? c.country : '')))));
+            D.$('dbt-artist-matches-box').hidden = false;
+        } else if (r.status === 'success') {
+            D.say('dbt-artist-find-status', '');
+            await A.load(r.artist.mf_artist_id);
+        } else {
+            D.say('dbt-artist-find-status', r.message || 'No artist found.', 'warning');
         }
-        
-        // If the payload does not contain the albums array, it means this was the initial 
-        // short search response. Chain-load the full detailed record immediately.
-        if (!data.albums) {
-            this.load(data.mf_artist_id);
+    };
+
+    A.load = async function (aid, { force = false } = {}) {
+        if (!force && tracker.dirty && !(A.current && A.current.mf_artist_id === aid) && !(await tracker.ask())) return;
+        const r = await D.api('get_artist_details', { params: { mf_artist_id: aid } });
+        if (r.status !== 'success') { D.say('dbt-artist-find-status', r.message || "That artist couldn't be loaded.", 'error'); return; }
+        D.$('dbt-artist-matches-box').hidden = true;
+        D.say('dbt-artist-find-status', '');
+        A.render(r.artist);
+    };
+
+    A.render = function (a) {
+        A.current = a;
+        D.$('dbt-artist-form').hidden = false;
+        D.$('dbt-artist-h').textContent = a.artist_name || 'Artist';
+        D.$('dbt-art-name').value = a.artist_name || '';
+        D.$('dbt-art-country').value = a.country || '';
+        D.$('dbt-art-bio').value = a.biography || '';
+        D.$('dbt-art-photo').value = a.photo_path || '';
+        const img = D.$('dbt-art-img');
+        img.src = a.photo_path ? `/ui/artist_photo/${encodeURIComponent(a.mf_artist_id)}?t=${Date.now()}` : '/ui/images/no-photo.png';
+        const albums = a.albums || [];
+        D.$('dbt-art-albums-h').textContent = `Albums (${albums.length})`;
+        D.$('dbt-art-albums').replaceChildren(...(albums.length ? albums.map(al => D.el('li', {},
+            D.el('button', { type: 'button', className: 'dbt-album-card', dataset: { id: al.mf_id } },
+                D.el('img', { src: `/ui/covers/${encodeURIComponent(al.mf_id)}.jpg`, alt: '', loading: 'lazy' }),
+                D.el('strong', {}, al.album_title || 'Untitled'),
+                D.el('small', {}, al.role === 'Primary Artist' ? 'Album artist' : 'Appears on'))))
+            : [D.el('li', { className: 'dbt-hint' }, 'No albums in the database.')]));
+        D.say('dbt-art-status', '');
+        tracker.clean();
+    };
+
+    A.save = async function () {
+        if (!A.current) return;
+        const name = D.$('dbt-art-name').value.trim();
+        if (!name) {
+            D.$('dbt-art-name').setAttribute('aria-invalid', 'true');
+            D.say('dbt-art-status', 'The artist needs a name.', 'error');
+            D.$('dbt-art-name').focus();
             return;
         }
-        
-        const grid = document.getElementById('artist-album-grid');
-        if (!grid) return;
-        grid.innerHTML = ''; 
-        
-        if (data.albums && data.albums.length > 0) {
-            data.albums.forEach((alb, idx) => {
-                const card = document.createElement('div');
-                card.style = "position:relative; display:flex; flex-direction:column; padding:8px; border:1px solid var(--mf-gold); border-radius:3px; background:var(--bg-main); overflow-x:clip;";
-                card.innerHTML = `
-                    <img src="/ui/covers/${alb.mf_id}.jpg" onerror="this.src='/ui/images/no-cover.png'" style="width:100%; aspect-ratio:1/1; object-fit:cover; margin-bottom:5px;">
-                    <div style="font-size:0.8rem; color:var(--text-output); font-weight:bold; margin-bottom:4px; font-family: 'Cascadia Mono', monospace;">${alb.album_title}</div>
-                    <div style="font-size:0.7rem; color:var(--mf-gold); margin-bottom:10px!important; font-family: 'Cascadia Code', monospace;">${alb.role || 'Primary Artist'}</div>
-                    <input type="radio" name="artist-album-select" value="${alb.mf_id}" id="alb-rad-${idx}" 
-                           style="position:absolute; bottom:8px; right:8px; accent-color:var(--mf-gold);"
-                           aria-label="Select ${alb.album_title}">
-                `;
-                grid.appendChild(card);
-            });
-        }
-    },
-
-    save: async function() {
-        const payload = {
-            mf_artist_id: window.metaforge.database_tools.state.activeId,
-            name: document.getElementById('art-name').value,
-            country: document.getElementById('art-country').value,
-            biography: document.getElementById('art-bio').value,
-            photo_path: document.getElementById('photo-path').value
+        D.$('dbt-art-name').removeAttribute('aria-invalid');
+        const body = {
+            mf_artist_id: A.current.mf_artist_id, name,
+            country: D.$('dbt-art-country').value.trim().toUpperCase(),
+            biography: D.$('dbt-art-bio').value,
+            photo_path: D.$('dbt-art-photo').value.trim()
         };
-        const res = await fetch('/run_tool_logic/database_tools/save_artist', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload)
-        });
-        if ((await res.json()).status === "success") alert("Artist identity committed.");
-    },
-
-    browsePhoto: async function() {
-        const res = await fetch('/select_file');
-        const data = await res.json();
-        if (data.path) document.getElementById('photo-path').value = data.path;
-    },
-
-    handleBioAction: function() {
-        if (window.mfSwitchMode) window.mfSwitchMode('biography');
-    },
-
-    editSelectedAlbum: function() {
-        const selected = document.querySelector('input[name=\"artist-album-select\"]:checked');
-        if (!selected) return alert("Select an album card first.");
-        
-        const tab = document.getElementById('tab-album');
-        if (tab) {
-            window.metaforge.database_tools.showPanel('album', tab);
-            setTimeout(() => { window.metaforge.database_tools.album_editor.load(selected.value); }, 10);
+        D.say('dbt-art-status', 'Saving…');
+        let r = await D.api('save_artist', { body });
+        if (r.status === 'confirm') {
+            D.say('dbt-art-status', '');
+            const yes = await D.confirm({
+                title: `Rename to ${name}?`,
+                intro: `“${A.current.artist_name}” becomes “${name}”. This changes:`,
+                lines: D.previewLines(r), notes: r.notes, ok: 'Rename'
+            });
+            if (!yes) { D.say('dbt-art-status', 'Not renamed. Your edits are still here.', 'warning'); return; }
+            D.say('dbt-art-status', 'Renaming… this can take a while for an artist with many tracks.');
+            r = await D.api('save_artist', { body: { ...body, confirmed: true } });
         }
-    }
-};
+        if (r.status !== 'success') { D.say('dbt-art-status', r.message || "Couldn't save.", 'error'); return; }
+        await A.load(r.mf_artist_id, { force: true });
+        const problems = r.problems || [];
+        D.say('dbt-art-status', problems.length
+            ? `Saved, but ${problems.length} file${problems.length === 1 ? '' : 's'} couldn't be updated: ${problems.slice(0, 3).join(' ')}`
+            : 'Saved.', problems.length ? 'warning' : 'ok');
+    };
+
+    A.browsePhoto = async function () {
+        try {
+            const r = await (await fetch('/select_file')).json();
+            if (r.path) { D.$('dbt-art-photo').value = r.path; tracker.mark(); }
+        } catch (e) { D.say('dbt-art-status', "The file picker couldn't open.", 'error'); }
+    };
+
+    A.openBioBuilder = async function () {
+        if (!A.current) return;
+        // Bio Builder opens this artist directly (biography.js ingestContext).
+        window.mf_context_artist_id = A.current.mf_artist_id;
+        window.mfSwitchMode('biography');
+    };
+
+    // --- MERGE ---
+    A.openMerge = function () {
+        if (!A.current) return;
+        A.mergeOther = null;
+        D.$('dbt-merge-q').value = '';
+        D.$('dbt-merge-pick').replaceChildren();
+        D.$('dbt-merge-pick-box').hidden = true;
+        D.$('dbt-merge-name-box').hidden = true;
+        D.say('dbt-merge-find-status', '');
+        D.say('dbt-merge-status', '');
+        D.$('dbt-merge').showModal();
+    };
+
+    A.mergeSearch = async function () {
+        const q = D.$('dbt-merge-q').value.trim();
+        if (!q) return;
+        const r = await D.api('search_artist', { params: { artist: q } });
+        let list = r.status === 'multiple' ? r.candidates : (r.status === 'success' ? [r.artist] : []);
+        list = list.filter(c => c.mf_artist_id !== A.current.mf_artist_id);
+        D.$('dbt-merge-name-box').hidden = true;
+        if (!list.length) {
+            D.$('dbt-merge-pick-box').hidden = true;
+            D.say('dbt-merge-find-status', `No other artist matches “${q}”.`, 'warning');
+            return;
+        }
+        D.say('dbt-merge-find-status', `${list.length} found. Choose one.`);
+        D.$('dbt-merge-pick').replaceChildren(...list.map(c => D.el('li', {},
+            D.el('label', { className: 'dbt-radio' },
+                D.el('input', { type: 'radio', name: 'dbt-merge-other', value: c.mf_artist_id, dataset: { name: c.artist_name } }),
+                D.el('span', {}, c.artist_name, c.country && c.country !== 'Unknown' ? D.el('small', {}, c.country) : '')))));
+        D.$('dbt-merge-pick-box').hidden = false;
+    };
+
+    A.mergeNames = function () {
+        const pick = document.querySelector('input[name="dbt-merge-other"]:checked');
+        if (!pick) return;
+        A.mergeOther = { id: pick.value, name: pick.dataset.name };
+        const mine = A.current.artist_name;
+        D.$('dbt-merge-names').replaceChildren(
+            D.el('label', { className: 'dbt-radio' }, D.el('input', { type: 'radio', name: 'dbt-merge-name', value: 'keep', checked: true }), D.el('span', {}, mine)),
+            D.el('label', { className: 'dbt-radio' }, D.el('input', { type: 'radio', name: 'dbt-merge-name', value: 'other' }), D.el('span', {}, A.mergeOther.name)));
+        D.$('dbt-merge-name-box').hidden = false;
+        D.say('dbt-merge-status', '');
+    };
+
+    A.mergePreview = async function () {
+        if (!A.mergeOther) { D.say('dbt-merge-status', 'Find and choose the other artist first.', 'warning'); return; }
+        if (tracker.dirty) { D.say('dbt-merge-status', 'Save or undo your changes to this artist first.', 'warning'); return; }
+        const keepOther = (document.querySelector('input[name="dbt-merge-name"]:checked') || {}).value === 'other';
+        const body = { keep_id: A.current.mf_artist_id, other_id: A.mergeOther.id, name: keepOther ? A.mergeOther.name : A.current.artist_name };
+        const r = await D.api('merge_artists', { body });
+        if (r.status !== 'confirm') { D.say('dbt-merge-status', r.message || "Couldn't check the merge.", 'error'); return; }
+        D.$('dbt-merge').close();
+        const yes = await D.confirm({
+            title: `Merge into ${body.name}?`,
+            intro: `“${A.current.artist_name}” and “${A.mergeOther.name}” become one artist named “${body.name}”. This changes:`,
+            lines: D.previewLines(r), notes: r.notes, ok: 'Merge'
+        });
+        D.$('dbt-art-merge-btn').focus();   // the dialog that opened this one is closed
+        if (!yes) { D.say('dbt-art-status', 'Not merged.', 'warning'); return; }
+        D.say('dbt-art-status', 'Merging… this can take a while for artists with many tracks.');
+        const done = await D.api('merge_artists', { body: { ...body, confirmed: true } });
+        if (done.status !== 'success') { D.say('dbt-art-status', done.message || "Couldn't merge.", 'error'); return; }
+        await A.load(done.mf_artist_id, { force: true });
+        const problems = done.problems || [];
+        D.say('dbt-art-status', problems.length ? `Merged, but ${problems.length} file${problems.length === 1 ? '' : 's'} couldn't be updated.` : 'Merged.', problems.length ? 'warning' : 'ok');
+    };
+})();
 // --- END OF FILE artist_editor.js ---

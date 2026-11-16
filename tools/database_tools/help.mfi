@@ -1,40 +1,37 @@
 <!-- --- START OF FILE help.mfi --- -->
-<div class="mf-help-container" style="background-color: #ffffff; color: #000000; padding: 20px; font-family: sans-serif; line-height: 1.6; border: 1px solid #000000;">
-    <h1 style="border-bottom: 2px solid #000000; padding-bottom: 10px;">Help: Database Tools Workbench</h1>
-    
-    <p>The Database Tools workbench is a three-phase forensic environment designed to ensure your music library adheres to archival standards and maintains a rich relationship graph (personnel credits).</p>
+<!-- v2 (2026-11-15): rewritten for the rebuilt tool. The 1.x text described
+     features that never existed (Identity Radar phases, a Wikipedia scraper,
+     a VACUUM button). -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">Database Tools lets you correct what the MetaForge database knows about your artists and albums, and remove records that shouldn't be there. It has three tabs.</p>
 
-    <h2 style="margin-top: 20px;">Phase 1: Identity Radar</h2>
-    <p>Search your local MetaForge database for existing Artist or Album records. This phase is used to "lock on" to a specific target for remediation.</p>
-    <ul>
-        <li><strong>Health Status:</strong> Indicates if an album has verified personnel relationships.</li>
-        <li><strong>Selection:</strong> Clicking a result row transitions the workbench to Phase 2.</li>
-    </ul>
+<h3>Artists</h3>
+<ul>
+    <li><strong>Find an artist</strong> by typing part of the name and pressing Enter. If several match, choose one from the list.</li>
+    <li><strong>Edit</strong> the name, country, biography and photo, then choose <strong>Save changes</strong>.</li>
+    <li><strong>A new name</strong> is carried through everywhere: the artist's albums, tracks and credits, and the artist tag in the music files. Before anything changes, MetaForge shows you how many albums, tracks, credits and files are affected and asks you to confirm. If another artist already has that name, the two are merged.</li>
+    <li><strong>Merge with another artist</strong> when the same artist is in the database twice under two spellings (for example "The MG's" and "the M.G.'s"). Find the other record, choose which name to keep, check what changes, and confirm.</li>
+    <li><strong>Albums</strong> lists every album the artist is on. Choose one to open it in the Albums tab.</li>
+    <li><strong>Write a biography in Bio Builder</strong> opens Bio Builder with this artist already chosen.</li>
+</ul>
 
-    <h2 style="margin-top: 20px;">Phase 2: Archival Record</h2>
-    <p>Standardize the core metadata for the selected album. This acts as the "Source of Truth."</p>
-    <ul>
-        <li><strong>Bimodal Date Cascade:</strong> Saving the release year here will automatically update the <code>TYER</code> (Year) frame for every track associated with this album ID.</li>
-        <li><strong>Wikipedia Scraper:</strong> Use the "Scrape Wikipedia Personnel" button to launch an automated forensic search for credits based on the Artist and Album title.</li>
-    </ul>
+<h3>Albums</h3>
+<ul>
+    <li><strong>Details:</strong> title, album artist, release year, record label, the artist's country, genre and cover image. Title, album artist, year and label are also written to the music files' tags.</li>
+    <li><strong>Genre:</strong> if the album's tracks have different genres, the list says "Tracks differ: leave them as they are" and saving leaves each track alone. Choose a genre only if every track should have it.</li>
+    <li><strong>Tracks:</strong> edit each track's title and original year. On a compilation, each track also has its own artist. <strong>More…</strong> opens the track's mood, BPM, key, intensity and identifiers; leaving BPM or intensity blank keeps them blank.</li>
+    <li><strong>Credits:</strong> the people who played on or made the album. Leave Tracks blank for the whole album, or list track numbers. <strong>Add credits from JSON</strong> adds a list of credits at once.</li>
+    <li>Changes are kept only when you choose <strong>Save changes</strong>. "Unsaved changes" appears until you do, and MetaForge asks before you leave the tool.</li>
+</ul>
 
-    <h2 style="margin-top: 20px;">Phase 3: Personnel Graph</h2>
-    <p>Manage the semantic relationships (edges) between the album and the people who created it.</p>
-    <ul>
-        <li><strong>Assigned Roles:</strong> Choose from standardized roles (e.g., Producer, Engineer, Instrumentalist).</li>
-        <li><strong>Evidence Source:</strong> Document where the information came from (Wikipedia, Liner Notes, or Personal Knowledge) for future forensic verification.</li>
-        <li><strong>Apply to All:</strong> When checked, the relationship is linked to every track in the album.</li>
-    </ul>
+<h3>Remove records</h3>
+<ul>
+    <li>Search for an artist, album, track or credit, choose one, and choose <strong>Remove the selected record</strong>.</li>
+    <li>MetaForge shows exactly what will be deleted (with counts), and you type the word <strong>remove</strong> to confirm.</li>
+    <li>Only database records are removed. <strong>Music files are never touched.</strong></li>
+    <li>An artist who performs tracks on other artists' albums can't be removed; merge them into the right artist instead.</li>
+</ul>
 
-    <h2 style="margin-top: 20px;">Library Maintenance</h2>
-    <p>Tools for database health.</p>
-    <ul>
-        <li><strong>Forensic Audit:</strong> Generates a report on library orphans and missing metadata.</li>
-        <li><strong>Optimize:</strong> Runs a <code>VACUUM</code> command to reclaim disk space and rebuild search indices.</li>
-    </ul>
-
-    <div style="margin-top: 30px; padding: 10px; border: 2px dashed #000000;">
-        <strong>Note on Accessibility:</strong> This workbench is fully keyboard-navigable. Use <code>Tab</code> to move between fields and <code>Enter</code> or <code>Space</code> to activate buttons and select records.
-    </div>
-</div>
+<h3>Backups</h3>
+<p>Before any rename, merge or removal, MetaForge copies the database (and any MusicBrainz log it will update) into <code>%APPDATA%\MetaForge\backups\database_tools</code>, in a folder named with the date, time and what was done. The five most recent are kept.</p>
 <!-- --- END OF FILE help.mfi --- -->

@@ -1,42 +1,509 @@
+<!-- --- START OF FILE database_tools.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: Database Tools
+     v2 (2026-11-15): per-tool pass after the Database Tools audit.
+      - One screen, three real tabs (focusgroup tablist, like Settings)
+        instead of three fragments fetched into the page by script.
+      - No inline styles or onclick attributes; theme tokens throughout;
+        every field has its own visible label; every group that ends in an
+        action is a real <form> (Enter runs it).
+      - Native <dialog>s for confirmations, merging, track details and the
+        JSON import; status lines instead of alert().
+      - Renames, merges, album re-keys and removals show what will change
+        (with counts) and ask first; the server backs up before applying
+        (engines/identity_ops.py).
+      - Unsaved changes are flagged on screen and checked before leaving.
+     ====================================================================== -->
+<style>
+    .dbt-stage { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 0.75rem; flex: 1; width: 100%; min-width: 0; min-height: 0; }
 
+    /* --- TABS (one row; the selected one has a bar, not just colour) --- */
+    .dbt-tabs { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid var(--border-subtle); position: relative; }
+    .dbt-tabs button {
+        all: unset; box-sizing: border-box; position: relative; flex: none;
+        padding: 0.5rem 1rem 0.6rem; cursor: pointer; border-radius: 4px 4px 0 0;
+        color: var(--text-secondary) !important; font-family: var(--font-main); font-size: 0.9375rem; font-weight: 600; white-space: nowrap;
+    }
+    .dbt-tabs button:hover { background: var(--surface-raised); color: var(--text-primary) !important; }
+    .dbt-tabs button:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
+    .dbt-tabs button[aria-selected="true"] { color: var(--mf-gold) !important; background: var(--surface-raised); }
+    .dbt-tabs button[aria-selected="true"]::after { content: ""; position: absolute; inset: auto 0.5rem 0; border-block-end: 4px solid var(--mf-gold); }
+
+    /* --- PANELS (one grid cell; only this area scrolls) --- */
+    .dbt-panels { display: grid; position: relative; min-height: 0; overflow-y: auto; scroll-padding-bottom: 6rem; }
+    .dbt-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+    /* hidden="until-found" keeps an invisible box; stacked in one cell it
+       would swallow clicks meant for the visible panel. */
+    .dbt-panels > [role="tabpanel"][hidden] { pointer-events: none; }
+    .dbt-in { display: flex; flex-direction: column; gap: 1rem; min-height: 100%; box-sizing: border-box; padding: 0.25rem 0.5rem 0 0.25rem; container-type: inline-size; }
+    .dbt-in h2 { margin: 0; font-size: 1.25rem; color: var(--mf-gold); }
+    .dbt-in h3 { margin: 0; font-size: 1.0625rem; color: var(--text-primary); }
+    .dbt-intro, .dbt-hint { margin: 0; max-width: 75ch; line-height: 1.45; }
+    .dbt-intro { font-size: 0.9375rem; color: var(--text-secondary); }
+    .dbt-hint { font-size: 0.875rem; color: var(--text-muted); }
+    .dbt-status { margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    .dbt-status.is-ok { color: var(--status-success); }
+    .dbt-status.is-error { color: var(--status-error); }
+    .dbt-status.is-warning { color: var(--status-warning); }
+    .dbt-status:empty { display: none; }
+    .dbt-dirty { margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--status-warning); }
+    .dbt-dirty[hidden], .dbt-in [hidden] { display: none !important; }
+    .dbt-problems { margin: 0; padding-left: 1.25rem; font-size: 0.875rem; color: var(--status-warning); }
+
+    /* Fields */
+    .dbt-find { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: end; }
+    .dbt-find .dbt-field { flex: 1 1 16rem; max-width: 28rem; }
+    .dbt-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+    .dbt-field > label, .dbt-label { color: var(--text-primary); font-size: 0.9375rem; font-weight: 700; }
+    .dbt-input {
+        box-sizing: border-box; width: 100%; padding: 0.4rem 0.5rem;
+        font-family: var(--font-main); font-size: 1rem;
+        background: var(--surface-field); color: var(--input-foreground2);
+        border: 1px solid var(--border-ui); border-radius: 3px;
+    }
+    textarea.dbt-input { resize: vertical; line-height: 1.45; }
+    .dbt-input:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+    .dbt-input[aria-invalid="true"] { border-color: var(--status-error); }
+    .dbt-fieldset { margin: 0; padding: 0.6rem 0.9rem 0.8rem; border: 1px solid var(--border-subtle); border-radius: 4px; display: flex; flex-direction: column; gap: 0.4rem; }
+    .dbt-fieldset legend { padding: 0 0.35rem; color: var(--mf-gold); font-size: 1rem; font-weight: 700; }
+    .dbt-radios { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; }
+    .dbt-radio { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.9375rem; color: var(--text-primary); cursor: pointer; }
+    .dbt-radio input { flex: none; width: 1.1rem; height: 1.1rem; margin: 0.15rem 0 0; accent-color: var(--mf-gold); }
+    .dbt-radio small { display: block; color: var(--text-muted); font-size: 0.8125rem; }
+    .dbt-secondary { background: transparent !important; color: var(--text-primary) !important; border: 1px solid var(--border-ui) !important; }
+    .dbt-danger-outline { background: transparent !important; color: var(--status-error) !important; border: 1px solid var(--status-error) !important; }
+    .dbt-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+    /* Match lists (search found several) */
+    .dbt-matches { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; max-width: 48rem; }
+    .dbt-match {
+        all: unset; box-sizing: border-box; display: flex; justify-content: space-between; gap: 1rem; width: 100%;
+        padding: 0.45rem 0.7rem; cursor: pointer; border: 1px solid var(--border-subtle); border-radius: 4px;
+        color: var(--text-primary) !important; font-size: 0.9375rem; background: var(--surface-page);
+    }
+    .dbt-match:hover { background: var(--surface-raised); }
+    .dbt-match:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+    .dbt-match small { color: var(--text-muted); font-size: 0.8125rem; white-space: nowrap; }
+
+    /* Editors */
+    .dbt-editor { display: flex; flex-direction: column; gap: 1rem; flex: 1; }
+    .dbt-card { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; padding: 0.75rem; background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .dbt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: 0.75rem; }
+    .dbt-grid .is-wide { grid-column: 1 / -1; }
+    .dbt-artist-top { display: grid; grid-template-columns: minmax(0, 1fr) 13rem; gap: 1rem; align-items: start; }
+    .dbt-album-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+    @container (width >= 62rem) {
+        .dbt-album-cols { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
+        .dbt-album-cols > .dbt-credits { grid-column: 2; grid-row: 1 / span 2; }
+    }
+    @container (width < 34rem) { .dbt-artist-top { grid-template-columns: minmax(0, 1fr); } }
+    .dbt-pic { display: flex; flex-direction: column; gap: 0.5rem; }
+    .dbt-pic img { inline-size: 100%; max-inline-size: 13rem; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border-ui); border-radius: 3px; background: var(--surface-raised); }
+    .dbt-cover-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .dbt-cover-row img { inline-size: 6rem; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--border-ui); border-radius: 3px; background: var(--surface-raised); }
+    .dbt-file-name { font-size: 0.875rem; color: var(--text-secondary); word-break: break-all; }
+
+    /* Album cards (Artists tab) */
+    .dbt-albums { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
+    .dbt-album-card {
+        all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 0.3rem; width: 100%; height: 100%;
+        padding: 0.5rem; cursor: pointer; border: 1px solid var(--border-subtle); border-radius: 4px; background: var(--surface-raised);
+        color: var(--text-primary) !important; font-size: 0.875rem;
+    }
+    .dbt-album-card:hover { border-color: var(--mf-gold); }
+    .dbt-album-card:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .dbt-album-card img { inline-size: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; }
+    .dbt-album-card strong { font-weight: 700; overflow-wrap: anywhere; }
+    .dbt-album-card small { color: var(--text-muted); font-size: 0.8125rem; }
+
+    /* Tables (tracks, credits) */
+    .dbt-table-wrap { overflow-x: auto; position: relative; }
+    .dbt-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+    .dbt-table th { text-align: start; padding: 0.35rem 0.4rem; color: var(--text-secondary); font-size: 0.875rem; border-bottom: 1px solid var(--border-ui); white-space: nowrap; }
+    .dbt-table td { padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+    .dbt-table td.dbt-num { color: var(--text-muted); font-variant-numeric: tabular-nums; padding-top: 0.75rem; }
+    .dbt-table .dbt-input { padding: 0.3rem 0.4rem; font-size: 0.9375rem; }
+    .dbt-table td button { white-space: nowrap; padding: 0.3rem 0.7rem; }
+    .dbt-year-note { display: block; margin-top: 0.15rem; font-size: 0.8125rem; color: var(--text-muted); }
+    .dbt-year-note.is-low { color: var(--status-warning); font-weight: 700; }
+    .dbt-col-year { inline-size: 7.5rem; }
+
+    /* Action row pinned to the bottom of the scrolling area */
+    .dbt-actions {
+        position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem;
+        margin-top: auto; padding: 0.6rem 0; background: var(--surface-page); border-top: 1px solid var(--border-subtle);
+    }
+    .dbt-actions .dbt-stamp { margin-inline-start: auto; font-size: 0.875rem; color: var(--text-muted); }
+
+    /* Remove-records results */
+    .dbt-results { display: flex; flex-direction: column; gap: 0.75rem; }
+    .dbt-results ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+
+    /* Dialogs */
+    .dbt-dialog {
+        margin: auto; width: min(40rem, 92vw); max-height: 90vh; padding: 1.1rem 1.25rem; box-sizing: border-box;
+        background: var(--surface-panel); color: var(--text-primary); border: 1px solid var(--mf-gold); border-radius: 6px;
+    }
+    .dbt-dialog.is-wide { width: min(52rem, 94vw); }
+    .dbt-dialog:modal { overscroll-behavior: contain; }
+    .dbt-dialog::backdrop { background: rgb(0 0 0 / 0.6); overflow: hidden; overscroll-behavior: contain; }
+    .dbt-dialog h2 { margin: 0 0 0.6rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .dbt-dialog form { display: flex; flex-direction: column; gap: 0.8rem; }
+    .dbt-dialog form.dbt-find { flex-direction: row; margin-bottom: 0.8rem; }
+    .dbt-dialog [hidden] { display: none !important; }
+    .dbt-dialog-body { font-size: 0.9375rem; line-height: 1.45; }
+    .dbt-dialog-body p { margin: 0 0 0.6rem; }
+    .dbt-dialog-body ul { margin: 0 0 0.75rem; padding-left: 1.25rem; }
+    .dbt-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }
+    .dbt-dialog details summary { cursor: pointer; color: var(--mf-gold); font-weight: 700; }
+    .dbt-dialog details summary:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .dbt-pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; max-height: 14rem; overflow-y: auto; position: relative; }
+    .dbt-code { font-family: var(--font-mono); font-size: 0.875rem; }
+
+    @media (forced-colors: active) {
+        .dbt-tabs button[aria-selected="true"]::after { border-color: Highlight; }
+    }
+</style>
 
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Database Tools</h1>
     <button type="button" class="mf-help-btn" data-mf-help="database_tools" data-mf-help-name="Database Tools">Help</button>
 </div>
 
-<div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
-<!-- h2 style="margin-bottom:10px; color:var(--mf-gold);">Select a tab to begin:</h2 -->
-    <div class="sub-nav-container" style="margin-bottom: 10px; padding-left: 20px;">
-        <button id="tab-artist" class="sub-nav-btn active" onclick="window.metaforge.database_tools.showPanel('artist', this)">Modify Artist</button>
-        <button id="tab-album" class="sub-nav-btn" onclick="window.metaforge.database_tools.showPanel('album', this)">Modify Album</button>
-		<button id="tab-fixer" class="sub-nav-btn" onclick="window.metaforge.database_tools.showPanel('fixer', this)">Database Purge</button>
+<div class="active_stage">
+<div class="dbt-stage">
+    <div class="dbt-tabs" focusgroup="tablist inline nomemory" aria-label="Database Tools" id="dbt-tabs">
+        <button type="button" id="dbt-tab-artist" aria-selected="true" focusgroupstart>Artists</button>
+        <button type="button" id="dbt-tab-album" aria-selected="false">Albums</button>
+        <button type="button" id="dbt-tab-remove" aria-selected="false">Remove records</button>
     </div>
 
-    <div id="workspace-stage" style="flex: 1; display: flex; flex-direction: column; background: var(--bg-main); overflow: hidden;">
+    <div class="dbt-panels" id="dbt-panels">
+
+        <!-- ================= ARTISTS ================= -->
+        <div role="tabpanel" id="dbt-panel-artist" aria-labelledby="dbt-tab-artist">
+            <div class="dbt-in">
+                <search>
+                    <form class="dbt-find" id="dbt-artist-find">
+                        <div class="dbt-field">
+                            <label for="dbt-artist-q">Find an artist</label>
+                            <input type="search" id="dbt-artist-q" name="q" class="dbt-input" autocomplete="off" spellcheck="false" required>
+                        </div>
+                        <button type="submit">Search</button>
+                    </form>
+                </search>
+                <p class="dbt-status" id="dbt-artist-find-status"></p>
+                <section id="dbt-artist-matches-box" aria-labelledby="dbt-artist-matches-h" hidden>
+                    <h2 id="dbt-artist-matches-h">Choose an artist</h2>
+                    <ul class="dbt-matches" id="dbt-artist-matches"></ul>
+                </section>
+
+                <form class="dbt-editor" id="dbt-artist-form" aria-labelledby="dbt-artist-h" novalidate hidden>
+                    <h2 id="dbt-artist-h">Artist</h2>
+                    <div class="dbt-artist-top">
+                        <div class="dbt-card">
+                            <div class="dbt-grid">
+                                <div class="dbt-field">
+                                    <label for="dbt-art-name">Name</label>
+                                    <input type="text" id="dbt-art-name" name="name" class="dbt-input" required aria-describedby="dbt-art-name-hint">
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-art-country">Country</label>
+                                    <input type="text" id="dbt-art-country" name="country" class="dbt-input" maxlength="2" autocomplete="off" aria-describedby="dbt-art-country-hint">
+                                </div>
+                                <p class="dbt-hint is-wide" id="dbt-art-name-hint">A new name is carried through to this artist's albums, tracks, credits and music file tags. You'll see what changes before anything is saved.</p>
+                                <p class="dbt-hint is-wide" id="dbt-art-country-hint">Country: the two-letter code for where the artist is from, such as US or GB.</p>
+                                <div class="dbt-field is-wide">
+                                    <label for="dbt-art-bio">Biography</label>
+                                    <textarea id="dbt-art-bio" name="biography" class="dbt-input" rows="7"></textarea>
+                                </div>
+                                <div class="is-wide"><button type="button" class="dbt-secondary" id="dbt-art-bio-btn">Write a biography in Bio Builder</button></div>
+                            </div>
+                        </div>
+                        <div class="dbt-card dbt-pic">
+                            <img id="dbt-art-img" alt="">
+                            <div class="dbt-field">
+                                <label for="dbt-art-photo">Photo file</label>
+                                <input type="text" id="dbt-art-photo" name="photo_path" class="dbt-input dbt-code" autocomplete="off" spellcheck="false">
+                            </div>
+                            <button type="button" class="dbt-secondary" id="dbt-art-photo-btn">Choose a photo…</button>
+                        </div>
+                    </div>
+                    <section class="dbt-card" aria-labelledby="dbt-art-albums-h">
+                        <h3 id="dbt-art-albums-h">Albums</h3>
+                        <p class="dbt-hint">Choose an album to open it in the Albums tab.</p>
+                        <ul class="dbt-albums" id="dbt-art-albums"></ul>
+                    </section>
+                    <div class="dbt-actions">
+                        <button type="submit">Save changes</button>
+                        <button type="button" class="dbt-secondary" id="dbt-art-merge-btn">Merge with another artist…</button>
+                        <p class="dbt-dirty" id="dbt-art-dirty" hidden>Unsaved changes</p>
+                        <p class="dbt-status" id="dbt-art-status"></p>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= ALBUMS ================= -->
+        <div role="tabpanel" id="dbt-panel-album" aria-labelledby="dbt-tab-album" hidden="until-found">
+            <div class="dbt-in">
+                <search>
+                    <form class="dbt-find" id="dbt-album-find">
+                        <div class="dbt-field">
+                            <label for="dbt-album-q">Find an album</label>
+                            <input type="search" id="dbt-album-q" name="q" class="dbt-input" autocomplete="off" spellcheck="false" required>
+                        </div>
+                        <button type="submit">Search</button>
+                    </form>
+                </search>
+                <p class="dbt-status" id="dbt-album-find-status"></p>
+                <section id="dbt-album-matches-box" aria-labelledby="dbt-album-matches-h" hidden>
+                    <h2 id="dbt-album-matches-h">Choose an album</h2>
+                    <ul class="dbt-matches" id="dbt-album-matches"></ul>
+                </section>
+
+                <form class="dbt-editor" id="dbt-album-form" aria-labelledby="dbt-album-h" novalidate hidden>
+                    <h2 id="dbt-album-h">Album</h2>
+                    <div class="dbt-album-cols">
+                        <section class="dbt-card" aria-labelledby="dbt-al-details-h">
+                            <h3 id="dbt-al-details-h">Details</h3>
+                            <div class="dbt-grid">
+                                <div class="dbt-field">
+                                    <label for="dbt-al-title">Title</label>
+                                    <input type="text" id="dbt-al-title" class="dbt-input" required>
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-artist">Album artist</label>
+                                    <input type="text" id="dbt-al-artist" class="dbt-input" required>
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-year">Release year</label>
+                                    <input type="text" id="dbt-al-year" class="dbt-input" inputmode="numeric" maxlength="4" autocomplete="off">
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-label">Record label</label>
+                                    <input type="text" id="dbt-al-label" class="dbt-input" autocomplete="off">
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-country">Artist's country</label>
+                                    <input type="text" id="dbt-al-country" class="dbt-input" maxlength="2" autocomplete="off">
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-genre">Genre</label>
+                                    <select id="dbt-al-genre" class="dbt-input" aria-describedby="dbt-al-genre-hint"></select>
+                                </div>
+                                <div class="dbt-field">
+                                    <label for="dbt-al-sub">Sub-genre</label>
+                                    <select id="dbt-al-sub" class="dbt-input"></select>
+                                </div>
+                                <p class="dbt-hint is-wide" id="dbt-al-genre-hint"></p>
+                                <p class="dbt-hint is-wide">A new title or album artist is also written to the music files' tags; you'll see what changes before anything is saved. Release year and label are written to the tags too.</p>
+                                <div class="dbt-cover-row is-wide">
+                                    <img id="dbt-al-cover" alt="">
+                                    <div class="dbt-field">
+                                        <span class="dbt-label">Cover image</span>
+                                        <span class="dbt-file-name" id="dbt-al-cover-name">The album folder's folder.jpg</span>
+                                        <button type="button" class="dbt-secondary" id="dbt-al-cover-btn">Choose a new cover…</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="dbt-card" aria-labelledby="dbt-al-tracks-h">
+                            <h3 id="dbt-al-tracks-h">Tracks</h3>
+                            <p class="dbt-hint" id="dbt-al-tracks-hint"></p>
+                            <div class="dbt-table-wrap">
+                                <table class="dbt-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">#</th>
+                                            <th scope="col">Title</th>
+                                            <th scope="col" id="dbt-al-artist-col">Artist</th>
+                                            <th scope="col" class="dbt-col-year">Original year</th>
+                                            <th scope="col"><span class="mf-visually-hidden">More</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dbt-al-tracks"></tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                        <section class="dbt-card dbt-credits" aria-labelledby="dbt-al-credits-h">
+                            <h3 id="dbt-al-credits-h">Credits</h3>
+                            <p class="dbt-hint">Leave Tracks blank for the whole album, or list track numbers, such as 1, 3, 5.</p>
+                            <div class="dbt-table-wrap">
+                                <table class="dbt-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Role</th>
+                                            <th scope="col">Tracks</th>
+                                            <th scope="col"><span class="mf-visually-hidden">Remove</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="dbt-al-credits"></tbody>
+                                </table>
+                            </div>
+                            <div class="dbt-row">
+                                <button type="button" class="dbt-secondary" id="dbt-al-add-credit">Add a credit</button>
+                                <button type="button" class="dbt-secondary" id="dbt-al-json-btn">Add credits from JSON…</button>
+                            </div>
+                        </section>
+                    </div>
+                    <div class="dbt-actions">
+                        <button type="submit">Save changes</button>
+                        <p class="dbt-dirty" id="dbt-al-dirty" hidden>Unsaved changes</p>
+                        <p class="dbt-status" id="dbt-al-status"></p>
+                        <span class="dbt-stamp" id="dbt-al-stamp"></span>
+                    </div>
+                    <ul class="dbt-problems" id="dbt-al-problems" hidden></ul>
+                </form>
+            </div>
+        </div>
+
+        <!-- ================= REMOVE RECORDS ================= -->
+        <div role="tabpanel" id="dbt-panel-remove" aria-labelledby="dbt-tab-remove" hidden="until-found">
+            <div class="dbt-in">
+                <p class="dbt-intro">Remove records from the MetaForge database: a junk artist name, a duplicate album, a wrong credit. Only database records are removed; music files are never touched. You'll see exactly what goes before anything is removed, and a backup is made first.</p>
+                <search>
+                    <form class="dbt-editor" id="dbt-rm-find">
+                        <div class="dbt-find">
+                            <div class="dbt-field">
+                                <label for="dbt-rm-q">Find records named or containing</label>
+                                <input type="search" id="dbt-rm-q" class="dbt-input" autocomplete="off" spellcheck="false" required>
+                            </div>
+                            <button type="submit">Search</button>
+                        </div>
+                        <fieldset class="dbt-fieldset">
+                            <legend>Look in</legend>
+                            <div class="dbt-radios">
+                                <label class="dbt-radio"><input type="radio" name="dbt-rm-cat" value="all" checked> Everything</label>
+                                <label class="dbt-radio"><input type="radio" name="dbt-rm-cat" value="artist"> Artists</label>
+                                <label class="dbt-radio"><input type="radio" name="dbt-rm-cat" value="album"> Albums</label>
+                                <label class="dbt-radio"><input type="radio" name="dbt-rm-cat" value="track"> Tracks</label>
+                                <label class="dbt-radio"><input type="radio" name="dbt-rm-cat" value="personnel"> Credits</label>
+                            </div>
+                        </fieldset>
+                    </form>
+                </search>
+                <p class="dbt-status" id="dbt-rm-find-status"></p>
+                <form class="dbt-editor" id="dbt-rm-form" aria-labelledby="dbt-rm-h" hidden>
+                    <h2 id="dbt-rm-h">Results</h2>
+                    <div class="dbt-results" id="dbt-rm-results"></div>
+                    <div class="dbt-actions">
+                        <button type="submit" class="mf-btn-danger">Remove the selected record…</button>
+                        <p class="dbt-status" id="dbt-rm-status"></p>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+</div>
 
-<style>
-    #artist-album-grid::-webkit-scrollbar, #personnel-rows-container::-webkit-scrollbar { width: 6px; }
-    #artist-album-grid::-webkit-scrollbar-thumb, #personnel-rows-container::-webkit-scrollbar-thumb { background: var(--mf-gold); border-radius: 3px; }
-</style>
+<!-- ================= DIALOGS ================= -->
+<dialog class="dbt-dialog" id="dbt-confirm" aria-labelledby="dbt-confirm-h">
+    <form id="dbt-confirm-form" novalidate>
+        <h2 id="dbt-confirm-h"></h2>
+        <div class="dbt-dialog-body" id="dbt-confirm-body"></div>
+        <div class="dbt-field" id="dbt-confirm-typed-box" hidden>
+            <label for="dbt-confirm-typed">To confirm, type the word <strong>remove</strong></label>
+            <input type="text" id="dbt-confirm-typed" class="dbt-input" autocomplete="off" spellcheck="false" aria-describedby="dbt-confirm-typed-err">
+            <p class="dbt-status is-error" id="dbt-confirm-typed-err"></p>
+        </div>
+        <div class="dbt-dialog-actions">
+            <button type="button" class="dbt-secondary" id="dbt-confirm-cancel" commandfor="dbt-confirm" command="close">Cancel</button>
+            <button type="submit" id="dbt-confirm-ok">OK</button>
+        </div>
+    </form>
+</dialog>
 
-<script>
-    // --- INITIALIZATION GATE ---
-    // Brute-force ensures the UI automatically loads the "Modify Artist" search pane on initial startup
-    (function() {
-        const defaultTab = document.getElementById('tab-artist');
-        if (defaultTab && window.metaforge && window.metaforge.database_tools) {
-            window.metaforge.database_tools.showPanel('artist', defaultTab);
-        } else {
-            // Backup fallback if the framework namespace is still registering during DOM load
-            document.addEventListener("DOMContentLoaded", function() {
-                const retryTab = document.getElementById('tab-artist');
-                if (retryTab && window.metaforge && window.metaforge.database_tools) {
-                    window.metaforge.database_tools.showPanel('artist', retryTab);
-                }
-            });
-        }
-    })();
-</script>
+<dialog class="dbt-dialog" id="dbt-merge" aria-labelledby="dbt-merge-h">
+    <h2 id="dbt-merge-h">Merge with another artist</h2>
+    <div class="dbt-dialog-body">
+        <p>Use this when the same artist is in the database twice, under two spellings. Everything the other record has (albums, tracks, credits, and a biography, photo or country this one lacks) moves to one artist.</p>
+    </div>
+    <search>
+        <form class="dbt-find" id="dbt-merge-find">
+            <div class="dbt-field">
+                <label for="dbt-merge-q">Find the other artist</label>
+                <input type="search" id="dbt-merge-q" class="dbt-input" autocomplete="off" spellcheck="false" required>
+            </div>
+            <button type="submit">Search</button>
+        </form>
+    </search>
+    <form id="dbt-merge-form" novalidate>
+        <p class="dbt-status" id="dbt-merge-find-status"></p>
+        <fieldset class="dbt-fieldset" id="dbt-merge-pick-box" hidden>
+            <legend>The other artist</legend>
+            <ul class="dbt-pick-list" id="dbt-merge-pick"></ul>
+        </fieldset>
+        <fieldset class="dbt-fieldset" id="dbt-merge-name-box" hidden>
+            <legend>Name to keep</legend>
+            <div class="dbt-radios" id="dbt-merge-names"></div>
+        </fieldset>
+        <p class="dbt-status" id="dbt-merge-status"></p>
+        <div class="dbt-dialog-actions">
+            <button type="button" class="dbt-secondary" commandfor="dbt-merge" command="close">Cancel</button>
+            <button type="submit">Show what changes</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="dbt-dialog is-wide" id="dbt-track" aria-labelledby="dbt-track-h">
+    <form id="dbt-track-form" novalidate>
+        <h2 id="dbt-track-h">Track details</h2>
+        <div class="dbt-grid">
+            <div class="dbt-field"><label for="dbt-tr-genre">Genre</label><select id="dbt-tr-genre" class="dbt-input"></select></div>
+            <div class="dbt-field"><label for="dbt-tr-sub">Sub-genre</label><select id="dbt-tr-sub" class="dbt-input"></select></div>
+            <div class="dbt-field"><label for="dbt-tr-mood">Mood</label><select id="dbt-tr-mood" class="dbt-input"></select></div>
+            <div class="dbt-field"><label for="dbt-tr-texture">Sonic texture</label><select id="dbt-tr-texture" class="dbt-input"></select></div>
+            <div class="dbt-field"><label for="dbt-tr-flavor">Emotional flavour</label><select id="dbt-tr-flavor" class="dbt-input"></select></div>
+        </div>
+        <fieldset class="dbt-fieldset">
+            <legend>Measured from the audio</legend>
+            <div class="dbt-grid">
+                <div class="dbt-field"><label for="dbt-tr-bpm">BPM</label><input type="text" id="dbt-tr-bpm" class="dbt-input" inputmode="numeric" autocomplete="off"></div>
+                <div class="dbt-field"><label for="dbt-tr-key">Key</label><select id="dbt-tr-key" class="dbt-input"></select></div>
+                <div class="dbt-field"><label for="dbt-tr-intensity">Intensity (1 to 10)</label><input type="text" id="dbt-tr-intensity" class="dbt-input" inputmode="numeric" autocomplete="off"></div>
+            </div>
+            <div class="dbt-row">
+                <button type="button" class="dbt-secondary" id="dbt-tr-reanalyze">Measure again from the audio</button>
+                <p class="dbt-status" id="dbt-tr-reanalyze-status"></p>
+            </div>
+            <p class="dbt-hint">Measuring again saves the new BPM, key and intensity straight away.</p>
+        </fieldset>
+        <details>
+            <summary>MusicBrainz and AcoustID identifiers</summary>
+            <div class="dbt-grid">
+                <div class="dbt-field"><label for="dbt-tr-mbtrack">MusicBrainz track ID</label><input type="text" id="dbt-tr-mbtrack" class="dbt-input dbt-code" spellcheck="false" autocomplete="off"></div>
+                <div class="dbt-field"><label for="dbt-tr-mbrec">MusicBrainz recording ID</label><input type="text" id="dbt-tr-mbrec" class="dbt-input dbt-code" spellcheck="false" autocomplete="off"></div>
+                <div class="dbt-field"><label for="dbt-tr-mbwork">MusicBrainz work ID</label><input type="text" id="dbt-tr-mbwork" class="dbt-input dbt-code" spellcheck="false" autocomplete="off"></div>
+                <div class="dbt-field"><label for="dbt-tr-mbartist">MusicBrainz artist ID</label><input type="text" id="dbt-tr-mbartist" class="dbt-input dbt-code" spellcheck="false" autocomplete="off"></div>
+                <div class="dbt-field"><label for="dbt-tr-acoustid">AcoustID</label><input type="text" id="dbt-tr-acoustid" class="dbt-input dbt-code" spellcheck="false" autocomplete="off"></div>
+            </div>
+        </details>
+        <p class="dbt-status" id="dbt-tr-status"></p>
+        <div class="dbt-dialog-actions">
+            <button type="button" class="dbt-secondary" commandfor="dbt-track" command="close">Cancel</button>
+            <button type="submit">Save track details</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="dbt-dialog" id="dbt-json" aria-labelledby="dbt-json-h">
+    <form id="dbt-json-form" novalidate>
+        <h2 id="dbt-json-h">Add credits from JSON</h2>
+        <div class="dbt-field">
+            <label for="dbt-json-text">Credits as JSON</label>
+            <textarea id="dbt-json-text" class="dbt-input dbt-code" rows="9" spellcheck="false" aria-describedby="dbt-json-hint dbt-json-status"></textarea>
+        </div>
+        <p class="dbt-hint" id="dbt-json-hint">A list of credits, each with a name and a role, and optionally the tracks: <span class="dbt-code">[{"name": "Steve Cropper", "role": "Guitar", "track_scope": "1, 3"}]</span>. They're added to the list; nothing is saved until you choose Save changes.</p>
+        <p class="dbt-status" id="dbt-json-status"></p>
+        <div class="dbt-dialog-actions">
+            <button type="button" class="dbt-secondary" commandfor="dbt-json" command="close">Cancel</button>
+            <button type="submit">Add these credits</button>
+        </div>
+    </form>
+</dialog>
+<!-- --- END OF FILE database_tools.mfi --- -->

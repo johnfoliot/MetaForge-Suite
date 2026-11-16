@@ -24,6 +24,19 @@ sys.path.insert(0, str(ROOT / "ui"))
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
+# Sandbox (v2, 2026-11-15): a folder as the second argument makes the server
+# use <folder>\appdata\metaforge.db and <folder>\data (taxonomy, moods,
+# MusicBrainz logs) instead of the live ones, so tools that write can be
+# tested on copies (e.g. the Database Tools test set: copies of the
+# database, the logs and some albums' MP3s). Must run before `import app`.
+if len(sys.argv) > 2:
+    from common import config_handler
+    box = Path(sys.argv[2])
+    config_handler.APPDATA_MF = box / "appdata"
+    config_handler.DB_PATH = box / "appdata" / "metaforge.db"
+    config_handler.DATA_DIR = box / "data"
+    print(f"[dev] SANDBOX: database {config_handler.DB_PATH}, data {config_handler.DATA_DIR}")
+
 import app as mf  # noqa: E402  (importing does not start the window; only __main__ does)
 
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 5050
