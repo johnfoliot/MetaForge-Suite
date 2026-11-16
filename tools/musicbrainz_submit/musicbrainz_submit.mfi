@@ -1,133 +1,263 @@
 <!-- --- START OF FILE musicbrainz_submit.mfi --- -->
+<!-- ======================================================================
+     MetaForge Interface: MusicBrainz Submit
+     v2 (2026-11-16): album pass. Left: albums with credits MusicBrainz
+     doesn't have (search, order, skipped). Right: one album's credits as
+     ticked checkboxes grouped by relationship; "Open in MusicBrainz" sends
+     up to 25 at a time to the release's own relationship editor.
+     No inline styles, no HTML from the server, delegated listeners.
+     ====================================================================== -->
+<style>
+    .mbs-workbench [hidden] { display: none !important; }
+    .mbs-workbench {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    /* --- LEFT: ALBUM LIST --- */
+    .mbs-albums {
+        flex: 0 0 min(max(calc(34% - 0.5rem), 19rem), 42%);   /* widens with text, never squeezes the album */
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .mbs-find {
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.4rem 0.6rem;
+        padding: 0.75rem 0.9rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .mbs-find label { font-size: 0.875rem; color: var(--text-muted); }
+    .mbs-find .mbs-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+    .mbs-find input[type="search"], .mbs-find select { min-width: 0; font-size: 0.9375rem; }
+    .mbs-find .mbs-check-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: var(--text-primary); }
+    #mbs-album-count { grid-column: 1 / -1; margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+
+    .mbs-list-outer { flex: 1; display: flex; min-height: 0; }
+    .mbs-list {
+        position: relative;   /* contains hidden screen-reader text */
+        flex: 1;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        overflow-y: auto;
+    }
+    .mbs-list li { border-bottom: 1px solid var(--border-subtle); }
+    .mbs-album-btn {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.1rem 0.6rem;
+        width: 100%;
+        padding: 0.5rem 0.9rem;
+        background: transparent;
+        color: var(--text-primary) !important;   /* layout.css forces button text colour */
+        border: 0;
+        border-radius: 0;
+        text-align: start;
+        font: inherit;
+        cursor: pointer;
+    }
+    .mbs-album-btn:hover { background: var(--surface-raised); filter: none; }
+    .mbs-album-btn[aria-current="true"] { background: var(--surface-raised); box-shadow: inset 4px 0 0 var(--mf-gold); }
+    .mbs-album-btn:focus-visible { outline: 2px solid var(--mf-gold); outline-offset: -2px; }
+    .mbs-a-title { font-size: 0.9375rem; overflow-wrap: anywhere; }
+    .mbs-a-artist { grid-column: 1; font-size: 0.8125rem; color: var(--text-muted); overflow-wrap: anywhere; }
+    .mbs-a-count { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 0.8125rem; color: var(--text-muted); text-align: end; }
+    .mbs-list-empty { padding: 0.9rem; margin: 0; color: var(--text-muted); font-size: 0.9375rem; }
+
+    /* --- RIGHT: ONE ALBUM --- */
+    .mbs-album {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    /* Title and credits scroll together (so large text never pushes the
+       action off-screen); the action bar sits below, never over a field. */
+    .mbs-scroll {
+        position: relative;   /* contains hidden screen-reader text */
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+    }
+    .mbs-album-head {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.35rem 0.9rem;
+        padding: 0.7rem 0.9rem 0.6rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .mbs-album-title { flex: 1 1 16rem; min-width: 0; }
+    .mbs-album-head h2 { margin: 0; font-size: 1.0625rem; color: var(--mf-gold); overflow-wrap: anywhere; }
+    .mbs-album-head .mbs-sub { margin: 0.15rem 0 0; font-size: 0.875rem; color: var(--text-muted); }
+    .mbs-head-actions { flex: 0 1 auto; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    #mbs-progress { flex: 1 1 100%; display: grid; grid-template-columns: 1fr; gap: 0.25rem; }
+    #mbs-progress-bar {
+        height: 0.6rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .mbs-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+    #mbs-progress-label { margin: 0; font-size: 0.875rem; color: var(--text-primary); }
+
+    #mbs-form { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .mbs-body { padding: 0.75rem 0.9rem; }
+    .mbs-intro { margin: 0; color: var(--text-muted); font-size: 0.9375rem; line-height: 1.45; max-width: 46rem; }
+    .mbs-intro + .mbs-intro { margin-top: 0.6rem; }
+    #mbs-check-log:empty { display: none; }
+    #mbs-check-log { margin-bottom: 0.6rem; }
+
+    .mbs-group {
+        margin: 0 0 0.8rem;
+        padding: 0.4rem 0.75rem 0.6rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-subtle);
+    }
+    .mbs-group legend { padding: 0 0.3rem; color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
+    .mbs-credit {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.1rem 0.5rem;
+        padding: 0.3rem 0;
+        align-items: start;
+    }
+    .mbs-credit + .mbs-credit { border-top: 1px solid var(--border-subtle); }
+    .mbs-credit input[type="checkbox"] { margin: 0.2rem 0 0; width: 1.05rem; height: 1.05rem; accent-color: var(--mf-gold); }
+    .mbs-credit label { font-size: 0.9375rem; color: var(--text-primary); overflow-wrap: anywhere; }
+    .mbs-credit .mbs-meta { grid-column: 2; font-size: 0.8125rem; color: var(--text-muted); overflow-wrap: anywhere; }
+    .mbs-credit .mbs-need { grid-column: 2; font-size: 0.8125rem; color: var(--status-warning); overflow-wrap: anywhere; }
+    .mbs-credit .mbs-need a { color: inherit; text-decoration: underline; }
+    .mbs-credit .mbs-pick { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.8125rem; }
+    .mbs-credit .mbs-pick select { max-width: 100%; font-size: 0.875rem; }
+
+    .mbs-other { margin: 0 0 0.6rem; border: 1px solid var(--border-subtle); background: var(--surface-raised); }
+    .mbs-other summary { padding: 0.45rem 0.75rem; cursor: pointer; font-size: 0.9375rem; color: var(--text-primary); }
+    .mbs-other summary:focus-visible { outline: 2px solid var(--mf-gold); outline-offset: -2px; }
+    .mbs-other ul { margin: 0; padding: 0 0.75rem 0.6rem 2rem; font-size: 0.875rem; line-height: 1.45; color: var(--text-primary); }
+    .mbs-other .mbs-why { color: var(--text-muted); }
+    .mbs-other p { margin: 0; padding: 0 0.75rem 0.5rem; font-size: 0.8125rem; color: var(--text-muted); }
+
+    .mbs-foot {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem 0.9rem;
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid var(--border-subtle);
+    }
+    #mbs-foot-note { flex: 1 1 16rem; margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+
+    /* --- BATCH: what happened in the MusicBrainz window --- */
+    #mbs-batch { margin: 0 0 0.8rem; padding: 0.6rem 0.75rem; border: 1px solid var(--mf-gold); background: var(--surface-raised); }
+    #mbs-batch h3 { margin: 0 0 0.35rem; font-size: 0.9375rem; color: var(--mf-gold); }
+    #mbs-batch p { margin: 0 0 0.35rem; font-size: 0.875rem; line-height: 1.45; color: var(--text-primary); }
+    #mbs-batch ul { margin: 0; padding-left: 1.2rem; font-size: 0.8125rem; color: var(--text-primary); }
+
+    .mbs-dialog {
+        width: min(32rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .mbs-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .mbs-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .mbs-dialog p { margin: 0 0 1rem; font-size: 0.9375rem; line-height: 1.45; }
+    .mbs-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">MusicBrainz Submit</h1>
     <button type="button" class="mf-help-btn" data-mf-help="musicbrainz_submit" data-mf-help-name="MusicBrainz Submit">Help</button>
 </div>
 
-<div id="mfi-content" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+<div class="active_stage">
+<div class="mbs-workbench">
 
-    <div role="tablist" aria-label="Correction categories" style="display:flex; gap:4px; padding:10px 15px 0 15px; border-bottom:1px solid #333;">
-        <button role="tab" id="mbs-tab-year" aria-selected="true" aria-controls="mbs-panel-year" tabindex="0"
-                class="mf-button-gold-fixed mbs-tab" style="border-radius:4px 4px 0 0;"
-                onclick="window.metaforge.musicbrainz_submit.switchTab('year')"
-                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); window.metaforge.musicbrainz_submit.switchTab('year');}">
-            Original Year Corrections
-        </button>
-        <button role="tab" id="mbs-tab-personnel" aria-selected="false" aria-controls="mbs-panel-personnel" tabindex="-1"
-                class="mf-button-gold-fixed mbs-tab" style="border-radius:4px 4px 0 0;"
-                onclick="window.metaforge.musicbrainz_submit.switchTab('personnel')"
-                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); window.metaforge.musicbrainz_submit.switchTab('personnel');}">
-            Personnel Corrections
-        </button>
-    </div>
-
-    <!-- YEAR CORRECTIONS PANEL -->
-    <div id="mbs-panel-year" role="tabpanel" aria-labelledby="mbs-tab-year" style="display:flex; flex-direction:column; flex:1; min-height:0;">
-        <div style="display:flex; gap:20px; padding:10px 15px; align-items:center;">
-            <span class="mf-card-label" style="color:var(--mf-gold);"><span id="mbs-count-pending">0</span> Pending</span>
-            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-count-submitted">0</span> Submitted</span>
-            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-count-dismissed">0</span> Dismissed</span>
-        </div>
-
-        <div style="flex:1; display:flex; min-height:0; margin:0 15px 10px 15px;">
-            <div id="mbs-queue-viewport" class="mf-hide-native-scrollbar" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; border-right:none;">
-                <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
-                    <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
-                        <tr>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Track</th>
-                            <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Current Year</th>
-                            <th scope="col" style="padding:8px; text-align:center; color:var(--mf-gold); width:90px;">Proposed Year</th>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mbs-queue-body" style="color:var(--text-output);">
-                        <tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
-                    </tbody>
-                </table>
+    <section class="mbs-albums" aria-labelledby="mbs-albums-h">
+        <h2 id="mbs-albums-h" class="mf-visually-hidden">Albums</h2>
+        <div class="mbs-find">
+            <div class="mbs-field">
+                <label for="mbs-search">Find an album or artist</label>
+                <input type="search" id="mbs-search" autocomplete="off">
             </div>
-            <!-- Custom scrollbar, shared implementation -- see
-                 layout.css section 10 / metaforge_core.js's
-                 MFScrollbar. No per-tool JS needed. -->
-            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mbs-queue-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                <div class="mf-scroll-track">
-                    <div class="mf-scroll-thumb"></div>
+            <div class="mbs-field">
+                <label for="mbs-sort">Order</label>
+                <select id="mbs-sort">
+                    <option value="most">Most credits</option>
+                    <option value="alpha">Artist A–Z</option>
+                    <option value="newest">Newest first</option>
+                </select>
+            </div>
+            <div class="mbs-check-row"><input type="checkbox" id="mbs-show-skipped"><label for="mbs-show-skipped">Show skipped albums</label></div>
+            <p id="mbs-album-count">Loading the albums…</p>
+        </div>
+        <div class="mbs-list-outer">
+            <ul id="mbs-list" class="mbs-list" aria-labelledby="mbs-albums-h"></ul>
+        </div>
+    </section>
+
+    <section class="mbs-album" aria-labelledby="mbs-album-h">
+      <form id="mbs-form" class="mbs-album-form">
+       <div class="mbs-scroll">
+        <div class="mbs-album-head">
+            <div class="mbs-album-title">
+                <h2 id="mbs-album-h" tabindex="-1">Choose an album</h2>
+                <p class="mbs-sub" id="mbs-album-sub"></p>
+            </div>
+            <div class="mbs-head-actions">
+                <button type="button" class="mf-button-gold-fixed" id="mbs-check" hidden>Check MusicBrainz again</button>
+                <button type="button" class="mf-button-gold-fixed" id="mbs-skip" hidden>Skip this album</button>
+            </div>
+            <div id="mbs-progress" hidden>
+                <div id="mbs-progress-bar" role="progressbar" aria-label="Checking MusicBrainz" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                    <div id="mbs-progress-fill" class="mbs-progress-fill mf-progress-shimmer"></div>
                 </div>
-                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+                <p id="mbs-progress-label"></p>
             </div>
         </div>
-    </div>
 
-    <!-- PERSONNEL CORRECTIONS PANEL -->
-    <div id="mbs-panel-personnel" role="tabpanel" aria-labelledby="mbs-tab-personnel" style="display:none; flex-direction:column; flex:1; min-height:0;">
-        <div style="display:flex; gap:20px; padding:10px 15px; align-items:center;">
-            <span class="mf-card-label" style="color:var(--mf-gold);"><span id="mbs-p-count-pending">0</span> Pending</span>
-            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-p-count-submitted">0</span> Submitted</span>
-            <span class="mf-card-label" style="color:var(--text-message);"><span id="mbs-p-count-dismissed">0</span> Dismissed</span>
-        </div>
-
-        <div style="flex:1; display:flex; min-height:0; margin:0 15px 10px 15px;">
-            <div id="mbs-p-queue-viewport" class="mf-hide-native-scrollbar" style="flex:1; overflow-y:auto; background:var(--bg-stage); border:1px solid #000; border-right:none;">
-                <table style="width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem;">
-                    <thead style="background:var(--bg-stage); position:sticky; top:0; z-index:10; border-bottom:1px solid var(--mf-gold);">
-                        <tr>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold);">Credited Name</th>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:160px;">Role</th>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:140px;">Source / Confidence</th>
-                            <th scope="col" style="padding:8px; text-align:left; color:var(--mf-gold); width:260px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mbs-p-queue-body" style="color:var(--text-output);">
-                        <tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Loading candidates...</td></tr>
-                    </tbody>
-                </table>
+            <div id="mbs-body" class="mbs-body">
+                <p class="mbs-intro">These albums have credits that Discogs, AllMusic or Wikipedia list (or that you added or confirmed) but MusicBrainz doesn't have yet.</p>
+                <p class="mbs-intro">Choose an album. MetaForge checks MusicBrainz first, so nothing it already has is sent again. Untick anything you don't want to send, then open MusicBrainz: MetaForge adds the ticked credits and the edit note there, and you click "Enter edit".</p>
             </div>
-            <!-- Custom scrollbar, shared implementation -- see
-                 layout.css section 10 / metaforge_core.js's
-                 MFScrollbar. No per-tool JS needed. -->
-            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="mbs-p-queue-viewport" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                <div class="mf-scroll-track">
-                    <div class="mf-scroll-thumb"></div>
-                </div>
-                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+       </div>
+            <div class="mbs-foot" id="mbs-foot" hidden>
+                <p id="mbs-foot-note"></p>
+                <button type="submit" class="mf-button-gold-fixed" id="mbs-open">Open in MusicBrainz</button>
             </div>
-        </div>
-    </div>
+        </form>
+    </section>
 
-    <div id="mbs-status-bar" role="status" aria-live="polite"
-         style="background: var(--bg-main); border-top: 1px solid var(--mf-gold); padding: 4px 15px; font-size: 0.75rem; height: 28px; display: flex; align-items: center;">
-        <span id="mbs-status-text" style="color: var(--status-success);">Ready.</span>
-    </div>
+</div>
 </div>
 
-<style>
-/* Tab visual state driven by aria-selected (which switchTab() already
-   toggles), not a separate JS style-swap or markup baked to whichever
-   tab happened to be active at parse time -- the latter is what caused
-   the active tab to still LOOK inactive after switching (John,
-   2026-07-09). .mbs-tab's base look (mf-button-gold-fixed, solid gold)
-   IS the selected look, so only the deselected state needs an override. */
-.mbs-tab[aria-selected="false"] {
-    background: transparent !important;
-    border: 1px solid var(--mf-gold);
-    color: var(--mf-gold) !important;
-}
-
-/* Album-group header rows (Yandex Mail-style thread collapse, John's
-   idea 2026-07-09) -- clickable, so it needs a visible affordance
-   beyond the chevron alone. */
-.mbs-group-header:hover, .mbs-group-header:focus {
-    background: var(--bg-accent) !important;
-    outline: 1px solid var(--mf-gold);
-    outline-offset: -1px;
-}
-</style>
-
-<script>
-    if (window.metaforge && window.metaforge.musicbrainz_submit) {
-        window.metaforge.musicbrainz_submit.init();
-    }
-</script>
+<dialog class="mbs-dialog" id="mbs-entered" aria-labelledby="mbs-entered-h">
+    <form method="dialog">
+        <h2 id="mbs-entered-h">Did you click "Enter edit"?</h2>
+        <p id="mbs-entered-text">The MusicBrainz window is closed. MetaForge can't see whether the edit was entered there.</p>
+        <div class="mbs-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="yes" autofocus>Yes, I entered the edit</button>
+            <button type="submit" class="mf-button-gold-fixed" value="no">No, nothing was sent</button>
+        </div>
+    </form>
+</dialog>
 <!-- --- END OF FILE musicbrainz_submit.mfi --- -->

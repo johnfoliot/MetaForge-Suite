@@ -1,17 +1,39 @@
-<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v2 (2026-11-16): rewritten for the album pass. The 1.x opening prose
+     (moved from the screen header) described one-at-a-time date corrections
+     and "Mark Submitted", which no longer exist, so it was replaced. -->
 <h3 class="help first">What this tool does</h3>
-<p class="help">Reviews high-confidence corrections the resolution waterfall found that <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz's own data doesn't have yet</span>. Opening a candidate launches MusicBrainz's own editor in a companion window, pre-filled with the evidence MetaForge Studio found -- MetaForge Studio never submits anything itself, you always review and submit it yourself.</p>
+<p class="help">Gives back to MusicBrainz. While processing albums, MetaForge finds credits (producers, players, writers) that Discogs, AllMusic or Wikipedia list but MusicBrainz doesn't have. This tool sends them to MusicBrainz an album at a time. MetaForge never submits anything itself: you check the edit on MusicBrainz's own page and enter it.</p>
 
-<h3 class="white">MusicBrainz Submit</h3>
-<p>Reviews original-release-date corrections the resolution waterfall found during Intelli-Tagger runs that differ from what MusicBrainz currently shows, and that MusicBrainz's own data doesn't already have.</p>
+<h3>How to send an album's credits</h3>
+<ol>
+    <li>Choose an album from the list. <strong>Find an album or artist</strong> narrows the list; <strong>Order</strong> sorts it by most credits, artist, or newest first.</li>
+    <li>MetaForge checks MusicBrainz first. Credits it already has are set aside, and each person is matched to their MusicBrainz artist.</li>
+    <li>The rest are listed by role, ticked. Untick anything you don't want to send; MetaForge remembers.</li>
+    <li>Choose <strong>Open in MusicBrainz</strong> (or press Enter). The release's relationship editor opens in a second window, and MetaForge adds the ticked credits there (up to 25 at a time) with one edit note saying where each came from.</li>
+    <li>Check them on that page and click <strong>Enter edit</strong>. Then close the window. MetaForge asks whether you entered the edit, and if you did, it lists those credits as waiting.</li>
+</ol>
+<p class="tool_notes">The MusicBrainz window keeps you logged in, so you only log in once.</p>
+
+<h3>What's sent</h3>
 <ul>
-    <li><strong>Open in MusicBrainz:</strong> Launches MusicBrainz's own Add Release wizard in a companion window, pre-filled with the evidence MetaForge Studio found (label/catalog/date from Discogs, or a citation from AI web search). Only fields with real evidence are filled in -- format, barcode, and anything MetaForge Studio couldn't verify are left blank for you to research directly in the wizard.</li>
-    <li><strong>Mark Submitted:</strong> Records that you've actually gone through and submitted the edit on MusicBrainz's site. MetaForge Studio never submits anything itself -- this is just bookkeeping so the same candidate doesn't keep showing up.</li>
-    <li><strong>Dismiss:</strong> Hides a candidate you've reviewed and decided not to submit (e.g. the evidence isn't solid enough, or someone else already fixed it on MusicBrainz).</li>
+    <li><strong>Sources:</strong> credits from Discogs, AllMusic and Wikipedia, your own entries, and AI web search credits you confirmed in the verify window. Unconfirmed AI credits are never sent.</li>
+    <li><strong>Roles:</strong> producer, arranger, composer, writer, lyricist, vocals, backing vocals, and named instruments. Instruments are matched to MusicBrainz's own instrument list ("Sax (Tenor)" becomes "tenor saxophone"); a role with no exact match isn't sent.</li>
+    <li><strong>Artists:</strong> a credit goes out only when the person is matched for certain: by their MusicBrainz ID, or because exactly one MusicBrainz artist has that name. Otherwise MetaForge shows the likely artists and you choose (or choose "None of these").</li>
 </ul>
-<p class="tool_notes">Note: the companion MusicBrainz window shares a persistent login with this app -- you only need to log in once, ever, not on every submission.</p>
 
-<h3 class="white">"Confirm form submission... originating from null" -- is this safe?</h3>
-<p>Yes. This is your browser engine's own built-in security prompt, not anything specific to MetaForge Studio or a sign something's wrong.</p>
-<p>The companion window is built from HTML content handed to it directly rather than loaded from a real web address, so it has what browsers call a "null origin." When that page automatically submits your pre-filled data to MusicBrainz's real site (a different, genuine address), the browser recognizes this as a cross-site submission from a source with no verifiable address, and asks you to confirm before continuing -- exactly the same protection that stops a malicious page from silently submitting something on your behalf without you noticing.</p>
-<p class="tool_notes">You'll see this once per submission. Click Continue to proceed to MusicBrainz's real page, where you can review everything MetaForge Studio filled in before submitting anything.</p>
+<h3>What isn't sent, and why</h3>
+<ul>
+    <li><strong>Already on MusicBrainz:</strong> found on the release, a track or a song.</li>
+    <li><strong>Similar credit already there:</strong> MusicBrainz has the same person credited differently (say, "bass" where the source says "double bass"). These start unticked; tick one only if it's a different credit.</li>
+    <li><strong>Only on some tracks:</strong> the source credits certain tracks only, so it isn't a credit for the whole release. Sending credits to single tracks is a later step.</li>
+    <li><strong>Can't be sent:</strong> roles too general for MusicBrainz ("Featuring", "Musician") and kinds MetaForge can't send yet (engineering, mastering, artwork and so on).</li>
+    <li><strong>Confirmed against a different release:</strong> if the page you confirmed a credit with names a different album, the credit starts unticked, with the link, so you can check.</li>
+</ul>
+
+<h3>Waiting for MusicBrainz</h3>
+<p>Edits by newer MusicBrainz editors are voted on for up to a week before they show. MetaForge checks again each time you open the album (or choose <strong>Check MusicBrainz again</strong>), and moves a credit to "added by you" once it's there.</p>
+
+<h3>Skipping an album</h3>
+<p><strong>Skip this album</strong> hides it from the list. Tick <strong>Show skipped albums</strong> to see it again, and choose <strong>Stop skipping this album</strong> to bring it back.</p>
+<!-- --- END OF FILE help.mfi --- -->

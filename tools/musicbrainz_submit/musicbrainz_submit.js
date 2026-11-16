@@ -1,777 +1,666 @@
 /* --- START OF FILE musicbrainz_submit.js --- */
 /**
- * MetaForge Studio: MusicBrainz Submit Logic Bridge
- * Role: Renders the original-year correction review queue and opens a
- * seeded MusicBrainz Add Release wizard in a companion "pseudo-tab"
- * window per candidate -- MetaForge builds the evidence-filled form,
- * MusicBrainz's own website is where the human actually reviews/submits.
- * Physical Location: \tools\musicbrainz_submit\musicbrainz_submit.js
+ * MetaForge Studio: MusicBrainz Submit
+ * v2 (2026-11-16): album pass. Choose an album; MetaForge checks
+ * MusicBrainz (what's already there, which artist each name is, which
+ * instrument names exist); the rest are ticked checkboxes grouped by
+ * relationship; "Open in MusicBrainz" sends up to 25 to the release's
+ * relationship editor, where the user clicks "Enter edit".
+ * The tool's script loads once per page; init() runs on every visit.
  */
-
 window.metaforge = window.metaforge || {};
+
 window.metaforge.musicbrainz_submit = {
-    state: {
-        candidates: [],
-        personnelCandidates: [],
-        personnelLoaded: false,
-        // Album-grouped rows (Yandex Mail-style thread collapse, John's
-        // idea 2026-07-09 -- one album's worth of rows was an
-        // overwhelming "wall of data" otherwise, e.g. 40 personnel rows
-        // for a single 16-track album). Keyed by "artist::album", one
-        // Set per tab since expand state is independent per queue.
-        // Ephemeral by design, same as personnelLoaded below -- reset on
-        // every fresh visit, not persisted.
-        expandedGroups: { year: new Set(), personnel: new Set() }
-    },
+    BATCH: 25,
+    SORT_KEY: 'mbs-sort',
+    albums: new Map(),      // mf_id -> {data, li}
+    current: null,          // {album, credits}
+    checking: false,
+    batch: null,            // {token, timer}
 
-    init: function() {
-        // This tool's namespace object is a singleton that survives
-        // across tool re-visits (metaforge_core.js's loadTool() rebuilds
-        // the DOM fresh each time but never recreates window.metaforge.*
-        // objects, only calls .init() again) -- so personnelLoaded must
-        // be reset here, or a flag set true on an earlier visit this
-        // session permanently skips the fetch on every later visit,
-        // leaving the freshly-injected "Loading candidates..." row
-        // frozen forever (confirmed live 2026-07-09, John).
-        this.state.personnelLoaded = false;
-        this.state.personnelCandidates = [];
-        this.state.expandedGroups = { year: new Set(), personnel: new Set() };
-        setTimeout(() => {
-            const h1 = document.querySelector('h1.main');
-            if (h1) h1.focus();
-            this.loadCandidates();
-        }, 50);
-    },
+    url: (action) => `/run_tool_logic/musicbrainz_submit/${action}`,
 
-    switchTab: function(tab) {
-        const yearTab = document.getElementById('mbs-tab-year');
-        const personnelTab = document.getElementById('mbs-tab-personnel');
-        const yearPanel = document.getElementById('mbs-panel-year');
-        const personnelPanel = document.getElementById('mbs-panel-personnel');
-        if (!yearTab || !personnelTab || !yearPanel || !personnelPanel) return;
-
-        const isYear = tab === 'year';
-        yearTab.setAttribute('aria-selected', isYear ? 'true' : 'false');
-        yearTab.tabIndex = isYear ? 0 : -1;
-        personnelTab.setAttribute('aria-selected', isYear ? 'false' : 'true');
-        personnelTab.tabIndex = isYear ? -1 : 0;
-        yearPanel.style.display = isYear ? 'flex' : 'none';
-        personnelPanel.style.display = isYear ? 'none' : 'flex';
-
-        if (!isYear && !this.state.personnelLoaded) {
-            this.loadPersonnelCandidates();
-        }
-    },
-
-    escapeHtml: function(str) {
-        // Was a div.textContent/.innerHTML trick, which escapes &, <, >
-        // correctly but leaves double quotes untouched (John, 2026-07-13,
-        // real bug caught live: a name like Clifton "Jackie" Jackson,
-        // embedded raw into onclick="...('${key}')", prematurely
-        // terminates that double-quoted HTML attribute -- corrupting the
-        // button and everything after it in the markup, which is exactly
-        // why those buttons went unclickable). Explicit escaping instead,
-        // adding '"' -> '&quot;'.
-        //
-        // Deliberately does NOT also escape single quotes here -- every
-        // caller that embeds an escaped value inside a single-quoted JS
-        // string literal (onclick="...('${esc(x)}')") already handles
-        // that separately via .replace(/'/g, "\\'") on the result of
-        // this function. Escaping ' to &#39; here would decode back to a
-        // literal ' at HTML-parse time (same timing as &quot; -> "),
-        // which still needs JS backslash-escaping to be safe inside a
-        // single-quoted string -- &#39; alone wouldn't provide that, and
-        // would make the existing .replace(/'/g, ...) calls into
-        // silent no-ops (nothing left for them to find), reintroducing
-        // the same class of bug for names containing an apostrophe.
-        if (str === null || str === undefined) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    },
-
-    // Groups a flat candidate list by (artist, album) -- MusicBrainz's
-    // own primary mental model is albums, and a flat table of 40 rows
-    // for one album read as an undifferentiated wall of data. Groups
-    // with at least one pending/in_progress row sort first, then
-    // alphabetically, so albums still needing attention surface above
-    // ones that are fully resolved.
-    _groupByAlbum: function(rows) {
-        const groups = new Map();
-        for (const r of rows) {
-            const key = `${r.artist}::${r.album}`;
-            if (!groups.has(key)) {
-                groups.set(key, { key, artist: r.artist, album: r.album, rows: [], pending: 0, submitted: 0, dismissed: 0 });
-            }
-            const g = groups.get(key);
-            g.rows.push(r);
-            if (r.status === "submitted") g.submitted++;
-            else if (r.status === "dismissed") g.dismissed++;
-            else g.pending++; // "pending" and "in_progress" (stepper) both still need attention
-        }
-        const list = Array.from(groups.values());
-        list.sort((a, b) => {
-            const aOpen = a.pending > 0 ? 0 : 1;
-            const bOpen = b.pending > 0 ? 0 : 1;
-            if (aOpen !== bOpen) return aOpen - bOpen;
-            return `${a.artist}${a.album}`.localeCompare(`${b.artist}${b.album}`);
+    post: async function (action, body) {
+        const res = await fetch(this.url(action), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
         });
-        return list;
+        let data = {};
+        try { data = await res.json(); } catch (e) { /* not JSON */ }
+        if (!res.ok || data.status === 'error') throw new Error(data.message || `the server answered ${res.status}`);
+        return data;
     },
 
-    toggleGroup: function(tab, key) {
-        const set = this.state.expandedGroups[tab];
-        if (set.has(key)) set.delete(key); else set.add(key);
-        if (tab === "year") this.renderQueue(); else this.renderPersonnelQueue();
-    },
+    init: function () {
+        const $ = (id) => document.getElementById(id);
+        this.albums = new Map();
+        this.current = null;
+        let sort = 'most';
+        try { sort = localStorage.getItem(this.SORT_KEY) || 'most'; } catch (e) { /* storage blocked */ }
+        $('mbs-sort').value = ['most', 'alpha', 'newest'].includes(sort) ? sort : 'most';
 
-    // Shared collapsed/expanded header row for both queues -- colspan
-    // must match the tab's own column count (year: 5, personnel: 4,
-    // since personnel dropped its now-redundant Artist/Album column
-    // once every row already lives under a group header naming it).
-    _renderGroupHeader: function(tab, group, colspan) {
-        const esc = (s) => this.escapeHtml(s);
-        const expanded = this.state.expandedGroups[tab].has(group.key);
-        const chevron = expanded ? "▾" : "▸";
-        const parts = [];
-        if (group.pending) parts.push(`${group.pending} pending`);
-        if (group.submitted) parts.push(`${group.submitted} submitted`);
-        if (group.dismissed) parts.push(`${group.dismissed} dismissed`);
-        const keyEsc = esc(group.key).replace(/'/g, "\\'");
-        return `
-            <tr class="mbs-group-header" role="button" tabindex="0" aria-expanded="${expanded}"
-                onclick="window.metaforge.musicbrainz_submit.toggleGroup('${tab}', '${keyEsc}')"
-                onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); window.metaforge.musicbrainz_submit.toggleGroup('${tab}', '${keyEsc}');}">
-                <td colspan="${colspan}" style="padding:8px;">
-                    <span aria-hidden="true" style="display:inline-block; width:1em; color:var(--mf-gold);">${chevron}</span>
-                    <span style="color:var(--mf-gold); font-weight:bold;">${esc(group.artist)}</span>
-                    <em style="font-weight:normal;"> &mdash; ${esc(group.album)}</em>
-                    <span style="color:var(--text-message); font-weight:normal; font-size:0.8rem; margin-left:10px;">
-                        ${group.rows.length} item${group.rows.length === 1 ? "" : "s"} (${esc(parts.join(", "))})
-                    </span>
-                </td>
-            </tr>`;
-    },
-
-    loadCandidates: async function() {
-        this.updateStatus("Loading candidates...", "success");
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/list_candidates');
-            const data = await res.json();
-            if (data.status === "success") {
-                this.state.candidates = data.candidates;
-                this.renderQueue();
-                this.renderCounts(data.counts);
-                this.updateStatus(`${data.counts.pending} candidate(s) awaiting review.`, "success");
-            } else {
-                this.updateStatus(data.message || "Failed to load candidates.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error loading candidates.", "error");
+        $('mbs-search').addEventListener('input', () => this.applyView());
+        $('mbs-show-skipped').addEventListener('change', () => this.applyView());
+        $('mbs-sort').addEventListener('change', () => {
+            try { localStorage.setItem(this.SORT_KEY, $('mbs-sort').value); } catch (e) { /* storage blocked */ }
+            this.applyView(true);
+        });
+        $('mbs-list').addEventListener('click', (e) => {
+            const btn = e.target.closest('.mbs-album-btn');
+            if (btn) this.openAlbum(btn.dataset.id);
+        });
+        $('mbs-form').addEventListener('submit', (e) => { e.preventDefault(); this.openInMusicBrainz(); });
+        $('mbs-form').addEventListener('change', (e) => this.onFormChange(e));
+        $('mbs-check').addEventListener('click', () => this.runCheck());
+        $('mbs-skip').addEventListener('click', () => this.toggleSkip());
+        this.loadAlbums();
+        // Left while a MusicBrainz window was open: carry on with it here.
+        if (this.batch) {
+            if (this.batch.last) this.showBatch(this.batch.last);
+            clearTimeout(this.batch.timer);
+            this.pollBatch();
         }
     },
 
-    renderCounts: function(counts) {
-        const p = document.getElementById('mbs-count-pending');
-        const s = document.getElementById('mbs-count-submitted');
-        const d = document.getElementById('mbs-count-dismissed');
-        if (p) p.innerText = counts.pending;
-        if (s) s.innerText = counts.submitted;
-        if (d) d.innerText = counts.dismissed;
+    // --- ALBUM LIST ---------------------------------------------------------
+
+    loadAlbums: async function () {
+        const $ = (id) => document.getElementById(id);
+        let data;
+        try { data = await this.post('albums'); }
+        catch (err) {
+            if ($('mbs-album-count')) $('mbs-album-count').textContent = `The albums couldn't be loaded: ${err.message}`;
+            return;
+        }
+        const list = $('mbs-list');
+        if (!list) return;   // left the tool while loading
+        const keep = new Map();
+        data.albums.forEach((a) => {
+            const old = this.albums.get(a.mf_id);
+            const li = old ? old.li : this.albumItem(a);
+            if (old) this.fillAlbumItem(li, a);
+            keep.set(a.mf_id, { data: a, li });
+        });
+        this.albums.forEach((v, id) => { if (!keep.has(id)) v.li.remove(); });
+        this.albums = keep;
+        keep.forEach((v) => { if (!v.li.isConnected) list.append(v.li); });
+        this.applyView();
     },
 
-    renderQueue: function() {
-        const body = document.getElementById('mbs-queue-body');
+    albumItem: function (a) {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mbs-album-btn';
+        btn.dataset.id = a.mf_id;
+        const title = document.createElement('span');
+        title.className = 'mbs-a-title';
+        const artist = document.createElement('span');
+        artist.className = 'mbs-a-artist';
+        const count = document.createElement('span');
+        count.className = 'mbs-a-count';
+        btn.append(title, artist, count);
+        li.append(btn);
+        this.fillAlbumItem(li, a);
+        return li;
+    },
+
+    fillAlbumItem: function (li, a) {
+        const btn = li.firstElementChild;
+        btn.querySelector('.mbs-a-title').textContent = a.album;
+        btn.querySelector('.mbs-a-artist').textContent = a.artist;
+        const bits = [];
+        // Until MusicBrainz has been checked, many of these may already be there.
+        if (a.to_send) bits.push(a.checked ? `${a.to_send} to send` : `${a.to_send} to check`);
+        if (a.waiting) bits.push(`${a.waiting} waiting`);
+        if (a.skipped) bits.push('skipped');
+        btn.querySelector('.mbs-a-count').textContent = bits.join(', ');
+    },
+
+    applyView: function (announceSort) {
+        const $ = (id) => document.getElementById(id);
+        const list = $('mbs-list');
+        if (!list) return;
+        const q = $('mbs-search').value.trim().toLocaleLowerCase();
+        const showSkipped = $('mbs-show-skipped').checked;
+        const sort = $('mbs-sort').value;
+        const rows = [...this.albums.values()];
+        const cmpText = (x, y) => x.localeCompare(y, undefined, { sensitivity: 'base' });
+        rows.sort((x, y) => {
+            const a = x.data, b = y.data;
+            if (sort === 'alpha') return cmpText(a.artist, b.artist) || cmpText(a.album, b.album);
+            if (sort === 'newest') return (b.newest || '').localeCompare(a.newest || '') || cmpText(a.artist, b.artist);
+            return (b.to_send - a.to_send) || cmpText(a.artist, b.artist);
+        });
+        const move = Object.hasOwn(Element.prototype, 'moveBefore')
+            ? (n) => list.moveBefore(n, null) : (n) => list.append(n);
+        let shown = 0, credits = 0;
+        rows.forEach(({ data: a, li }) => {
+            move(li);
+            const match = !q || a.album.toLocaleLowerCase().includes(q) || a.artist.toLocaleLowerCase().includes(q);
+            li.hidden = !match || (a.skipped && !showSkipped);
+            if (!li.hidden) { shown++; credits += a.to_send; }
+        });
+        let empty = list.querySelector('.mbs-list-empty');
+        if (!shown) {
+            if (!empty) {
+                empty = document.createElement('li');
+                empty.className = 'mbs-list-empty';
+                list.append(empty);
+            }
+            empty.textContent = this.albums.size ? 'No albums match.' : 'Nothing to send: MusicBrainz has every credit MetaForge found.';
+        } else if (empty) {
+            empty.remove();
+        }
+        const order = { most: 'most credits first', alpha: 'artist A to Z', newest: 'newest first' }[sort];
+        const text = `${shown} album${shown === 1 ? '' : 's'}, ${credits} credit${credits === 1 ? '' : 's'} MusicBrainz may not have. Order: ${order}.`;
+        $('mbs-album-count').textContent = text;
+        if (announceSort) window.MFAnnounce(text);
+    },
+
+    markCurrent: function (mfId) {
+        this.albums.forEach((v, id) => {
+            const btn = v.li.firstElementChild;
+            if (id === mfId) btn.setAttribute('aria-current', 'true'); else btn.removeAttribute('aria-current');
+        });
+    },
+
+    // --- ONE ALBUM ----------------------------------------------------------
+
+    openAlbum: async function (mfId, { focusHeading = true } = {}) {
+        const $ = (id) => document.getElementById(id);
+        if (this.checking || this.batch) {
+            window.MFAnnounce(this.batch ? 'Finish with the MusicBrainz window first.' : 'Wait for the check to finish.');
+            return;
+        }
+        this.markCurrent(mfId);
+        const seq = this.openSeq = (this.openSeq || 0) + 1;
+        let data;
+        try { data = await this.post('album', { mf_id: mfId }); }
+        catch (err) {
+            if (seq !== this.openSeq || !$('mbs-body')) return;
+            $('mbs-album-h').textContent = 'This album couldn\'t be opened';
+            $('mbs-album-sub').textContent = err.message;
+            return;
+        }
+        // Another album was chosen meanwhile, or the tool was left.
+        if (seq !== this.openSeq || !$('mbs-body') || this.checking) return;
+        this.current = data;
+        this.render();
+        if (focusHeading) $('mbs-album-h').focus();
+        // Check when never checked, when sent credits may have arrived, or when
+        // an instrument name couldn't be checked last time.
+        const again = data.credits.some((c) => c.status === 'sent' || (c.status === 'pending' && !c.track
+            && c.relationship.kind === 'instrument' && !c.relationship.instrument_known));
+        if (!data.album.checked_at || again) this.runCheck();
+    },
+
+    /** Sorts the album's credits into what the screen shows. */
+    sortCredits: function (credits) {
+        const g = { send: [], waiting: [], there: [], tracks: [], no: [], trackScoped: 0 };
+        credits.forEach((c) => {
+            if (c.track) { g.trackScoped++; return; }
+            if (c.status === 'sent') { g.waiting.push(c); return; }
+            if (c.status === 'on_mb' || c.status === 'submitted') { g.there.push(c); return; }
+            if (!c.relationship.sendable) { (c.relationship.why === 'tracks' ? g.tracks : g.no).push(c); return; }
+            g.send.push(c);
+        });
+        return g;
+    },
+
+    /** Artist MBID to send with, or null while the user still has to choose. */
+    artistFor: function (c) {
+        if (c.artist_mbid) return c.artist_mbid;
+        const m = c.artist_match;
+        return m && m.status === 'exact' ? m.mbid : null;
+    },
+
+    ready: function (c, checked) {
+        if (!checked) return false;
+        if (c.relationship.kind === 'instrument' && !c.relationship.instrument_known) return false;
+        return !!this.artistFor(c);
+    },
+
+    render: function () {
+        const $ = (id) => document.getElementById(id);
+        const { album, credits } = this.current;
+        const checked = !!album.checked_at;
+        $('mbs-album-h').textContent = album.album;
+        $('mbs-album-sub').textContent = album.artist;
+        $('mbs-check').hidden = false;
+        $('mbs-skip').hidden = false;
+        $('mbs-skip').textContent = album.skipped ? 'Stop skipping this album' : 'Skip this album';
+
+        const body = $('mbs-body');
+        const keepBatch = $('mbs-batch');
+        body.replaceChildren();
+        if (keepBatch) body.append(keepBatch);
+        const log = document.createElement('div');
+        log.id = 'mbs-check-log';
+        log.className = 'mf-ev-log';
+        body.append(log);
+
+        const g = this.sortCredits(credits);
+        if (!checked) {
+            const p = document.createElement('p');
+            p.className = 'mbs-intro';
+            p.textContent = 'Checking MusicBrainz before anything can be sent…';
+            body.append(p);
+        }
+
+        // Ticked checkboxes, grouped by relationship.
+        const groups = new Map();
+        g.send.forEach((c) => {
+            const label = c.relationship.kind === 'instrument' ? 'Instruments' : c.relationship.label;
+            if (!groups.has(label)) groups.set(label, []);
+            groups.get(label).push(c);
+        });
+        groups.forEach((list, label) => {
+            const fs = document.createElement('fieldset');
+            fs.className = 'mbs-group';
+            const lg = document.createElement('legend');
+            lg.textContent = `${label} (${list.length})`;
+            fs.append(lg);
+            list.forEach((c) => fs.append(this.creditRow(c, checked)));
+            body.append(fs);
+        });
+        if (checked && !g.send.length) {
+            const p = document.createElement('p');
+            p.className = 'mbs-intro';
+            p.textContent = 'Nothing left to send for this album.';
+            body.append(p);
+        }
+
+        this.otherList(body, 'Waiting for MusicBrainz', g.waiting, (c) => [`${c.relationship.label}: ${c.name}`, ''],
+            'Sent from MetaForge. MusicBrainz shows them once the edit is accepted (edits by newer editors are voted on for up to a week); MetaForge checks each time you open the album.');
+        this.otherList(body, 'Already on MusicBrainz', g.there, (c) => [`${c.relationship.label || c.role}: ${c.name}`,
+            c.status === 'submitted' ? 'added by you' : '']);
+        this.otherList(body, 'Only on some tracks', g.tracks, (c) => [`${c.relationship.label}: ${c.name}`, c.tracks ? `tracks ${c.tracks}` : ''],
+            'These aren\'t credits for the whole release. Sending credits to single tracks is a later step.');
+        this.otherList(body, 'Can\'t be sent', g.no, (c) => [`${c.relationship.label}: ${c.name}`, c.relationship.reason]);
+        if (g.trackScoped) {
+            const p = document.createElement('p');
+            p.className = 'mbs-intro';
+            p.textContent = `${g.trackScoped} more credit${g.trackScoped === 1 ? ' is' : 's are'} for single tracks: a later step.`;
+            body.append(p);
+        }
+        $('mbs-foot').hidden = false;
+        this.updateFoot();
+    },
+
+    creditRow: function (c, checked) {
+        const row = document.createElement('div');
+        row.className = 'mbs-credit';
+        const id = `mbs-c-${Math.random().toString(36).slice(2, 10)}`;
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.id = id;
+        box.dataset.key = c.key;
+        box.checked = c.status === 'pending' && c.mb_check !== 'similar' && !c.source_elsewhere;
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.textContent = c.relationship.kind === 'instrument'
+            ? `${c.name}: ${c.relationship.instrument_known ? c.relationship.instrument : c.relationship.label}`
+            : c.name;
+        const meta = document.createElement('span');
+        meta.className = 'mbs-meta';
+        const own = c.provenance === 'MetaForge (Manual)' || c.provenance === 'Submitter Confirmed';
+        const bits = [own ? c.source : `From ${c.source}`];
+        if (c.role && c.relationship.kind !== 'instrument' && c.role.toLowerCase() !== c.relationship.label.toLowerCase()) bits.push(`credited as "${c.role}"`);
+        meta.textContent = bits.join(', ');
+        row.append(box, label, meta);
+        const descs = [meta];
+        if (c.source_elsewhere) {
+            const n = this.note('The page you confirmed this with looks like a different release: ', descs);
+            const a = document.createElement('a');
+            a.href = c.verified_source_url;
+            a.textContent = c.verified_source_url;
+            a.target = '_blank';
+            a.rel = 'noreferrer';
+            n.append(a, '. Tick it only if this credit is right for this album too.');
+            row.append(n);
+        }
+
+        if (checked) {
+            const m = c.artist_match;
+            if (c.mb_check === 'similar') {
+                row.append(this.note(`MusicBrainz already credits this person on this release${c.mb_has ? ` (${c.mb_has})` : ''}. Tick it only if this is a different credit.`, descs));
+            }
+            if (c.relationship.kind === 'instrument' && !c.relationship.instrument_known) {
+                row.append(this.note('MusicBrainz\'s instrument list couldn\'t be checked for this one. Check MusicBrainz again.', descs));
+            }
+            if (!this.artistFor(c)) {
+                if (m && m.options && m.options.length) {
+                    row.append(this.artistPicker(c, m, descs));
+                } else {
+                    row.append(this.note(m && m.status === 'error'
+                        ? 'MusicBrainz couldn\'t be searched for this name. Check MusicBrainz again later.'
+                        : 'MusicBrainz has no artist by this name, so it can\'t be sent yet.', descs));
+                }
+            } else if (c.artist_chosen) {
+                const p = document.createElement('span');
+                p.className = 'mbs-meta';
+                p.textContent = `MusicBrainz artist: ${c.artist_name || 'chosen by you'}`;
+                row.append(p);
+                descs.push(p);
+            }
+        }
+        descs.forEach((d, i) => { if (!d.id) d.id = `${id}-d${i}`; });
+        box.setAttribute('aria-describedby', descs.map((d) => d.id).join(' '));
+        return row;
+    },
+
+    note: function (text, descs) {
+        const p = document.createElement('span');
+        p.className = 'mbs-need';
+        p.textContent = text;
+        descs.push(p);
+        return p;
+    },
+
+    artistPicker: function (c, m, descs) {
+        const wrap = document.createElement('span');
+        wrap.className = 'mbs-pick';
+        const sid = `mbs-p-${Math.random().toString(36).slice(2, 10)}`;
+        const lab = document.createElement('label');
+        lab.htmlFor = sid;
+        lab.className = 'mbs-need';
+        lab.textContent = m.status === 'ambiguous'
+            ? 'More than one MusicBrainz artist has this name. Which one?'
+            : 'No exact match on MusicBrainz. Is it one of these?';
+        const sel = document.createElement('select');
+        sel.id = sid;
+        sel.dataset.pick = c.key;
+        const first = document.createElement('option');
+        first.value = '';
+        first.textContent = 'Choose the artist';
+        sel.append(first);
+        m.options.forEach((o) => {
+            const opt = document.createElement('option');
+            opt.value = o.mbid;
+            opt.dataset.name = o.name;
+            opt.textContent = [o.name, o.disambiguation, o.country].filter(Boolean).join(', ');
+            sel.append(opt);
+        });
+        const none = document.createElement('option');
+        none.value = 'none';
+        none.textContent = 'None of these: don\'t send';
+        sel.append(none);
+        wrap.append(lab, sel);
+        descs.push(lab);
+        return wrap;
+    },
+
+    otherList: function (body, title, list, line, help) {
+        if (!list.length) return;
+        const d = document.createElement('details');
+        d.className = 'mbs-other';
+        const s = document.createElement('summary');
+        s.textContent = `${title} (${list.length})`;
+        d.append(s);
+        if (help) {
+            const p = document.createElement('p');
+            p.textContent = help;
+            d.append(p);
+        }
+        const ul = document.createElement('ul');
+        list.forEach((c) => {
+            const [main, why] = line(c);
+            const li = document.createElement('li');
+            li.append(main);
+            if (why) {
+                const w = document.createElement('span');
+                w.className = 'mbs-why';
+                w.textContent = ` (${why})`;
+                li.append(w);
+            }
+            ul.append(li);
+        });
+        d.append(ul);
+        body.append(d);
+    },
+
+    /** The ticked credits that can go now, in screen order. */
+    sendable: function () {
+        if (!this.current || !this.current.album.checked_at) return [];
+        const byKey = new Map(this.current.credits.map((c) => [c.key, c]));
+        return [...document.querySelectorAll('#mbs-body input[type="checkbox"][data-key]')]
+            .map((b) => ({ c: byKey.get(b.dataset.key), on: b.checked }))
+            .filter(({ c, on }) => c && this.ready(c, on))
+            .map(({ c }) => c);
+    },
+
+    updateFoot: function () {
+        const $ = (id) => document.getElementById(id);
+        if (!$('mbs-open') || !this.current) return;
+        const ready = this.sendable();
+        const ticked = document.querySelectorAll('#mbs-body input[type="checkbox"][data-key]:checked').length;
+        const n = Math.min(this.BATCH, ready.length);
+        $('mbs-open').disabled = !n || this.checking || !!this.batch;
+        $('mbs-open').textContent = ready.length > n ? `Open in MusicBrainz (${n} of ${ready.length})` : 'Open in MusicBrainz';
+        let note;
+        if (!this.current.album.checked_at) note = 'Checking MusicBrainz first.';
+        else if (!ready.length) note = ticked ? 'None of the ticked credits can be sent yet (see the notes beside them).' : 'Nothing is ticked.';
+        else {
+            note = `${ready.length} credit${ready.length === 1 ? '' : 's'} ready to send`;
+            if (ready.length > n) note += `; MusicBrainz gets ${n} at a time`;
+            const wait = ticked - ready.length;
+            if (wait > 0) note += `; ${wait} ticked can't be sent yet (see the note${wait === 1 ? '' : 's'} beside ${wait === 1 ? 'it' : 'them'})`;
+            note += '.';
+        }
+        $('mbs-foot-note').textContent = note;
+    },
+
+    onFormChange: async function (e) {
+        const t = e.target;
+        if (t.matches('input[type="checkbox"][data-key]')) {
+            this.updateFoot();
+            try { await this.post('set_credit', { key: t.dataset.key, send: t.checked }); }
+            catch (err) { window.MFAnnounce(`Error: that choice wasn't saved: ${err.message}`, { urgent: true }); }
+            const c = this.current && this.current.credits.find((x) => x.key === t.dataset.key);
+            if (c) c.status = t.checked ? 'pending' : 'dismissed';
+            return;
+        }
+        if (t.matches('select[data-pick]')) {
+            const key = t.dataset.pick;
+            const c = this.current && this.current.credits.find((x) => x.key === key);
+            if (!c || !t.value) return;
+            try {
+                if (t.value === 'none') {
+                    await this.post('set_credit', { key, send: false });
+                    c.status = 'dismissed';
+                    const box = t.closest('.mbs-credit').querySelector('input[type="checkbox"]');
+                    box.checked = false;
+                    window.MFAnnounce(`${c.name} won't be sent.`);
+                } else {
+                    const name = t.selectedOptions[0].dataset.name || '';
+                    await this.post('set_artist', { key, mbid: t.value, name });
+                    c.artist_mbid = t.value; c.artist_name = name; c.artist_chosen = true;
+                    const row = t.closest('.mbs-credit');
+                    const fresh = this.creditRow(c, true);
+                    row.replaceWith(fresh);
+                    fresh.querySelector('input[type="checkbox"]').focus();
+                    window.MFAnnounce(`${c.name}: artist chosen.`);
+                }
+            } catch (err) {
+                window.MFAnnounce(`Error: that choice wasn't saved: ${err.message}`, { urgent: true });
+            }
+            this.updateFoot();
+        }
+    },
+
+    // --- CHECK MUSICBRAINZ --------------------------------------------------
+
+    runCheck: async function () {
+        if (this.checking || !this.current) return;
+        const $ = (id) => document.getElementById(id);
+        const mfId = this.current.album.mf_id;
+        this.checking = true;
+        $('mbs-check').disabled = true;
+        $('mbs-skip').disabled = true;
+        $('mbs-progress').hidden = false;
+        this.setProgress(0, 'Starting the check…');
+        this.updateFoot();
+        const log = $('mbs-check-log');
+        if (log) log.replaceChildren();
+        try {
+            const res = await fetch(this.url('check'), {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mf_id: mfId })
+            });
+            if (res.status === 409) throw new Error((await res.json()).message);
+            await window.MFEvents.read(res, {
+                log,
+                onSignal: (name, data) => { if (name === 'progress') this.setProgress(data.percent, data.label); }
+            });
+        } catch (err) {
+            window.MFEvents.render($('mbs-check-log'), { kind: 'error', text: `The check stopped: ${err.message}` });
+            window.MFAnnounce(`Error: the check stopped: ${err.message}`, { urgent: true });
+        } finally {
+            this.checking = false;
+            // The tool may have been left mid-check: look the screen up again.
+            if ($('mbs-body')) {
+                $('mbs-progress').hidden = true;
+                $('mbs-check').disabled = false;
+                $('mbs-skip').disabled = false;
+                const kept = $('mbs-check-log') ? [...$('mbs-check-log').childNodes] : [];
+                if (this.current && this.current.album.mf_id === mfId) {
+                    try {
+                        this.current = await this.post('album', { mf_id: mfId });
+                        this.render();
+                        $('mbs-check-log').append(...kept);
+                    } catch (e) { /* keep what's shown */ }
+                }
+                this.loadAlbums();
+            }
+        }
+    },
+
+    setProgress: function (percent, label) {
+        const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+        const bar = document.getElementById('mbs-progress-bar');
+        const fill = document.getElementById('mbs-progress-fill');
+        const text = document.getElementById('mbs-progress-label');
+        if (fill) fill.style.width = `${pct}%`;
+        if (text && label) text.textContent = label;
+        if (bar) {
+            bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+            if (label) bar.setAttribute('aria-valuetext', `${label} (${Math.round(pct)}%)`);
+        }
+    },
+
+    toggleSkip: async function () {
+        if (!this.current) return;
+        const a = this.current.album;
+        try { await this.post('skip_album', { mf_id: a.mf_id, skip: !a.skipped }); }
+        catch (err) { window.MFAnnounce(`Error: ${err.message}`, { urgent: true }); return; }
+        a.skipped = !a.skipped;
+        const entry = this.albums.get(a.mf_id);
+        if (entry) { entry.data.skipped = a.skipped; this.fillAlbumItem(entry.li, entry.data); }
+        document.getElementById('mbs-skip').textContent = a.skipped ? 'Stop skipping this album' : 'Skip this album';
+        window.MFAnnounce(a.skipped ? `${a.album} skipped. It's hidden from the list unless "Show skipped albums" is ticked.` : `${a.album} is back in the list.`);
+        this.applyView();
+    },
+
+    // --- SEND A BATCH -------------------------------------------------------
+
+    openInMusicBrainz: async function () {
+        if (this.batch || this.checking || !this.current) return;
+        const $ = (id) => document.getElementById(id);
+        const items = this.sendable().slice(0, this.BATCH);
+        if (!items.length) return;
+        $('mbs-open').disabled = true;
+        let b;
+        try {
+            b = await this.post('batch', { mf_id: this.current.album.mf_id, keys: items.map((c) => c.key) });
+            const res = await fetch('/open_mb_relationship_seed_window', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: b.url, script: b.script, title: b.title, token: b.token })
+            });
+            if (!res.ok) throw new Error('the MusicBrainz window couldn\'t be opened');
+        } catch (err) {
+            window.MFAnnounce(`Error: ${err.message}`, { urgent: true });
+            this.updateFoot();
+            return;
+        }
+        this.batch = { token: b.token, count: b.count, names: new Map(items.map((c) => [c.key, `${c.relationship.kind === 'instrument' ? c.relationship.instrument : c.relationship.label}: ${c.name}`])) };
+        this.showBatch({ results: {}, finished: false });
+        window.MFAnnounce(`MusicBrainz is opening in another window. MetaForge adds ${b.count} credit${b.count === 1 ? '' : 's'} there.`);
+        this.pollBatch();
+    },
+
+    pollBatch: async function () {
+        if (!this.batch) return;
+        let s;
+        try { s = await this.post('batch_status', { token: this.batch.token }); }
+        catch (e) { s = null; }
+        if (!this.batch) return;
+        if (s) {
+            this.batch.last = s;
+            this.showBatch(s);
+            if (s.finished && !this.batch.announced) {
+                this.batch.announced = true;
+                const ok = Object.values(s.results).filter((r) => r.ok).length;
+                window.MFAnnounce(`${ok} of ${s.count} added in the MusicBrainz window. Check them there, click "Enter edit", then close that window.`);
+            }
+            // Closed: ask, if this screen is showing; otherwise ask on return (init).
+            if (s.closed && document.getElementById('mbs-entered')) { this.askEntered(s); return; }
+        }
+        this.batch.timer = setTimeout(() => this.pollBatch(), 1500);
+    },
+
+    showBatch: function (s) {
+        let box = document.getElementById('mbs-batch');
+        const body = document.getElementById('mbs-body');
         if (!body) return;
-
-        if (this.state.candidates.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">No correction candidates found yet -- run albums through Intelli-Tagger with the original-year waterfall to populate this queue.</td></tr>';
-            return;
+        if (!box) {
+            box = document.createElement('section');
+            box.id = 'mbs-batch';
+            box.setAttribute('aria-labelledby', 'mbs-batch-h');
+            body.prepend(box);
         }
-
-        // Fully resolved albums (nothing pending/in_progress left) are
-        // dropped from the UI entirely rather than lingering as a
-        // collapsed row forever (John, 2026-07-14: without this, this
-        // screen will accumulate hundreds/thousands of already-handled
-        // releases over time). renderCounts() still shows the true
-        // submitted/dismissed totals separately -- this only affects
-        // what actually renders here.
-        const groups = this._groupByAlbum(this.state.candidates).filter(g => g.pending > 0);
-
-        if (groups.length === 0) {
-            body.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; opacity:0.6;">Nothing pending -- every known candidate has been submitted or dismissed.</td></tr>';
-            return;
-        }
-
-        body.innerHTML = groups.map(group => {
-            const header = this._renderGroupHeader("year", group, 5);
-            if (!this.state.expandedGroups.year.has(group.key)) return header;
-            return header + group.rows.map(c => this._renderYearRow(c)).join('');
-        }).join('');
-    },
-
-    _renderYearRow: function(c) {
-        const esc = (s) => this.escapeHtml(s);
-        const statusLabel = c.status === "pending" ? "" :
-            `<div style="font-size:0.7rem; color:var(--text-message); margin-top:4px;">Marked ${esc(c.status)}</div>`;
-        const disabled = c.status !== "pending" ? "disabled" : "";
-        return `
-            <tr style="border-bottom:1px solid #333; ${c.status !== 'pending' ? 'opacity:0.55;' : ''}">
-                <td style="padding:8px 8px 8px 28px; color:var(--mf-gold);">${esc(c.title)}</td>
-                <td style="padding:8px; text-align:center;">${esc(c.current_release_year)}</td>
-                <td style="padding:8px; text-align:center; color:var(--status-success); font-weight:bold;">${esc(c.proposed_original_year)}</td>
-                <td style="padding:8px;">
-                    <div>${esc(c.orig_year_source)}</div>
-                    <div style="color:var(--text-message); font-size:0.75rem;">conf ${esc(c.orig_year_conf)}</div>
-                </td>
-                <td style="padding:8px;">
-                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto;"
-                                onclick="window.metaforge.musicbrainz_submit.openInMusicBrainz('${esc(c.mb_recording_id)}')" ${disabled}>
-                            Open in MusicBrainz
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.markHandled('${esc(c.mb_recording_id)}', 'submitted')" ${disabled}>
-                            Mark Submitted
-                        </button>
-                        <button class="mf-btn-danger" style="font-size:0.75rem; padding:4px 8px;"
-                                onclick="window.metaforge.musicbrainz_submit.markHandled('${esc(c.mb_recording_id)}', 'dismissed')" ${disabled}>
-                            Dismiss
-                        </button>
-                    </div>
-                    ${statusLabel}
-                </td>
-            </tr>
-        `;
-    },
-
-    openInMusicBrainz: async function(recordingId) {
-        this.updateStatus("Building seeded MusicBrainz submission...", "success");
-        try {
-            const seedRes = await fetch('/run_tool_logic/musicbrainz_submit/build_seed', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mb_recording_id: recordingId })
+        const ok = Object.entries(s.results).filter(([, r]) => r.ok);
+        const bad = Object.entries(s.results).filter(([, r]) => !r.ok);
+        const h = document.createElement('h3');
+        h.id = 'mbs-batch-h';
+        h.textContent = 'MusicBrainz window';
+        const p = document.createElement('p');
+        p.textContent = s.finished
+            ? `Added ${ok.length} of ${this.batch.count}. Check them and the edit note there, click "Enter edit", then close that window.`
+            : `Adding ${this.batch.count} credits there: ${ok.length + bad.length} done so far. The window can take a few seconds to load.`;
+        box.replaceChildren(h, p);
+        if (bad.length) {
+            const p2 = document.createElement('p');
+            p2.textContent = 'Couldn\'t be added (they stay here, ticked):';
+            const ul = document.createElement('ul');
+            bad.forEach(([k, r]) => {
+                const li = document.createElement('li');
+                li.textContent = `${this.batch.names.get(k) || k}${r.message ? ` (${r.message})` : ''}`;
+                ul.append(li);
             });
-            const seedData = await seedRes.json();
-            if (seedData.status !== "success") {
-                this.updateStatus(seedData.message || "Failed to build submission.", "error");
-                return;
-            }
-
-            // Opens a genuine second top-level pywebview window (not an
-            // iframe -- musicbrainz.org blocks framing entirely via
-            // X-Frame-Options: DENY). Confirmed live 2026-07-09 this
-            // shares the main window's persistent profile, so a
-            // MusicBrainz login only has to happen once, ever.
-            const openRes = await fetch('/open_mb_seeded_window', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: seedData.title, html: seedData.html })
-            });
-            const openData = await openRes.json();
-            if (openData.status === "success") {
-                this.updateStatus("MusicBrainz opened -- review and submit there, then come back and mark it here.", "success");
-            } else {
-                this.updateStatus(openData.message || "Failed to open MusicBrainz window.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error building submission.", "error");
+            box.append(p2, ul);
         }
     },
 
-    markHandled: async function(recordingId, status) {
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/mark_handled', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mb_recording_id: recordingId, status: status })
-            });
-            const data = await res.json();
-            if (data.status === "success") {
-                this.updateStatus(`Marked ${status}.`, "success");
-                this.loadCandidates();
-            } else {
-                this.updateStatus(data.message || "Failed to update status.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error updating status.", "error");
-        }
-    },
-
-    updateStatus: function(msg, type) {
-        const el = document.getElementById('mbs-status-text');
-        if (!el) return;
-        el.innerText = msg;
-        el.style.color = type === "error" ? "var(--status-error)" : "var(--status-success)";
-    },
-
-    // ======================================================
-    // PERSONNEL CORRECTIONS (Phase 2)
-    // ======================================================
-
-    loadPersonnelCandidates: async function() {
-        this.updateStatus("Loading personnel candidates...", "success");
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/list_personnel_candidates');
-            const data = await res.json();
-            if (data.status === "success") {
-                this.state.personnelCandidates = data.candidates;
-                this.state.personnelLoaded = true;
-                this.renderPersonnelQueue();
-                this.renderPersonnelCounts(data.counts);
-                this.updateStatus(`${data.counts.pending} personnel candidate(s) awaiting review.`, "success");
-            } else {
-                this.updateStatus(data.message || "Failed to load personnel candidates.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error loading personnel candidates.", "error");
-        }
-    },
-
-    renderPersonnelCounts: function(counts) {
-        const p = document.getElementById('mbs-p-count-pending');
-        const s = document.getElementById('mbs-p-count-submitted');
-        const d = document.getElementById('mbs-p-count-dismissed');
-        if (p) p.innerText = counts.pending;
-        if (s) s.innerText = counts.submitted;
-        if (d) d.innerText = counts.dismissed;
-    },
-
-    renderPersonnelQueue: function() {
-        const body = document.getElementById('mbs-p-queue-body');
-        if (!body) return;
-
-        if (this.state.personnelCandidates.length === 0) {
-            body.innerHTML = '<tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">No personnel correction candidates found yet -- run Personnel Scout on an album to populate this queue. Note: credits committed before 2026-07-09 won\'t appear here even after that, since they predate recording-ID capture.</td></tr>';
-            return;
-        }
-
-        // Same UI-sanitation fix as renderQueue() above (John, 2026-07-14):
-        // fully resolved albums drop out of this list entirely instead of
-        // lingering as a collapsed row forever.
-        const groups = this._groupByAlbum(this.state.personnelCandidates).filter(g => g.pending > 0);
-
-        if (groups.length === 0) {
-            body.innerHTML = '<tr><td colspan="4" style="padding:20px; text-align:center; opacity:0.6;">Nothing pending -- every known candidate has been submitted or dismissed.</td></tr>';
-            return;
-        }
-
-        body.innerHTML = groups.map(group => {
-            const header = this._renderGroupHeader("personnel", group, 4);
-            if (!this.state.expandedGroups.personnel.has(group.key)) return header;
-            return header + group.rows.map(c => this._renderPersonnelRow(c)).join('');
-        }).join('');
-    },
-
-    _renderPersonnelRow: function(c) {
-        const esc = (s) => this.escapeHtml(s);
-        const key = esc(c.key).replace(/'/g, "\\'");
-        // Artist/Album is intentionally not repeated here -- it's shown
-        // once in this row's group header (John's Yandex Mail-style
-        // grouping, 2026-07-09), so each row only needs the identity
-        // that varies within the album.
-        const identityCells = `
-                <td style="padding:8px 8px 8px 28px; color:var(--mf-gold);">${esc(c.name)}</td>
-                <td style="padding:8px;">${esc(c.role)}</td>
-                <td style="padding:8px;">
-                    <div>${esc(c.provenance)}</div>
-                    <div style="color:var(--text-message); font-size:0.75rem;">conf ${esc(c.confidence)}</div>
-                </td>`;
-
-        // Album-scoped credit (AI Web Search/manual entries -- no
-        // single recording, see _candidate_key in musicbrainz_submit.py)
-        // gets a per-track stepper instead of the single Open/Mark/
-        // Dismiss row below (John, 2026-07-09).
-        if (!c.mb_recording_id) {
-            return this._renderAlbumScopeRow(c, key, identityCells);
-        }
-
-        const statusLabel = c.status === "pending" ? "" :
-            `<div style="font-size:0.7rem; color:var(--text-message); margin-top:4px;">Marked ${esc(c.status)}</div>`;
-        const disabled = c.status !== "pending" ? "disabled" : "";
-        return `
-            <tr style="border-bottom:1px solid #333; ${c.status !== 'pending' ? 'opacity:0.55;' : ''}">
-                ${identityCells}
-                <td style="padding:8px;">
-                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto;"
-                                onclick="window.metaforge.musicbrainz_submit.openPersonnelInMusicBrainz('${key}')" ${disabled}>
-                            Open in MusicBrainz
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'submitted')" ${disabled}>
-                            Mark Submitted
-                        </button>
-                        <button class="mf-btn-danger" style="font-size:0.75rem; padding:4px 8px;"
-                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'dismissed')" ${disabled}>
-                            Dismiss
-                        </button>
-                    </div>
-                    ${statusLabel}
-                </td>
-            </tr>
-        `;
-    },
-
-    // Album-scoped credits carry no single mb_recording_id -- MB's
-    // Recording editor only ever edits one recording at a time, so
-    // there's no single URL to seed for "this person played on the
-    // album." Instead of dropping this data (which used to silently
-    // exclude almost all AI Web Search/manual personnel from ever
-    // reaching this queue) or firing one companion window per track at
-    // once, this steps through the album's tracks one at a time --
-    // John's own "assume it applies to every track, review track-by-
-    // track" call (2026-07-09), with Skip/Dismiss escape hatches for the
-    // real cases where that assumption is wrong (e.g. a percussionist
-    // who likely only played a few tracks, not all sixteen).
-    _renderAlbumScopeRow: function(c, key, identityCells) {
-        const esc = (s) => this.escapeHtml(s);
-        const total = (c.album_tracks || []).length;
-        const done = Object.keys(c.track_progress || {}).length;
-
-        if (total === 0) {
-            return `
-                <tr style="border-bottom:1px solid #333;">
-                    ${identityCells}
-                    <td style="padding:8px;">
-                        <div style="color:var(--text-message); font-size:0.75rem; max-width:260px;">
-                            No MusicBrainz recording IDs found yet for this album -- run MusicBrainz ID / Intelli-Tagger first.
-                        </div>
-                        <button class="mf-btn-danger" style="font-size:0.75rem; padding:4px 8px; margin-top:4px;"
-                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'dismissed')">
-                            Dismiss
-                        </button>
-                    </td>
-                </tr>`;
-        }
-
-        if (c.status === "dismissed" || c.status === "submitted") {
-            const submittedCount = Object.values(c.track_progress || {}).filter(v => v === "submitted").length;
-            const skippedCount = Object.values(c.track_progress || {}).filter(v => v === "skipped").length;
-            const reviewedTracks = Object.keys(c.track_progress || {}).length;
-            // Release-wide submissions (John, 2026-07-13) mark "submitted"
-            // directly with an EMPTY track_progress -- one relationship
-            // covered the whole album, no per-track stepping happened at
-            // all. Distinct wording from the old track-by-track-completed
-            // case, which always has reviewedTracks === total.
-            let summary;
-            if (c.status === "dismissed") {
-                summary = "Dismissed";
-            } else if (reviewedTracks === 0) {
-                summary = "Submitted release-wide (one relationship covers the whole album)";
-            } else {
-                summary = `${submittedCount} submitted, ${skippedCount} skipped (${total}/${total} tracks reviewed)`;
-            }
-            return `
-                <tr style="border-bottom:1px solid #333; opacity:0.55;">
-                    ${identityCells}
-                    <td style="padding:8px;"><div style="font-size:0.7rem; color:var(--text-message);">${esc(summary)}</div></td>
-                </tr>`;
-        }
-
-        const currentTrack = (c.album_tracks || []).find(t => !(t.recording_id in (c.track_progress || {})));
-        const stepNum = done + 1;
-        const trackId = esc(currentTrack.recording_id).replace(/'/g, "\\'");
-        const trackTitle = esc(currentTrack.title || `Track ${currentTrack.track_number}`);
-
-        return `
-            <tr style="border-bottom:1px solid #333;">
-                ${identityCells}
-                <td style="padding:8px;">
-                    <div style="font-size:0.7rem; color:var(--mf-gold); margin-bottom:4px;">
-                        Album-wide credit -- Track ${stepNum} of ${total}: "${trackTitle}"
-                    </div>
-                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        ${c.release_seedable ? `
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto;"
-                                onclick="window.metaforge.musicbrainz_submit.openReleaseRelationshipInMusicBrainz('${key}')"
-                                title="Submits ONE relationship attached to the whole release, instead of stepping through every track">
-                            Submit Release-Wide
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'submitted')"
-                                title="Only click this after you've personally confirmed the release-wide edit actually went through in MusicBrainz -- this does not check for you">
-                            Mark Release Submitted
-                        </button>
-                        ` : `
-                        <!-- Per-track stepper (John, 2026-07-13): only shown when
-                             release_seedable is false -- this credit's relation
-                             type/role has no confirmed release-level MB mapping
-                             yet, so per-track submission is the only path. When
-                             release-wide IS available, these are pure redundant
-                             clutter offering a strictly worse option alongside
-                             the better one -- "too many buttons to be clear on
-                             what is happening," his own words, real UX fix, not
-                             deleted functionality. -->
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.openTrackSelectionModal('${key}')">
-                            Select Tracks
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto;"
-                                onclick="window.metaforge.musicbrainz_submit.openPersonnelInMusicBrainz('${key}', '${trackId}')">
-                            Submit to MB
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.markTrackProgress('${key}', '${trackId}', 'submitted')">
-                            Mark Submitted, Next
-                        </button>
-                        <button class="mf-button-gold-fixed" style="font-size:0.75rem; padding:4px 8px; height:auto; background:transparent!important; border:1px solid var(--text-message); color:var(--text-message)!important;"
-                                onclick="window.metaforge.musicbrainz_submit.markTrackProgress('${key}', '${trackId}', 'skipped')">
-                            Skip Track
-                        </button>
-                        `}
-                        <button class="mf-btn-danger" style="font-size:0.75rem; padding:4px 8px;"
-                                onclick="window.metaforge.musicbrainz_submit.markPersonnelHandled('${key}', 'dismissed')">
-                            Dismiss Remaining
-                        </button>
-                    </div>
-                    ${done > 0 ? `<div style="font-size:0.7rem; color:var(--text-message); margin-top:4px;">${done} of ${total} tracks already reviewed</div>` : ''}
-                </td>
-            </tr>`;
-    },
-
-    openPersonnelInMusicBrainz: async function(key, recordingId) {
-        // recordingId is only passed for an album-scoped credit's
-        // stepper step (the current track) -- a track-scoped candidate
-        // already has its own recording and needs no override.
-        this.updateStatus("Building seeded MusicBrainz submission...", "success");
-        try {
-            const body = { key: key };
-            if (recordingId) body.recording_id = recordingId;
-            const seedRes = await fetch('/run_tool_logic/musicbrainz_submit/build_personnel_seed', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const seedData = await seedRes.json();
-            if (seedData.status !== "success") {
-                this.updateStatus(seedData.message || "Failed to build submission.", "error");
-                return;
-            }
-
-            const openRes = await fetch('/open_mb_seeded_window', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: seedData.title, html: seedData.html })
-            });
-            const openData = await openRes.json();
-            if (openData.status !== "success") {
-                this.updateStatus(openData.message || "Failed to open MusicBrainz window.", "error");
-                return;
-            }
-
-            // artist_match is null when the candidate already carried a
-            // real MBID (no live search needed) -- only surface the
-            // caveat when a fuzzy name search actually ran, since that's
-            // the case genuinely needing extra scrutiny before submitting.
-            if (seedData.artist_match) {
-                this.updateStatus(`MusicBrainz opened -- artist matched via search (score ${seedData.artist_match.score}/100) to "${seedData.artist_match.name}", please confirm this is correct before submitting.`, "success");
-            } else {
-                this.updateStatus("MusicBrainz opened -- review and submit there, then come back and mark it here.", "success");
-            }
-        } catch (e) {
-            this.updateStatus("Network error building submission.", "error");
-        }
-    },
-
-    // Release-level relationship path (John, 2026-07-13) -- one MB
-    // submission covering the whole album instead of stepping through
-    // every track. Only shown when the backend confirms this credit's
-    // relation_type has a known release-scoped MB relationship type
-    // (c.release_seedable, see musicbrainz_submit.py's
-    // RELEASE_ARTIST_LINK_TYPES). This opens a REAL navigation to
-    // MusicBrainz's own live page and drives its "Add relationship"
-    // dialog via injected JS -- genuinely more fragile than the seeded
-    // static pages elsewhere in this tool, since it's automating a page
-    // MetaForge doesn't control. If MusicBrainz ever changes that page's
-    // markup, the script's own alert() fallback tells the user to finish
-    // adding the relationship by hand rather than failing silently.
-    openReleaseRelationshipInMusicBrainz: async function(key) {
-        this.updateStatus("Opening MusicBrainz release page...", "success");
-        try {
-            const seedRes = await fetch('/run_tool_logic/musicbrainz_submit/build_release_relationship_seed', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key })
-            });
-            const seedData = await seedRes.json();
-            if (seedData.status !== "success") {
-                this.updateStatus(seedData.message || "Failed to build release-level submission.", "error");
-                return;
-            }
-
-            const openRes = await fetch('/open_mb_relationship_seed_window', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: seedData.title, url: seedData.url, script: seedData.script })
-            });
-            const openData = await openRes.json();
-            if (openData.status !== "success") {
-                this.updateStatus(openData.message || "Failed to open MusicBrainz window.", "error");
-                return;
-            }
-
-            // Deliberately does NOT auto-mark this candidate submitted
-            // (John, 2026-07-13 -- a real, serious bug he caught live: an
-            // earlier version of this function marked it submitted the
-            // moment the window opened, conflating "the window opened"
-            // with "the automation actually finished filling everything
-            // in and a human confirmed it." Since the automation CAN
-            // legitimately fail partway through -- an instrument search
-            // with no exact match, an artist field that didn't populate --
-            // that earlier version could silently drop a credit from the
-            // queue with NOTHING actually submitted to MusicBrainz.
-            // "We MUST default to a specific, manual 'clearing' of the
-            // screen to avoid this type of accidental drop" -- his own
-            // words. The row now stays exactly as it was; a human clicks
-            // "Mark Release Submitted" themselves once they've personally
-            // confirmed the real edit went through in the MusicBrainz
-            // window, same trust model as every other completion action
-            // in this tool.
-
-            if (seedData.artist_match) {
-                this.updateStatus(`MusicBrainz opened -- artist matched via search (score ${seedData.artist_match.score}/100) to "${seedData.artist_match.name}", please confirm this is correct before submitting.`, "success");
-            } else {
-                this.updateStatus("MusicBrainz opened -- MetaForge is filling in the relationship, review it there before clicking Enter edit.", "success");
-            }
-        } catch (e) {
-            this.updateStatus("Network error building release-level submission.", "error");
-        }
-    },
-
-    markPersonnelHandled: async function(key, status) {
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/mark_personnel_handled', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key, status: status })
-            });
-            const data = await res.json();
-            if (data.status === "success") {
-                this.updateStatus(`Marked ${status}.`, "success");
-                this.loadPersonnelCandidates();
-            } else {
-                this.updateStatus(data.message || "Failed to update status.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error updating status.", "error");
-        }
-    },
-
-    markTrackProgress: async function(key, recordingId, status) {
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/mark_track_progress', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key, recording_id: recordingId, status: status })
-            });
-            const data = await res.json();
-            if (data.status === "success") {
-                this.updateStatus(`Track ${status}. Advancing to the next track...`, "success");
-                this.loadPersonnelCandidates();
-            } else {
-                this.updateStatus(data.message || "Failed to update track progress.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error updating track progress.", "error");
-        }
-    },
-
-    // Track-selection modal (John, 2026-07-09) -- "Open Track 1" gave no
-    // way to see the whole album or scope a credit down before diving
-    // into the stepper track-by-track, which is genuinely wrong for a
-    // credit that likely only applies to 1-2 of an album's tracks (e.g.
-    // a single guest musician), not all of them. Pure MetaForge markup,
-    // same fixed-position-div pattern as database_tools/album_editor.js's
-    // openModal() -- this never touches musicbrainz.org at all, so it
-    // has nothing to do with the separate companion-window mechanism
-    // that DOES need its own top-level window (MB blocks iframing).
-    // Already-resolved tracks are shown, not hidden, but locked --
-    // reflects their real submitted/skipped state with a disabled
-    // checkbox, so reopening this modal after using the stepper doesn't
-    // let a decision already made get silently re-litigated.
-    openTrackSelectionModal: function(key) {
-        if (document.getElementById("mbs-track-modal")) return;
-        const c = this.state.personnelCandidates.find(x => x.key === key);
-        if (!c) return;
-        const esc = (s) => this.escapeHtml(s);
-        const progress = c.track_progress || {};
-
-        const rows = (c.album_tracks || []).map(t => {
-            const resolved = progress[t.recording_id];
-            const checked = resolved ? resolved === "submitted" : true;
-            const disabled = !!resolved;
-            const statusNote = resolved ? ` <span style="color:var(--text-message); font-size:0.75rem;">(already ${esc(resolved)})</span>` : "";
-            const idEsc = esc(t.recording_id).replace(/'/g, "\\'");
-            return `
-                <label style="display:flex; align-items:center; gap:8px; padding:4px 0; ${disabled ? 'opacity:0.55;' : ''}">
-                    <input type="checkbox" data-recording-id="${idEsc}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}>
-                    <span>${esc(t.track_number)}. ${esc(t.title)}</span>${statusNote}
-                </label>`;
-        }).join('');
-
-        const modal = document.createElement('div');
-        modal.id = "mbs-track-modal";
-        modal.style = "position:fixed; top:12%; left:30%; width:40%; max-height:70%; display:flex; flex-direction:column; background:var(--bg-main); border:1px solid var(--mf-gold); padding:20px; z-index:10000;";
-        modal.innerHTML = `
-            <h3 style="color:var(--mf-gold); margin-top:0;">Select Tracks -- ${esc(c.name)} (${esc(c.role)})</h3>
-            <p style="font-size:0.75rem; color:var(--text-message);">
-                Every track is checked by default (MetaForge Studio's assumption is that an album-wide credit applies throughout). Uncheck any track you know this credit doesn't apply to -- unchecked tracks are marked skipped immediately, no need to step through each one individually.
-            </p>
-            <div style="display:flex; flex:1; min-height:0; border-top:1px solid #333; border-bottom:1px solid #333; margin:8px 0;">
-                <div id="mbs-track-modal-rows" class="mf-hide-native-scrollbar" style="overflow-y:auto; flex:1; padding:8px 0;">
-                    ${rows}
-                </div>
-                <!-- Custom scrollbar, shared implementation -- see
-                     layout.css section 10 / metaforge_core.js's
-                     MFScrollbar. Dynamically created (like this whole
-                     modal), so attach() is called explicitly below
-                     rather than relying on autoAttachAll(), which only
-                     runs once on tool load. -->
-                <div class="mf-custom-scrollbar" id="mbs-track-modal-scrollbar" role="scrollbar" aria-controls="mbs-track-modal-rows" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track">
-                        <div class="mf-scroll-thumb"></div>
-                    </div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
-            </div>
-            <div style="display:flex; gap:10px; justify-content:flex-end;">
-                <button class="mf-button-gold-fixed" onclick="window.metaforge.musicbrainz_submit.confirmTrackSelection('${esc(key).replace(/'/g, "\\'")}')">Confirm Selection</button>
-                <button class="mf-button-gold-fixed" style="background:transparent!important; border:1px solid var(--mf-gold); color:var(--mf-gold)!important;"
-                        onclick="document.getElementById('mbs-track-modal').remove()">Cancel</button>
-            </div>
-        `;
-        document.body.appendChild(modal);
-        if (window.MFScrollbar) window.MFScrollbar.attach('mbs-track-modal-scrollbar');
-    },
-
-    confirmTrackSelection: async function(key) {
-        const modal = document.getElementById("mbs-track-modal");
-        if (!modal) return;
-        const uncheckedIds = Array.from(modal.querySelectorAll('input[type="checkbox"]:not(:checked):not(:disabled)'))
-            .map(el => el.getAttribute("data-recording-id"));
-        modal.remove();
-
-        try {
-            const res = await fetch('/run_tool_logic/musicbrainz_submit/apply_track_selection', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: key, unchecked_recording_ids: uncheckedIds })
-            });
-            const data = await res.json();
-            if (data.status === "success") {
-                this.updateStatus(uncheckedIds.length > 0 ? `${uncheckedIds.length} track(s) marked skipped.` : "Selection confirmed.", "success");
-                this.loadPersonnelCandidates();
-            } else {
-                this.updateStatus(data.message || "Failed to apply track selection.", "error");
-            }
-        } catch (e) {
-            this.updateStatus("Network error applying track selection.", "error");
-        }
+    askEntered: function (s) {
+        const dlg = document.getElementById('mbs-entered');
+        const ok = Object.values(s.results).filter((r) => r.ok).length;
+        const finish = async (entered) => {
+            const token = this.batch.token;
+            let marked = 0;
+            try { marked = (await this.post('batch_done', { token, entered })).marked; } catch (e) { /* batch gone */ }
+            clearTimeout(this.batch.timer);
+            this.batch = null;
+            document.getElementById('mbs-batch')?.remove();
+            window.MFAnnounce(entered
+                ? `${marked} credit${marked === 1 ? '' : 's'} marked as waiting for MusicBrainz.`
+                : 'Nothing was recorded as sent.');
+            if (this.current && document.getElementById('mbs-body')) this.openAlbum(this.current.album.mf_id, { focusHeading: false });
+        };
+        if (!ok || !dlg) { finish(false); return; }
+        document.getElementById('mbs-entered-text').textContent =
+            `The MusicBrainz window is closed. MetaForge added ${ok} credit${ok === 1 ? '' : 's'} there, but can't see whether the edit was entered.`;
+        dlg.addEventListener('close', () => finish(dlg.returnValue === 'yes'), { once: true });
+        dlg.returnValue = '';
+        dlg.showModal();
     }
 };
 /* --- END OF FILE musicbrainz_submit.js --- */

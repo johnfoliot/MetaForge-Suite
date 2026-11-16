@@ -317,8 +317,30 @@ def open_mb_relationship_seed_window():
     title = data.get('title', 'MusicBrainz')
     if not url or not script:
         return jsonify({"status": "error", "message": "url and script are required."}), 400
-    api_bridge.open_mb_relationship_seed_window(title, url, script)
+    # v2 album pass: a batch token lets MusicBrainz Submit hear when the
+    # companion window closes (the batch itself lives in app.extensions).
+    batch = app.extensions.get('mbs_batches', {}).get(data.get('token') or '')
+    on_closed = (lambda: batch.update(closed=True)) if batch is not None else None
+    api_bridge.open_mb_relationship_seed_window(title, url, script, on_closed)
     return jsonify({"status": "success"})
+
+@app.route('/mb_report/<token>', methods=['POST', 'OPTIONS'])
+def mb_report(token):
+    # MusicBrainz Submit v2: the batch script running on musicbrainz.org
+    # reports each relationship it added (or couldn't) back here over
+    # fetch(), same transport as the verify window. The one-time token is
+    # the only way in; unknown tokens are ignored.
+    if request.method == 'OPTIONS':
+        return ('', 204)
+    batch = app.extensions.get('mbs_batches', {}).get(token)
+    if batch is None:
+        return jsonify({"status": "error"}), 404
+    data = request.get_json(silent=True) or {}
+    if data.get('finished'):
+        batch['finished'] = True
+    elif data.get('key') in batch['keys']:
+        batch['results'][data['key']] = {"ok": bool(data.get('ok')), "message": str(data.get('message') or '')[:200]}
+    return jsonify({"status": "ok"})
 
 @app.route('/open_verify_window', methods=['POST'])
 def open_verify_window():
@@ -353,7 +375,7 @@ def _verify_action_cors(response):
     # `*` is safe here specifically because Flask only binds to
     # 127.0.0.1 -- a remote page can't reach this at all -- and no
     # credentials/cookies are ever sent or read by these routes.
-    if request.path.startswith('/verify_action/'):
+    if request.path.startswith(('/verify_action/', '/mb_report/')):
         response.headers['Access-Control-Allow-Origin'] = '*'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
@@ -811,7 +833,7 @@ class MetaForgeAPI:
         # login + app-restart test, not assumed.
         webview.create_window(title, html=html, width=1280, height=800)
 
-    def open_mb_relationship_seed_window(self, title, url, script):
+    def open_mb_relationship_seed_window(self, title, url, script, on_closed=None):
         # Real navigation (url=), not html= -- the injected script needs
         # to run against MusicBrainz's own live page, not a locally-built
         # one. No js_api: the script only reads/writes the page's own DOM
@@ -831,7 +853,11 @@ class MetaForgeAPI:
         # the CSS of, where matching ordinary browser convention (white)
         # is the safer default.
         seed_window = webview.create_window(title, url=url, width=1280, height=900, background_color='#ffffff')
+        # The script itself checks the page path and runs once, so this
+        # firing again after "Enter edit" navigates is harmless.
         seed_window.events.loaded += lambda: seed_window.evaluate_js(script)
+        if on_closed:
+            seed_window.events.closed += on_closed
 
     def open_verify_window(self, title, urls):
         # Genuine second top-level window loaded by direct navigation
