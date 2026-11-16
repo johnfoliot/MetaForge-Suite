@@ -39,3 +39,9 @@
     --focus-ring: #FFF3DE;         /* Porcelain: 10.6:1 or better on every surface */
     --status-warning: #ff9a3c;     /* Orange, so a warning never reads as gold */
 }
+
+.global-nav {background:src('./images/christmas.png');
+	margin-left:-10px;
+	padding-left:10px;
+	margin-right:-10px;
+}
