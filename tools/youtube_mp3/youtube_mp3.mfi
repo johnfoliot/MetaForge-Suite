@@ -91,9 +91,11 @@
     .yt-num { font-weight: 700; color: var(--text-primary); text-align: right; }
     .yt-cut input[type="text"] { min-width: 0; }
     .yt-cut .yt-start { font-family: var(--font-mono); }
-    .yt-play { min-width: 5.5em; }
+    .yt-play { min-width: 6.5em; }   /* "Play start" and "Stop" take the same width */
     .yt-note { grid-column: 2 / -1; margin: 0; font-size: 0.8125rem; line-height: 1.35; color: var(--text-muted); }
     .yt-note.is-check { color: var(--status-warning); }
+    /* Visible column labels; the fields carry their own names for screen readers. */
+    .yt-cut-head { padding: 0 0 0.2rem; font-size: 0.8125rem; font-weight: 700; color: var(--text-muted); }
     /* Larger text: a row is title on one line, start time and Play under it,
        instead of scrolling sideways (rem here is the user's text size). */
     @container yt-panel (width < 30rem) {
@@ -106,6 +108,7 @@
         .yt-cut .yt-start { grid-area: start; max-width: 8rem; }
         .yt-play { grid-area: play; }
         .yt-note { grid-area: note; }
+        .yt-cut-head { display: none; }   /* columns no longer line up */
     }
 
     .yt-foot {
@@ -264,6 +267,7 @@
                     </div>
                     <p class="yt-hint yt-path" id="yt-saving"></p>
                     <p class="yt-hint" id="yt-review-intro"></p>
+                    <div class="yt-cut yt-cut-head" aria-hidden="true"><span></span><span>Song title</span><span>Starts at</span><span></span></div>
                     <ol class="yt-cuts" id="yt-cuts"></ol>
                 </section>
         </form>

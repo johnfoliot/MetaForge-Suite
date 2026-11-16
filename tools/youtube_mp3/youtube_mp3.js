@@ -367,20 +367,23 @@ window.metaforge.youtube_mp3 = {
     showCuts: function (cuts) {
         this.cuts = cuts;
         const $ = (id) => document.getElementById(id);
+        // Every note is about where THIS track starts, i.e. the change from
+        // the track before (John, 2026-11-16: "Check" under track 6 read as
+        // possibly being about the end of 6 or the start of 7).
         const NOTE = {
-            start: ['The start of the video.', false],
-            chapter: ["From the video's chapters.", false],
-            times: ["From the times in the video's description.", false],
-            gap: ['A clear gap between songs.', false],
-            faint: ['Only a faint gap here. Listen to check it.', true],
-            length: ['No gap here: placed by the track length. Listen to check it.', true],
-            guess: ['No gap found: this is a guess. Listen and correct it.', true]
+            start: () => ['Starts at the beginning of the video.', false],
+            chapter: () => ["Start taken from the video's chapters.", false],
+            times: () => ["Start taken from the times in the video's description.", false],
+            gap: (n) => [`Starts after a clear gap following track ${n - 1}.`, false],
+            faint: (n) => [`Check where track ${n} starts: there's only a faint gap after track ${n - 1}. Use Play start to hear the change.`, true],
+            length: (n) => [`Check where track ${n} starts: there's no gap after track ${n - 1}, so the start is worked out from the track lengths. Use Play start to hear the change.`, true],
+            guess: (n) => [`Check where track ${n} starts: no gap was found, so this is a guess. Use Play start to hear it, and correct the time.`, true]
         };
-        const check = cuts.rows.filter((r) => NOTE[r.how]?.[1]).length;
+        const check = cuts.rows.filter((r, i) => NOTE[r.how]?.(i + 1)[1]).length;
         $('yt-review-intro').textContent =
             `${cuts.rows.length} songs in ${this.clock(cuts.duration)}${cuts.basis ? `, placed using ${cuts.basis}` : ''}. ` +
-            (check ? `${check} ${check === 1 ? 'cut needs' : 'cuts need'} a listen. ` : '') +
-            'Play plays a few seconds either side of a start time. Times are minutes:seconds.';
+            'Each time is where that track starts (minutes:seconds). Play start plays from 4 seconds before it to 6 seconds after, so you hear the previous track end and this one begin.' +
+            (check ? ` ${check} ${check === 1 ? 'start needs' : 'starts need'} checking: look for “Check”.` : '');
         $('yt-cuts').replaceChildren(...cuts.rows.map((r, i) => {
             const li = document.createElement('li');
             li.className = 'yt-cut';
@@ -404,13 +407,13 @@ window.metaforge.youtube_mp3 = {
             const play = document.createElement('button');
             play.type = 'button';
             play.className = 'mf-button-gold-fixed yt-play';
-            play.textContent = 'Play';
-            play.setAttribute('aria-label', `Play the start of track ${i + 1}`);
+            play.dataset.n = String(i + 1);
+            this.setPlayLabel(play, false);
             const note = document.createElement('p');
-            const [text, warn] = NOTE[r.how] || ['', false];
+            const [text, warn] = NOTE[r.how]?.(i + 1) || ['', false];
             note.className = `yt-note${warn ? ' is-check' : ''}`;
             note.id = `yt-cut-note-${i}`;
-            note.textContent = warn ? `Check: ${text}` : text;
+            note.textContent = text;
             start.setAttribute('aria-describedby', note.id);
             li.append(num, title, start, play, note);
             return li;
@@ -477,13 +480,19 @@ window.metaforge.youtube_mp3 = {
         this.audio.currentTime = from;
         this.audio.play().catch((e) => window.MFAnnounce(`Error: it couldn't play: ${e.message}`, { urgent: true }));
         this.playing = btn;
-        btn.textContent = 'Stop';
+        this.setPlayLabel(btn, true);
     },
 
     stopPlaying: function () {
         if (this.audio) this.audio.pause();
-        if (this.playing) this.playing.textContent = 'Play';
+        if (this.playing) this.setPlayLabel(this.playing, false);
         this.playing = null;
+    },
+
+    /** The visible words start the accessible name (WCAG 2.5.3 Label in Name). */
+    setPlayLabel: function (btn, playing) {
+        btn.textContent = playing ? 'Stop' : 'Play start';
+        btn.setAttribute('aria-label', playing ? `Stop playing track ${btn.dataset.n}` : `Play start of track ${btn.dataset.n}`);
     },
 
     // --- [ HELPERS ] ---------------------------------------------------------
