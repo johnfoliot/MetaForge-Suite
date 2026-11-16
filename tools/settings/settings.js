@@ -18,7 +18,7 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
         if (S.booted) return true;
         if (S.booting) return S.booting;
         S.booting = (async () => {
-            const engines = ['theme_engine.js', 'theme_maker.js', 'toolbar_engine.js', 'taxonomy_engine.js',
+            const engines = ['theme_engine.js', 'theme_maker.js', 'toolbar_engine.js', 'dashboard_engine.js', 'taxonomy_engine.js',
                              'api_engine.js', 'update_engine.js', 'help_engine.js'];
             for (const engine of engines) {
                 await new Promise((resolve) => {
@@ -99,6 +99,7 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
         wireTabs();
         S.themes && S.themes.load();
         S.toolbar && S.toolbar.load();
+        S.dashboard && S.dashboard.load();
         S.taxonomy && S.taxonomy.load();
         S.api && S.api.load();
         S.updates && S.updates.load();

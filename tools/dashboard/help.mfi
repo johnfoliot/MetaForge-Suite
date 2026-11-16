@@ -1,7 +1,36 @@
-<h3 class="white">Dashboard Overview</h3>
-<p>The Dashboard provides a high-level summary of your music library status.</p>
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v2 (2026-11-16): rewritten for the tile Dashboard. The 1.x text
+     described a library path and a track count that the screen no longer
+     shows. -->
+<h3 class="help first">What this tool does</h3>
+<p class="help">Shows how your library is doing at a glance: how much is tagged, what's waiting in other tools, which artists still need a biography, and what looks wrong in the data. Each tile is one question. Nothing on the Dashboard changes your files or the database.</p>
+
+<h3>The tiles</h3>
 <ul>
-    <li><strong>Library Path:</strong> Shows your current root music directory.</li>
-    <li><strong>Database Stats:</strong> Displays the total number of tracks indexed.</li>
+    <li><strong>How much is tagged?</strong> Tracks MetaForge has processed, by category folder (the top folders of your library, such as Blues or Pop, Rock), against the files on disk. <strong>Open</strong> shows every category, or switch <strong>Count by</strong> to <strong>Tagged genre</strong> to see the genres and sub-genres written into the tags.</li>
+    <li><strong>What's waiting?</strong> Work queued for other tools: AcoustIDs to submit, tracks without an AcoustID or a MusicBrainz ID, files waiting for repair, and credits to give MusicBrainz. Choose a line to go to that tool. The MusicBrainz count is updated each time you open MusicBrainz Submit.</li>
+    <li><strong>Who needs a bio?</strong> Main artists with 10 or more tracks and no biography, and session players credited on many different artists' albums. <strong>See who</strong> lists them; <strong>Build bio</strong> opens Bio Builder with that artist.</li>
+    <li><strong>What looks wrong?</strong> Track years that can't be right (before 1900 or in the future), album years later than every track on the album, credits for albums no longer in the library, tracks with no AI mood, and tracks whose file is missing. <strong>See details</strong> lists them.</li>
 </ul>
-<p class="tool_notes">Note: The dashboard updates automatically on startup.</p>
+
+<h3>Counting files on disk</h3>
+<p>The database only knows about tracks MetaForge has processed. To compare with everything in your library folder, choose <strong>Count files on disk</strong> on the "How much is tagged?" tile. It reads every folder, which takes several minutes over a USB drive; you can keep working in other tools while it counts. The result is kept until you choose <strong>Rescan</strong>. Counting also finds tracks whose file is missing.</p>
+
+<h3>Session players</h3>
+<p>A session player counts when they're credited on albums by at least 8 different artists and have no tracks of their own in the library. Change the number in <strong>See who</strong> (<strong>Credited with at least</strong>, then <strong>Update</strong> or press Enter). MetaForge remembers it.</p>
+
+<h3>Changing the layout</h3>
+<p>Which tiles show, how wide they are and their order are set in <strong>Settings</strong>, under <strong>Dashboard</strong>:</p>
+<ol>
+    <li>Tick the tiles to show, and choose how many columns wide each one is.</li>
+    <li>Change the order with <strong>Move up</strong> and <strong>Move down</strong>, or drag a tile by its handle (<span aria-hidden="true">⠿</span> on the left). Press Escape while dragging to cancel.</li>
+    <li>Choose <strong>Save dashboard</strong>. <strong>Reset to default</strong> puts the original layout back in the list (choose Save dashboard to keep it).</li>
+</ol>
+<p class="tool_notes">When text is enlarged, wide tiles take fewer columns so nothing runs off the screen.</p>
+
+<h3>Adding and removing tiles</h3>
+<p>Each tile is its own small plug-in, in a folder of its own under <code>tools\dashboard\tiles\</code>, just as each tool has its own folder under <code>tools\</code>. A new tile's folder is found by itself and shows up at the end of the Dashboard and in Settings. Deleting a tile's folder removes it.</p>
+
+<h3>Keeping it current</h3>
+<p>The tiles count when you open the Dashboard. Choose <strong>Refresh</strong> to count again after working in another tool.</p>
+<!-- --- END OF FILE help.mfi --- -->

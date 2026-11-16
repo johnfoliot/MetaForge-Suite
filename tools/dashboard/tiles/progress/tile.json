@@ -1,0 +1,7 @@
+{
+    "id": "progress",
+    "title": "How much is tagged?",
+    "description": "Tracks tagged by category folder against the files on disk, or by tagged genre.",
+    "width": 2,
+    "order": 10
+}

@@ -1,0 +1,15 @@
+/* Dashboard tile: How much is tagged? Bars: the bar's length = tracks on
+   disk (relative to the largest category), the filled part = tagged.
+   Numbers are always shown as text too. */
+.db-bars {
+    list-style: none; margin: 0; padding: 0;
+    display: grid;
+    grid-template-columns: minmax(6rem, auto) minmax(4rem, 1fr) auto;
+    gap: 0.35rem 0.75rem;
+    align-items: center;
+    font-size: 0.9375rem;
+}
+.db-bars li { display: contents; }
+.db-track { display: block; height: 0.9rem; width: var(--len, 100%); background: var(--surface-raised); border: 1px solid var(--border-ui); border-radius: 3px; overflow: hidden; }
+.db-fill { display: block; height: 100%; width: var(--done, 0%); background: var(--mf-gold); }
+.db-num { color: var(--text-muted); text-align: right; white-space: nowrap; }

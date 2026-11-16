@@ -34,6 +34,7 @@
 import contextlib
 import io
 import json
+import os
 import re
 import secrets
 import shutil
@@ -487,8 +488,18 @@ def _albums():
         elif st == "pending" and _relationship(c, instruments)["sendable"]:
             a["to_send"] += 1
     rows = [a for a in out.values() if a["has_release"] and (a["to_send"] or a["waiting"])]
-    return jsonify({"status": "ok", "albums": rows,
-                    "credits": sum(a["to_send"] for a in rows if not a["skipped"])})
+    credits = sum(a["to_send"] for a in rows if not a["skipped"])
+    # The Dashboard's backlog tile shows this count, with its date, without
+    # building the queue itself (that takes ~100 s).
+    try:
+        summary = PERSONNEL_CANDIDATE_LOG.parent / "submit_summary.json"
+        tmp = summary.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"credits": credits, "albums": sum(1 for a in rows if a["to_send"] and not a["skipped"]),
+                                   "as_of": datetime.now().isoformat(timespec="seconds")}), encoding="utf-8")
+        os.replace(tmp, summary)
+    except OSError:
+        pass
+    return jsonify({"status": "ok", "albums": rows, "credits": credits})
 
 
 # --- [ ONE ALBUM ] ----------------------------------------------------------

@@ -1,22 +1,22 @@
 <!-- ======================================================================
      MetaForge Tool UI: Dashboard
-     MOCK-UP (2026-11-16) for John's review: static sample numbers taken
-     from the live database on 16 Nov (on-disk counts from the 2 Oct scan,
-     rounded). Nothing here is wired to data yet. Plan:
+     v2 (2026-11-16). The frame: tiles are plug-ins in tiles\<id>\ (found
+     like tools are), laid out in Settings > Dashboard
+     (data\dashboard\layout.json); each loads its own data. Plan:
      D:\MetaForge Work files\Dashboard_Audit_2026-11-16.md
      ====================================================================== -->
 <style>
     .db-stage {
         flex: 1;
         min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: 0.6rem;
-        min-height: 0;
         container: db-stage / inline-size;
     }
-    .db-bar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-    .db-mock-note { flex: 1; margin: 0; font-size: 0.875rem; color: var(--text-muted); }
+    .db-bar { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap; }
+    .db-bar-status { flex: 1; margin: 0; font-size: 0.875rem; color: var(--text-muted); }
     .db-btn-quiet {
         background: transparent !important;
         color: var(--mf-gold) !important;
@@ -24,7 +24,8 @@
     }
 
     /* The tiles: one grid, scrolling on its own. 3 columns at 1280 px,
-       fewer as text grows (tile width is in rem). */
+       fewer as text grows (the minimum tile width is in rem). DOM order is
+       the visual order: no `order`, no dense packing. */
     .db-tiles {
         position: relative;          /* contains hidden screen-reader text */
         flex: 1;
@@ -35,7 +36,7 @@
         grid-auto-rows: min-content;
         align-content: start;
         gap: 0.9rem;
-        padding: 0.15rem;           /* room for focus rings */
+        padding: 0.2rem;             /* room for focus rings */
     }
     .db-tile {
         display: flex;
@@ -47,35 +48,25 @@
         border-radius: 6px;
         min-width: 0;
     }
-    .db-span-2 { grid-column: span 2; }
-    .db-span-3 { grid-column: 1 / -1; }
-    /* One column left (large text): a wide tile must not force a second,
-       off-screen column. 2 × 19rem + gap = 38.9rem. */
-    @container db-stage (width < 39rem) {
-        .db-span-2, .db-span-3 { grid-column: auto; }
-    }
+    .db-w2 { grid-column: span 2; }
+    .db-w3 { grid-column: 1 / -1; }
+    /* Two columns left: a 3-wide tile takes the row. One column left (large
+       text): wide tiles must not force an off-screen column.
+       2 x 19rem + gap = 38.9rem; 3 x 19rem + 2 gaps = 58.8rem. */
+    @container db-stage (width < 59rem) { .db-w3 { grid-column: span 2; } }
+    @container db-stage (width < 39rem) { .db-w2, .db-w3 { grid-column: auto; } }
+
     .db-tile h2 { margin: 0; font-size: 1.125rem; color: var(--mf-gold); }
     .db-tile p { margin: 0; }
+    .db-body { display: flex; flex-direction: column; gap: 0.6rem; }
     .db-muted { color: var(--text-muted); font-size: 0.9375rem; }
     .db-big { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); }
+    .db-error { color: var(--status-error); }
     .db-tile footer { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; flex-wrap: wrap; margin-top: auto; }
     .db-tile footer .db-muted { flex: 1; min-width: 10rem; }
 
-    /* Progress bars: bar length = tracks on disk (relative to the largest
-       category), gold part = tagged. Numbers are always shown as text. */
-    .db-bars {
-        list-style: none; margin: 0; padding: 0;
-        display: grid;
-        grid-template-columns: minmax(6rem, auto) minmax(4rem, 1fr) auto;
-        gap: 0.35rem 0.75rem;
-        align-items: center;
-        font-size: 0.9375rem;
-    }
-    .db-bars li { display: contents; }
-    .db-track { display: block; height: 0.9rem; background: var(--surface-raised); border: 1px solid var(--border-ui); border-radius: 3px; overflow: hidden; }
-    .db-fill { display: block; height: 100%; background: var(--mf-gold); }
-    .db-num { color: var(--text-muted); text-align: right; white-space: nowrap; }
-
+    /* Shared tile styles (any tile may use these). A tile's own styles live
+       in its tiles\<id>\tile.css. */
     /* Lists of counts */
     .db-list { list-style: none; margin: 0; padding: 0; font-size: 0.9375rem; }
     .db-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border-subtle); }
@@ -83,12 +74,13 @@
     .db-list-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); column-gap: 1.5rem; }
     .db-list-2 li:last-child { border-bottom: 1px solid var(--border-subtle); }
     .db-list a { color: var(--mf-gold); }
+    .db-list .db-n { font-weight: 700; white-space: nowrap; }
     .db-warn { color: var(--status-warning); }
     .db-pair { display: flex; align-items: baseline; gap: 0.6rem; }
 
-    /* Dialogs */
+    /* Detail dialog (one, filled per tile) */
     .db-dialog {
-        width: min(46rem, 92vw);
+        width: min(48rem, 92vw);
         max-height: 88vh;
         padding: 1rem 1.25rem;
         background: var(--surface-panel);
@@ -96,37 +88,23 @@
         border: 1px solid var(--mf-gold);
         border-radius: 6px;
     }
+    .db-dialog[open] { display: flex; flex-direction: column; }
     .db-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
     .db-dialog h2 { margin: 0 0 0.6rem; font-size: 1.25rem; color: var(--mf-gold); }
     .db-dialog h3 { margin: 0.9rem 0 0.4rem; font-size: 1rem; color: var(--text-primary); }
-    .db-dialog-body { position: relative; overflow-y: auto; max-height: calc(88vh - 8rem); }
-    .db-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.9rem; }
-    .db-view { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0 0 0.6rem; padding: 0; border: 0; }
+    .db-dialog-body { position: relative; overflow-y: auto; min-height: 0; flex: 1; }
+    .db-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.9rem; flex-wrap: wrap; }
+    .db-view { display: flex; gap: 0.4rem 1.25rem; flex-wrap: wrap; margin: 0 0 0.6rem; padding: 0; border: 0; }
     .db-view legend { padding: 0; margin-bottom: 0.3rem; font-weight: 700; }
     .db-view label { display: flex; align-items: center; gap: 0.4rem; }
     .db-table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
-    .db-table th, .db-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+    .db-table th, .db-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border-subtle); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
     .db-table th { color: var(--mf-gold); font-size: 0.875rem; }
-    .db-table td.db-n, .db-table th.db-n { text-align: right; }
-    .db-table td button { font-size: 0.875rem; padding: 0.2rem 0.6rem; min-block-size: 2rem; }
+    .db-table .db-n { text-align: right; white-space: nowrap; }
+    .db-table td button { font-size: 0.875rem; padding: 0.2rem 0.6rem; min-block-size: 2rem; white-space: nowrap; }
+    .db-sub { color: var(--text-muted); font-size: 0.875rem; }
     .db-field { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.2rem 0 0.4rem; }
     .db-field input { width: 4.5rem; }
-
-    /* Customize: one vertical list (drag handle + buttons) */
-    .db-custom { list-style: none; margin: 0; padding: 0; }
-    .db-custom li {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto;
-        align-items: center;
-        gap: 0.6rem;
-        padding: 0.45rem 0.25rem;
-        border-bottom: 1px solid var(--border-subtle);
-    }
-    .db-handle { cursor: grab; color: var(--text-muted); font-size: 1.1rem; user-select: none; }
-    .db-custom label { display: flex; align-items: center; gap: 0.5rem; }
-    .db-custom select { font-size: 0.875rem; }
-    .db-moves { display: flex; gap: 0.3rem; }
-    .db-moves button { font-size: 0.8125rem; padding: 0.2rem 0.55rem; min-block-size: 2rem; }
 </style>
 
 <div class="mf-page-head">
@@ -137,176 +115,19 @@
 <div class="active_stage">
 <div class="db-stage">
     <div class="db-bar">
-        <p class="db-mock-note">Mock-up: sample numbers from 16 November. Nothing is live yet.</p>
+        <p class="db-bar-status" id="db-status" role="status"></p>
         <button type="button" class="mf-button-gold-fixed db-btn-quiet" id="db-refresh">Refresh</button>
-        <button type="button" class="mf-button-gold-fixed db-btn-quiet" id="db-customize-btn">Customize</button>
     </div>
-
-    <div class="db-tiles" id="db-tiles">
-
-        <article class="db-tile db-span-2" aria-labelledby="db-t-progress">
-            <h2 id="db-t-progress">How much is tagged?</h2>
-            <p class="db-muted"><span class="db-big">19,348</span> of 313,956 tracks on disk (6%). Each bar's length is the tracks on disk; the gold part is tagged.</p>
-            <ul class="db-bars">
-                <li><span>Pop, Rock</span><span class="db-track" style="width:100%"><span class="db-fill" style="width:6.9%"></span></span><span class="db-num">7,272 of 106,100</span></li>
-                <li><span>Blues</span><span class="db-track" style="width:53%"><span class="db-fill" style="width:5.5%"></span></span><span class="db-num">3,064 of 56,200</span></li>
-                <li><span>Soul, Funk</span><span class="db-track" style="width:32%"><span class="db-fill" style="width:11%"></span></span><span class="db-num">3,718 of 33,900</span></li>
-                <li><span>R&amp;B</span><span class="db-track" style="width:21%"><span class="db-fill" style="width:1.6%"></span></span><span class="db-num">351 of 22,000</span></li>
-                <li><span>Country</span><span class="db-track" style="width:15%"><span class="db-fill" style="width:15%"></span></span><span class="db-num">2,360 of 15,700</span></li>
-            </ul>
-            <footer>
-                <span class="db-muted">On disk: scanned 2 Oct. 5 of 20 categories shown.</span>
-                <button type="button" class="mf-button-gold-fixed db-btn-quiet">Rescan</button>
-                <button type="button" class="mf-button-gold-fixed" data-db-open="db-dlg-progress">Open</button>
-            </footer>
-        </article>
-
-        <article class="db-tile" aria-labelledby="db-t-backlog">
-            <h2 id="db-t-backlog">What's waiting?</h2>
-            <ul class="db-list">
-                <li><a href="#">AcoustIDs to submit</a><strong>48</strong></li>
-                <li><a href="#">Tracks without an AcoustID</a><strong>135</strong></li>
-                <li><a href="#">Tracks without a MusicBrainz ID</a><strong>137</strong></li>
-                <li><a href="#">Files waiting for repair</a><strong>0</strong></li>
-                <li><a href="#">Credits to give MusicBrainz</a><span class="db-muted">open to count</span></li>
-            </ul>
-        </article>
-
-        <article class="db-tile" aria-labelledby="db-t-bios">
-            <h2 id="db-t-bios">Who needs a bio?</h2>
-            <p class="db-pair"><span class="db-big">70</span><span class="db-muted">main artists with 10 or more tracks</span></p>
-            <p class="db-pair"><span class="db-big">61</span><span class="db-muted">session players credited with 8 or more different artists</span></p>
-            <footer>
-                <button type="button" class="mf-button-gold-fixed" data-db-open="db-dlg-bios">See who</button>
-            </footer>
-        </article>
-
-        <article class="db-tile db-span-2" aria-labelledby="db-t-health">
-            <h2 id="db-t-health">What looks wrong?</h2>
-            <ul class="db-list db-list-2">
-                <li><span>Track years that look wrong</span><strong class="db-warn">24</strong></li>
-                <li><span>Tracks whose file is missing</span><strong class="db-warn">397</strong></li>
-                <li><span>Album year later than its tracks</span><strong class="db-warn">584</strong></li>
-                <li><span>Credits for albums no longer here</span><strong class="db-warn">236</strong></li>
-                <li><span>Tracks with no AI mood</span><strong class="db-warn">6</strong></li>
-            </ul>
-            <footer>
-                <button type="button" class="mf-button-gold-fixed">See details</button>
-            </footer>
-        </article>
-
-    </div>
+    <div class="db-tiles" id="db-tiles" aria-label="Dashboard tiles" role="region"></div>
 </div>
 </div>
 
-<!-- Progress: both views -->
-<dialog id="db-dlg-progress" class="db-dialog" aria-labelledby="db-dlg-progress-h">
-    <h2 id="db-dlg-progress-h">How much is tagged?</h2>
-    <fieldset class="db-view">
-        <legend>Count by</legend>
-        <label><input type="radio" name="db-view" value="folder" checked> Category folder (tagged and on disk)</label>
-        <label><input type="radio" name="db-view" value="genre"> Tagged genre</label>
-    </fieldset>
-    <div class="db-dialog-body">
-        <table class="db-table" id="db-view-folder">
-            <caption class="mf-visually-hidden">Tracks tagged and on disk, by category folder</caption>
-            <thead><tr><th scope="col">Category folder</th><th scope="col" class="db-n">Tagged</th><th scope="col" class="db-n">On disk</th><th scope="col" class="db-n">Done</th></tr></thead>
-            <tbody>
-                <tr><td>Pop, Rock</td><td class="db-n">7,272</td><td class="db-n">106,100</td><td class="db-n">7%</td></tr>
-                <tr><td>Blues</td><td class="db-n">3,064</td><td class="db-n">56,200</td><td class="db-n">5%</td></tr>
-                <tr><td>Soul, Funk</td><td class="db-n">3,718</td><td class="db-n">33,900</td><td class="db-n">11%</td></tr>
-                <tr><td>R&amp;B</td><td class="db-n">351</td><td class="db-n">22,000</td><td class="db-n">2%</td></tr>
-                <tr><td>Country</td><td class="db-n">2,360</td><td class="db-n">15,700</td><td class="db-n">15%</td></tr>
-                <tr><td>Swing &amp; Standards</td><td class="db-n">885</td><td class="db-n">15,400</td><td class="db-n">6%</td></tr>
-                <tr><td>Vocalists</td><td class="db-n">372</td><td class="db-n">9,400</td><td class="db-n">4%</td></tr>
-                <tr><td>Gospel</td><td class="db-n">667</td><td class="db-n">800</td><td class="db-n">83%</td></tr>
-                <tr><td>…</td><td class="db-n"></td><td class="db-n"></td><td class="db-n"></td></tr>
-            </tbody>
-        </table>
-        <table class="db-table" id="db-view-genre" hidden>
-            <caption class="mf-visually-hidden">Tagged tracks by genre</caption>
-            <thead><tr><th scope="col">Genre</th><th scope="col" class="db-n">Tagged tracks</th></tr></thead>
-            <tbody>
-                <tr><td>Blues</td><td class="db-n">3,406</td></tr>
-                <tr><td>Rock</td><td class="db-n">3,340</td></tr>
-                <tr><td>Soul</td><td class="db-n">2,748</td></tr>
-                <tr><td>Pop</td><td class="db-n">2,227</td></tr>
-                <tr><td>Country</td><td class="db-n">1,302</td></tr>
-                <tr><td>Swing</td><td class="db-n">1,249</td></tr>
-                <tr><td>Funk</td><td class="db-n">872</td></tr>
-                <tr><td>Gospel</td><td class="db-n">739</td></tr>
-                <tr><td>…</td><td class="db-n"></td></tr>
-            </tbody>
-        </table>
-    </div>
+<!-- Detail of one tile (filled by dashboard.js) -->
+<dialog id="db-detail" class="db-dialog" aria-labelledby="db-detail-h">
+    <h2 id="db-detail-h"></h2>
+    <div class="db-dialog-body" id="db-detail-body"></div>
     <form method="dialog" class="db-dialog-actions">
         <button type="submit" class="mf-button-gold-fixed">Close</button>
-    </form>
-</dialog>
-
-<!-- Bios needed -->
-<dialog id="db-dlg-bios" class="db-dialog" aria-labelledby="db-dlg-bios-h">
-    <h2 id="db-dlg-bios-h">Who needs a bio?</h2>
-    <div class="db-dialog-body">
-        <h3>Main artists with 10 or more tracks (70)</h3>
-        <table class="db-table">
-            <thead><tr><th scope="col">Artist</th><th scope="col" class="db-n">Tracks</th><th scope="col"><span class="mf-visually-hidden">Action</span></th></tr></thead>
-            <tbody>
-                <tr><td>Lightnin’ Hopkins</td><td class="db-n">513</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>The Stylistics</td><td class="db-n">212</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>Stan Kenton and His Orchestra</td><td class="db-n">183</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>…</td><td></td><td></td></tr>
-            </tbody>
-        </table>
-        <h3>Session players (61)</h3>
-        <form class="db-field" id="db-threshold-form">
-            <label for="db-threshold">Credited with at least</label>
-            <input type="number" id="db-threshold" min="2" max="50" value="8">
-            <span>different artists</span>
-            <button type="submit" class="mf-button-gold-fixed db-btn-quiet">Update</button>
-        </form>
-        <table class="db-table">
-            <thead><tr><th scope="col">Artist</th><th scope="col" class="db-n">Different artists</th><th scope="col" class="db-n">Credits</th><th scope="col"><span class="mf-visually-hidden">Action</span></th></tr></thead>
-            <tbody>
-                <tr><td>Willie Dixon</td><td class="db-n">23</td><td class="db-n">86</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>Allen Toussaint</td><td class="db-n">16</td><td class="db-n">134</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>Johnny Mercer</td><td class="db-n">16</td><td class="db-n">71</td><td><button type="button" class="mf-button-gold-fixed">Build bio</button></td></tr>
-                <tr><td>…</td><td></td><td></td><td></td></tr>
-            </tbody>
-        </table>
-    </div>
-    <form method="dialog" class="db-dialog-actions">
-        <button type="submit" class="mf-button-gold-fixed">Close</button>
-    </form>
-</dialog>
-
-<!-- Customize -->
-<dialog id="db-dlg-custom" class="db-dialog" aria-labelledby="db-dlg-custom-h">
-    <h2 id="db-dlg-custom-h">Customize the Dashboard</h2>
-    <p class="db-muted">Tick the tiles to show. Drag a tile by its handle, or use Move up and Move down.</p>
-    <div class="db-dialog-body">
-        <ol class="db-custom">
-            <li><span class="db-handle" aria-hidden="true">⠿</span>
-                <label><input type="checkbox" checked> How much is tagged?</label>
-                <select aria-label="Width of How much is tagged?"><option>1 column</option><option selected>2 columns</option><option>3 columns</option></select>
-                <span class="db-moves"><button type="button" disabled>Move up</button><button type="button">Move down</button></span></li>
-            <li><span class="db-handle" aria-hidden="true">⠿</span>
-                <label><input type="checkbox" checked> What's waiting?</label>
-                <select aria-label="Width of What's waiting?"><option selected>1 column</option><option>2 columns</option><option>3 columns</option></select>
-                <span class="db-moves"><button type="button">Move up</button><button type="button">Move down</button></span></li>
-            <li><span class="db-handle" aria-hidden="true">⠿</span>
-                <label><input type="checkbox" checked> Who needs a bio?</label>
-                <select aria-label="Width of Who needs a bio?"><option selected>1 column</option><option>2 columns</option><option>3 columns</option></select>
-                <span class="db-moves"><button type="button">Move up</button><button type="button">Move down</button></span></li>
-            <li><span class="db-handle" aria-hidden="true">⠿</span>
-                <label><input type="checkbox" checked> What looks wrong?</label>
-                <select aria-label="Width of What looks wrong?"><option>1 column</option><option selected>2 columns</option><option>3 columns</option></select>
-                <span class="db-moves"><button type="button">Move up</button><button type="button" disabled>Move down</button></span></li>
-        </ol>
-    </div>
-    <form method="dialog" class="db-dialog-actions">
-        <button type="submit" class="mf-button-gold-fixed db-btn-quiet" value="reset">Reset to default</button>
-        <button type="submit" class="mf-button-gold-fixed" value="done">Done</button>
     </form>
 </dialog>
 

@@ -407,6 +407,37 @@
     .set-dialog-body ul { margin: 0 0 0.75rem; padding-left: 1.25rem; }
     .set-dialog-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
 
+    /* --- DASHBOARD TILES: one vertical list. Drag by the handle, or Move
+       up/down (the keyboard and single-pointer way, WCAG 2.5.7). --- */
+    .set-db-list { list-style: none; margin: 0; padding: 0; position: relative; max-width: 60rem; container: set-db / inline-size; }
+    .set-db-list > li:not(.set-hint) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: 0.4rem 0.75rem;
+        padding: 0.55rem 0.25rem;
+        border-top: 2px solid transparent;      /* drop marker: colour only, no shift */
+        border-bottom: 1px solid var(--border-subtle);
+        background: var(--surface-page);
+    }
+    .set-db-list > li.is-drop-before { border-top-color: var(--mf-gold); }
+    .set-db-list.is-drop-end > li:last-child { border-bottom-color: var(--mf-gold); }
+    .set-db-list > li.is-dragging { opacity: 0.6; }
+    .set-db-handle {
+        cursor: grab; color: var(--text-muted); font-size: 1.2rem; line-height: 1;
+        padding: 0.25rem; user-select: none; touch-action: none;
+    }
+    html.set-db-grabbing, html.set-db-grabbing * { cursor: grabbing !important; }
+    .set-db-name { display: grid; gap: 0.15rem; min-width: 0; }
+    .set-db-name label { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); }
+    .set-db-name .set-hint { padding-left: 1.6rem; }
+    .set-db-list select { width: auto; }
+    .set-db-moves { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    @container set-db (width < 34rem) {
+        .set-db-list > li:not(.set-hint) { grid-template-columns: auto minmax(0, 1fr); }
+        .set-db-list select, .set-db-moves { grid-column: 2; justify-self: start; }
+    }
+
     @media (forced-colors: active) {
         .set-tabs button[aria-selected="true"]::before,
         .set-genre-btn[aria-current="true"]::before { border-color: Highlight; }
@@ -423,6 +454,7 @@
     <div class="set-tabs" focusgroup="tablist block nomemory" aria-label="Settings" aria-orientation="vertical" id="set-tabs">
         <button type="button" id="set-tab-theme" aria-selected="true" focusgroupstart>Theme</button>
         <button type="button" id="set-tab-toolbar" aria-selected="false">Toolbar</button>
+        <button type="button" id="set-tab-dashboard" aria-selected="false">Dashboard</button>
         <button type="button" id="set-tab-genres" aria-selected="false">Genre list</button>
         <button type="button" id="set-tab-config" aria-selected="false">Configuration &amp; keys</button>
         <button type="button" id="set-tab-updates" aria-selected="false">Updates</button>
@@ -607,6 +639,24 @@
                 <div class="set-actions">
                     <button type="submit" class="mf-button-gold-fixed">Update toolbar</button>
                     <p class="set-status" id="set-toolbar-status"></p>
+                </div>
+            </form>
+        </div>
+
+        <!-- DASHBOARD (tiles are found in tools\dashboard\tiles\; saved through the Dashboard's own layout action) -->
+        <div role="tabpanel" id="set-panel-dashboard" aria-labelledby="set-tab-dashboard" hidden="until-found">
+            <form class="set-panel-in" id="set-dashboard-form">
+                <h2>Dashboard</h2>
+                <p class="set-intro" id="set-db-intro">Choose which tiles the Dashboard shows, how wide each one is, and their order. Drag a tile by its handle, or use Move up and Move down. Nothing changes until you choose <strong>Save dashboard</strong>.</p>
+                <ol class="set-db-list" id="set-db-list" aria-describedby="set-db-intro">
+                    <li class="set-hint">Loading the tiles…</li>
+                </ol>
+                <p class="mf-visually-hidden" id="set-db-moved" role="status"></p>
+                <p class="set-hint">Widths are the most columns a tile takes. When text is enlarged, wide tiles take fewer so nothing runs off the screen. New tiles appear here by themselves.</p>
+                <div class="set-actions">
+                    <button type="submit" class="mf-button-gold-fixed">Save dashboard</button>
+                    <button type="button" class="set-secondary" id="set-db-reset">Reset to default</button>
+                    <p class="set-status" id="set-dashboard-status"></p>
                 </div>
             </form>
         </div>

@@ -1,0 +1,7 @@
+{
+    "id": "backlog",
+    "title": "What’s waiting?",
+    "description": "Work queued for other tools: AcoustIDs, MusicBrainz IDs, repairs and credits to give MusicBrainz.",
+    "width": 1,
+    "order": 20
+}
