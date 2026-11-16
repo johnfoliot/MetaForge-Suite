@@ -51,6 +51,12 @@
    breaks assistive "read from here" features. It stays off only on
    interface chrome (buttons, navigation, tabs, scroll controls). */
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* The reset above strips the browser's margin:auto that centres a modal
+   <dialog>, pinning every tool's dialog to the top-left corner. Put it back. */
+dialog { margin: auto; }
+/* Scrolling over a modal or its backdrop mustn't scroll the screen behind it. */
+dialog:modal { overscroll-behavior: contain; }
+dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
 button, .nav-item, [role="tab"], .sub-nav-btn, .mf-scroll-btn, .mf-scroll-track {
     user-select: none; -webkit-user-select: none;
 }

@@ -1,121 +1,235 @@
 <!-- --- START OF FILE music-sharing.mfi --- -->
 <!-- ======================================================================
-     MetaForge Interface: Music Sharing Studio
-     Build 7.4.4: Global Help CSS Integration & Studio Layout Preservation.
-     Accessibility: WCAG 2.2 AA Compliance
+     MetaForge Interface: Music Sharing
+     v2 (2026-11-16): rebuilt. Left: the track (a real <form>: Enter makes
+     the video), its details, progress, Stop and the Activity log. Right:
+     a true preview of the 1080x1080 frame (the same picture and caption
+     overlay FFmpeg uses). Native <dialog> when a video of that name exists.
      ====================================================================== -->
+<style>
+    .shr-workbench {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    /* --- LEFT: THE TRACK. Scrolls on its own; the actions are pinned. --- */
+    .shr-side {
+        flex: 1 1 0;
+        min-width: 26rem;   /* keeps both actions on one row at large text */
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    #shr-form { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .shr-scroll {
+        flex: 1;
+        position: relative;   /* contains hidden screen-reader text */
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.8rem 0.9rem;
+        scroll-padding-bottom: 4rem;
+    }
+    .shr-field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .shr-field label { color: var(--mf-gold); font-size: 0.875rem; font-weight: 700; }
+    .shr-path-row { display: flex; gap: 0.5rem; }
+    .shr-path-row input {
+        flex: 1;
+        min-width: 0;
+        padding: 0.4rem 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+    }
+    .shr-path-row button { flex: none; }
+    .shr-details { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 0.25rem 0.75rem; font-size: 0.9375rem; }
+    .shr-details dt { color: var(--text-muted); }
+    .shr-details dd { margin: 0; color: var(--text-primary); overflow-wrap: anywhere; }
+    .shr-hint { margin: 0; font-size: 0.875rem; line-height: 1.45; color: var(--text-muted); }
+    .shr-progress {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 0.4rem 0.9rem;
+    }
+    #shr-progress-bar {
+        height: 0.75rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .shr-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+    #shr-progress-label { grid-column: 1; margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    #shr-stop { grid-column: 2; grid-row: 1 / span 2; }
+    .shr-log-wrap { display: flex; min-height: 8rem; flex: 1; border: 1px solid var(--border-subtle); }
+    .shr-console {
+        position: relative;   /* contains hidden "Error:"/"Warning:" labels */
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.5rem 0.7rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+    .shr-log-intro { margin: 0; font-size: 0.9375rem; color: var(--text-muted); }
+    .shr-actions {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--surface-page);
+    }
+
+    /* --- RIGHT: THE PREVIEW (true 1080x1080 frame, scaled) --- */
+    .shr-preview-side {
+        flex: 0 1 34rem;   /* a real width: the note and the square never set it */
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+        min-height: 0;
+        overflow-y: auto;     /* at large text it scrolls rather than shrink the square to nothing */
+        position: relative;
+        padding: 0.8rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .shr-preview-side h2 { align-self: flex-start; margin: 0; color: var(--mf-gold); font-size: 1rem; }
+    /* The box takes whatever room is left; the frame is the largest square
+       that fits in it (container query units), whatever the text size. */
+    .shr-frame-box {
+        flex: 1;
+        align-self: stretch;
+        min-height: 12rem;
+        container-type: size;
+        display: grid;
+        place-items: center;
+    }
+    .shr-frame {
+        position: relative;
+        width: min(100cqw, 100cqh);
+        aspect-ratio: 1;
+        background: #000;   /* the video's own black, not a theme colour */
+        overflow: hidden;
+    }
+    .shr-frame img { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #shr-pic { object-fit: cover; }
+    #shr-pic[hidden] { display: none; }
+    .shr-preview-note { margin: 0; font-size: 0.875rem; color: var(--text-muted); text-align: center; }
+
+    /* --- "A VIDEO WITH THIS NAME EXISTS" (native modal <dialog>) --- */
+    .shr-dialog {
+        width: min(32rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .shr-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .shr-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .shr-dialog p { margin: 0 0 1rem; font-size: 0.9375rem; line-height: 1.45; overflow-wrap: anywhere; }
+    .shr-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Music Sharing</h1>
     <button type="button" class="mf-help-btn" data-mf-help="music-sharing" data-mf-help-name="Music Sharing">Help</button>
 </div>
 
+<div class="active_stage">
+<div class="shr-workbench">
 
+    <section class="shr-side" aria-label="Track and progress">
+        <form id="shr-form" novalidate>
+            <div class="shr-scroll">
+                <div class="shr-field">
+                    <label for="shr-path">Track</label>
+                    <div class="shr-path-row">
+                        <input type="text" id="shr-path" readonly placeholder="No track chosen" aria-describedby="shr-path-hint">
+                        <button type="button" class="mf-button-gold-fixed" id="shr-pick">Choose a track…</button>
+                    </div>
+                    <p class="shr-hint" id="shr-path-hint">An MP3 from your library. The video is saved in your Videos folder, under MetaForge Studio.</p>
+                </div>
 
-<div class="active_stage" id="sharing-stage">
-    <!-- 50/50 STUDIO SPLIT -->
-    <div class="sharing-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; min-height: 400px; width: 100%;">
-        
-        <!-- COLUMN 1: STUDIO CONTROLS -->
-        <section class="sharing-column" aria-labelledby="sharing-controls-label" style="display: flex; flex-direction: column; gap: 15px; align-items: flex-start;">
-            <h2 id="sharing-controls-label" class="mf-grid-heading">Studio Controls</h2>
-            
-            <div class="control-group" style="width: 90%; margin-left:1rem;">
-                <label for="sharing-target-path" class="data-text" style="display:block; margin-bottom: 5px;">Target Track Path:</label>
-                <div style="display: flex; gap: 10px; width: 100%;">
-                    <input type="text" id="sharing-target-path" class="mf-input" readonly 
-                           placeholder="No file selected..." 
-                           style="flex: 1; background-color:white;">
-                    <button class="mf-button-gold-fixed" onclick="metaforge.sharing.pickFile()">Select Track</button>
+                <dl class="shr-details" id="shr-details" hidden>
+                    <dt>Title</dt><dd id="shr-d-title"></dd>
+                    <dt>Artist</dt><dd id="shr-d-artist"></dd>
+                    <dt>Album</dt><dd id="shr-d-album"></dd>
+                    <dt>Length</dt><dd id="shr-d-length"></dd>
+                    <dt>Picture</dt><dd id="shr-d-picture"></dd>
+                    <dt>Video</dt><dd id="shr-d-video"></dd>
+                </dl>
+
+                <div class="shr-progress">
+                    <div id="shr-progress-bar" role="progressbar" aria-label="Video progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div id="shr-progress-fill" class="shr-progress-fill mf-progress-shimmer"></div>
+                    </div>
+                    <p id="shr-progress-label">Standing by</p>
+                    <button type="button" class="mf-button-gold-fixed" id="shr-stop" disabled>Stop</button>
+                </div>
+
+                <div class="shr-log-wrap">
+                    <!-- role="log" but NOT live: the shared announcer speaks steps, problems and the finish. -->
+                    <div id="shr-console" class="shr-console" role="log" aria-live="off" aria-label="Activity log">
+                        <p class="shr-log-intro">Choose a track to begin.</p>
+                    </div>
                 </div>
             </div>
-
-            <!-- STUDIO PROGRESS BAR -->
-            <div id="sharing-progress-wrapper" style="width: 100%; margin-top: 10px; display: none;">
-                <div class="mf-progress-track" style="width: 100%; height: 24px; background: var(--bg-main); border: 1px solid var(--bg-accent); border-radius: 4px; overflow: hidden; position: relative;">
-                    <div id="sharing-progress-bar"
-                         class="mf-progress-shimmer"
-                         role="progressbar"
-                         aria-valuemin="0"
-                         aria-valuemax="100"
-                         aria-valuenow="0"
-                         style="width: 0%; height: 100%; transition: width 0.3s ease;"></div>
-                </div>
-                <div id="sharing-status-msg" class="data-text" style="margin-top: 10px; font-size: 0.8rem; font-weight: bold;"></div>
+            <div class="shr-actions">
+                <button type="button" class="mf-button-gold-fixed" id="shr-show">Open the videos folder</button>
+                <button type="submit" class="mf-button-gold-fixed" id="shr-make" disabled>Make the video</button>
             </div>
+        </form>
+    </section>
 
-            <div style="display: flex; gap: 15px; margin-top: 20px; margin-left:1rem;">
-                <button id="btn-generate-video" 
-                        class="mf-button-gold-fixed" 
-                        onclick="metaforge.sharing.runRender()" 
-                        disabled
-                        style="width: 160px; opacity: 0.5; cursor: not-allowed;"
-                        aria-label="Begin video rendering">
-                    Generate Video
-                </button>
-                
-                <button id="btn-open-output" 
-                        class="mf-button-gold-fixed" 
-                        onclick="metaforge.sharing.openOutputFolder()" 
-                        style="display: none; width: 160px;"
-                        aria-label="View rendered video in file explorer">
-                    View Output Folder
-                </button>
+    <section class="shr-preview-side" aria-labelledby="shr-preview-h">
+        <h2 id="shr-preview-h">Preview</h2>
+        <div class="shr-frame-box">
+            <div class="shr-frame">
+                <img id="shr-pic" alt="" hidden>
+                <img src="/tool_asset/music-sharing/branding.png" alt="">
             </div>
-        </section>
+        </div>
+        <p class="shr-preview-note" id="shr-preview-note">1080 × 1080, with the caption "Audio taken from my personal library".</p>
+    </section>
 
-        <!-- COLUMN 2: STUDIO PREVIEW -->
-        <section class="sharing-column" aria-labelledby="sharing-preview-label" style="display: flex; flex-direction: column; gap: 15px; align-items: center; justify-content: flex-start;">
-            <h2 id="sharing-preview-label" class="mf-grid-heading" style="align-self: flex-start;">Output Preview</h2>
-
-            <div class="render-preview-box" id="sharing-preview-container">
-                <!-- Watermark Simulation -->
-                <div class="watermark-sim"></div>
-                <!-- Album Art / Placeholder -->
-                <img id="sharing-preview-art" src="/ui/images/no-photo.png" alt="Album art preview" style="width: 240px; height: auto; object-fit: cover; opacity: 0.3;">
-            </div>
-            
-            <p class="data-text tool_notes" style="font-size: 0.65rem; text-align: center;">Rendering at 1080x1080 (Square)</p>
-        </section>
-    </div>
+</div>
 </div>
 
-<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
-<style>
-    /* LOCALIZED TOOL STYLES: music-sharing */
-    #sharing-stage { position: relative; }
-    
-    .render-preview-box {
-        width: 250px;
-        height: 250px;
-        background-color: #111;
-        border: 2px solid var(--mf-gold);
-        border-radius: 4px;
-        position: relative;
-        overflow: hidden;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    }
+<dialog class="shr-dialog" id="shr-exists" aria-labelledby="shr-exists-h">
+    <form method="dialog">
+        <h2 id="shr-exists-h">A video with this name already exists</h2>
+        <p id="shr-exists-text"></p>
+        <div class="shr-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="cancel">Cancel</button>
+            <button type="submit" class="mf-button-gold-fixed" value="keep" autofocus>Keep both</button>
+            <button type="submit" class="mf-button-gold-fixed" value="replace">Replace it</button>
+        </div>
+    </form>
+</dialog>
 
-    .watermark-sim {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-image: url('/ui/images/logo_silver.svg');
-        background-size: 40px;
-        background-repeat: no-repeat;
-        background-position: 10px 10px;
-        opacity: 0.5;
-        z-index: 2;
-        pointer-events: none;
-    }
-	.mf-input {
-	padding:5px;
-	color:var(--input-foreground2)!important;
-	background-color:var(--input-background2)!important;
-	}
-    #sharing-status-msg.status-success { color: var(--status-success); }
-    #sharing-status-msg.status-error { color: var(--status-error); }
-    #sharing-status-msg.status-working { color: var(--mf-gold); }
-</style>
+<dialog class="shr-dialog" id="shr-leave" aria-labelledby="shr-leave-h">
+    <form method="dialog">
+        <h2 id="shr-leave-h">Stop the video and leave?</h2>
+        <p>The video being made is thrown away. You can make it again later.</p>
+        <div class="shr-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="stay" autofocus>Keep making it</button>
+            <button type="submit" class="mf-button-gold-fixed" value="leave">Stop and leave</button>
+        </div>
+    </form>
+</dialog>
 <!-- --- END OF FILE music-sharing.mfi --- -->

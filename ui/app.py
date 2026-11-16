@@ -280,7 +280,9 @@ def select_folder():
 @app.route('/select_file')
 def select_file():
     global api_bridge
-    path = api_bridge.select_file()
+    # ?kind=audio opens the picker on audio files (Music Sharing); the
+    # default stays images (artist photos, album covers).
+    path = api_bridge.select_file(request.args.get('kind', 'image'))
     return jsonify({"path": path})
 
 @app.route('/open_mb_seeded_window', methods=['POST'])
@@ -787,10 +789,12 @@ class MetaForgeAPI:
             res = window.create_file_dialog(webview.FOLDER_DIALOG)
             return res[0] if res and isinstance(res, tuple) else res
         return None
-    def select_file(self):
+    def select_file(self, kind='image'):
         global window
         if window:
-            res = window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=('Image Files (*.jpg;*.jpeg;*.png)', 'All files (*.*)'))
+            types = (('Audio Files (*.mp3)', 'All files (*.*)') if kind == 'audio'
+                     else ('Image Files (*.jpg;*.jpeg;*.png)', 'All files (*.*)'))
+            res = window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=types)
             return res[0] if res and isinstance(res, tuple) else res
         return None
     def open_mb_seeded_window(self, title, html):

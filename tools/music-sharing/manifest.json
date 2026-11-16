@@ -2,7 +2,7 @@
   "name": "Music Sharing",
   "id": "music-sharing",
   "version": "1.0.0",
-  "description": "Repackages .mp3 files as .mp4 files with album art, for sharing via social media",
+  "description": "Turns an MP3 into a square MP4 video with its cover art, ready to share on social media",
   "entry_point": "music-sharing.py",
   "ui_template": "music-sharing.mfi",
   "icon": "music-sharing.svg",

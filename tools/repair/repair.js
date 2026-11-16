@@ -121,7 +121,9 @@ window.metaforge.repair = {
         } finally {
             this.running = false;
             window.MFLeaveGuard?.clear('repair');
-            if (document.body.contains(log)) {
+            // Look the screen up again: if the tool was left and come back to
+            // mid-run, it's a fresh screen, not `log`'s.
+            if ($('rep-console')) {
                 $('rep-stop').disabled = true;
                 $('rep-stop').textContent = 'Stop';
                 await this.loadQueue();

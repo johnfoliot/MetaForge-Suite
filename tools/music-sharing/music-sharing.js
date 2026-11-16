@@ -1,220 +1,229 @@
 /* --- START OF FILE music-sharing.js --- */
 /**
- * Music Sharing Studio: Logic Bridge. Build 1.0.3
- * Role: Handles track selection, progress rendering, and studio previews.
- * Build 1.0.3: Hardened SPA Re-entry (Directive XIX) and Accessibility (Emoji Scrub).
+ * MetaForge Studio: Music Sharing
+ * v2 (2026-11-16): choose a track (native picker, MP3 filter), its details
+ * and a true preview, "a video with this name exists" dialog (Cancel /
+ * Keep both / Replace it), event-stream render (MFEvents) with FFmpeg's real
+ * progress, Stop, "OK to leave?" while rendering, and Show the video.
+ * The tool's script loads once per page; init() runs on every visit.
  */
-
-// --- 1. NAMESPACE INITIALIZATION ---
 window.metaforge = window.metaforge || {};
-window.metaforge.sharing = {
-    
-    lastTrigger: null,
-    isRendering: false,
-    selectedPath: null,
 
-    /**
-     * SPA Re-entry Protocol (Directive XIX)
-     * Resets or synchronizes UI state upon navigation back to the tool.
-     */
-    init: function() {
-        // 10ms Paint Guard to ensure DOM stability
-        setTimeout(() => {
-            const header = document.getElementById('sharing-info-label');
-            if (!header) return;
+window.metaforge['music-sharing'] = {
+    running: false,
+    track: null,      // the last /info answer for the chosen MP3
+    lastVideo: '',    // full path of the video made this visit (for Show)
 
-            console.log("METAFORGE: Music Sharing Studio awakening...");
-
-            // If not currently rendering, ensure the UI is in a clean "Standby" state
-            if (!this.isRendering) {
-                this.resetStudio();
-                const previewImg = document.getElementById('sharing-preview-art');
-                if (previewImg && !this.selectedPath) {
-                    previewImg.src = '/ui/images/no-photo.png';
-                    previewImg.style.opacity = '0.3';
-                }
-            }
-        }, 10);
-    },
-
-    /**
-     * Entry Point: Invokes the thread-safe Global File Picker.
-     */
-    pickFile: async function() {
-        if (this.isRendering) return;
-
-        try {
-            const response = await fetch('/select_file');
-            const data = await response.json();
-
-            if (data.path) {
-                this.selectedPath = data.path;
-                document.getElementById('sharing-target-path').value = data.path;
-                
-                this.resetStudio();
-                this.syncPreview(data.path);
-                
-                const btn = document.getElementById('btn-generate-video');
-                if (btn) {
-                    btn.disabled = false;
-                    btn.style.opacity = '1';
-                    btn.style.cursor = 'pointer';
-                }
-            }
-        } catch (err) {
-            console.error("Music Sharing: Picker failure", err);
+    init: function () {
+        const $ = (id) => document.getElementById(id);
+        $('shr-pick').addEventListener('click', () => this.pick());
+        $('shr-form').addEventListener('submit', (e) => { e.preventDefault(); this.make(); });
+        $('shr-stop').addEventListener('click', () => this.stop());
+        $('shr-show').addEventListener('click', () => this.show());
+        if (this.running) {
+            $('shr-make').disabled = true;
+            $('shr-pick').disabled = true;
+            this.setProgress(0, 'The last video is still being made. Come back in a moment.');
+        } else if (this.track) {
+            this.showTrack(this.track);
         }
+        this.updateShow();
     },
 
-    /**
-     * Preview Engine: Localizes album art and updates the 250px replica.
-     */
-    syncPreview: async function(path) {
-        const previewImg = document.getElementById('sharing-preview-art');
-        const statusMsg = document.getElementById('sharing-status-msg');
-        const wrapper = document.getElementById('sharing-progress-wrapper');
-
-        if (!previewImg) return;
-        
-        try {
-            const response = await fetch('/run_tool_logic/music-sharing/get_preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: path })
-            });
-            const data = await response.json();
-
-            if (wrapper) wrapper.style.display = 'block';
-            if (statusMsg) statusMsg.className = 'data-text status-working';
-
-            if (data.art_url) {
-                previewImg.src = data.art_url;
-                previewImg.style.opacity = '1';
-                if (statusMsg) statusMsg.innerText = `Studio Ready: ${data.filename}`;
-            } else {
-                previewImg.src = '/ui/images/logo_silver.svg';
-                previewImg.style.opacity = '0.3';
-                if (statusMsg) statusMsg.innerText = "Ready (Using fallback branding)";
-            }
-        } catch (e) { console.error("Preview Sync Error", e); }
+    pick: async function () {
+        if (this.running) return;
+        let data;
+        try { data = await (await fetch('/select_file?kind=audio')).json(); }
+        catch (e) { window.MFAnnounce("The file picker couldn't be opened.", { urgent: true }); return; }
+        if (!data.path) return;   // cancelled
+        await this.loadTrack(data.path);
     },
 
-    /**
-     * Studio Progress Engine: Orchestrates FFmpeg.
-     * Sanitizes symbols for AT during real-time status updates.
-     */
-    runRender: async function() {
-        if (this.isRendering || !this.selectedPath) return;
-
-        const wrapper = document.getElementById('sharing-progress-wrapper');
-        const bar = document.getElementById('sharing-progress-bar');
-        const statusMsg = document.getElementById('sharing-status-msg');
-        const btnRender = document.getElementById('btn-generate-video');
-        const btnOpen = document.getElementById('btn-open-output');
-
-        this.isRendering = true;
-        btnRender.disabled = true;
-        btnRender.style.opacity = '0.5';
-        
-        wrapper.style.display = 'block';
-        bar.style.width = '5%'; 
-        statusMsg.className = 'data-text status-working';
-        statusMsg.innerHTML = '<span aria-hidden="true">⚙️</span> Initializing Studio: Creating shareable file...';
-
+    loadTrack: async function (path) {
+        const $ = (id) => document.getElementById(id);
+        let info;
         try {
-            const response = await fetch('/run_tool_logic/music-sharing/render', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ path: this.selectedPath })
+            info = await (await fetch('/run_tool_logic/music-sharing/info', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path })
+            })).json();
+        } catch (e) { info = { status: 'error', message: "The track couldn't be read." }; }
+        if (!$('shr-form')) return;   // left the tool meanwhile
+        if (info.status !== 'ok') {
+            this.track = null;
+            $('shr-path').value = path;
+            $('shr-details').hidden = true;
+            $('shr-make').disabled = true;
+            this.setPicture(null);
+            window.MFEvents.render($('shr-console'), { kind: 'error', text: info.message });
+            window.MFAnnounce(`Error: ${info.message}`, { urgent: true });
+            return;
+        }
+        this.track = info;
+        this.lastVideo = '';
+        this.showTrack(info);
+        this.setProgress(0, 'Standing by');
+        $('shr-console').replaceChildren();
+        window.MFEvents.render($('shr-console'), { kind: 'info', text: `Chosen: ${info.name}` });
+        window.MFAnnounce(`${info.title} chosen. Make the video when you're ready.`);
+        this.updateShow();
+        $('shr-make').focus();
+    },
+
+    showTrack: function (t) {
+        const $ = (id) => document.getElementById(id);
+        $('shr-path').value = t.path;
+        $('shr-d-title').textContent = t.title || '—';
+        $('shr-d-artist').textContent = t.artist || '—';
+        $('shr-d-album').textContent = t.album ? (t.year ? `${t.album} (${t.year})` : t.album) : '—';
+        $('shr-d-length').textContent = t.length ? this.clock(t.length) : 'Unknown';
+        $('shr-d-video').textContent = t.video_exists ? `${t.video_name} (one already exists)` : t.video_name;
+        $('shr-details').hidden = false;
+        $('shr-make').disabled = this.running;
+        this.setPicture(t);
+    },
+
+    setPicture: function (t) {
+        const pic = document.getElementById('shr-pic');
+        if (t && t.picture_url) {
+            pic.src = t.picture_url;
+            pic.hidden = false;
+        } else {
+            pic.removeAttribute('src');
+            pic.hidden = true;
+        }
+        document.getElementById('shr-d-picture').textContent = !t ? '' : {
+            embedded: 'The cover stored in the MP3',
+            folder: 'folder.jpg from the album folder',
+            none: 'None found, so the video is a plain black square'
+        }[t.picture] || '';
+    },
+
+    make: async function () {
+        if (this.running || !this.track) return;
+        let existing = 'replace';
+        if (this.track.video_exists) {
+            existing = await this.askExisting();
+            if (existing === 'cancel' || !existing) return;
+        }
+        this.render(existing);
+    },
+
+    askExisting: function () {
+        const dlg = document.getElementById('shr-exists');
+        const t = this.track;
+        document.getElementById('shr-exists-text').textContent =
+            `${t.video_name} is already in your Videos folder. Replace it, or keep both and save the new one as ${t.kept_name}?`;
+        return new Promise((resolve) => {
+            dlg.addEventListener('close', () => resolve(dlg.returnValue || 'cancel'), { once: true });
+            dlg.returnValue = '';
+            dlg.showModal();
+        });
+    },
+
+    render: async function (existing) {
+        const $ = (id) => document.getElementById(id);
+        const log = $('shr-console');
+        this.running = true;
+        $('shr-make').disabled = true;
+        $('shr-pick').disabled = true;
+        $('shr-stop').disabled = false;
+        log.replaceChildren();
+        this.setProgress(0, 'Starting…');
+        window.MFLeaveGuard?.set('music-sharing', () => this.askLeave());
+        let made = false;
+        try {
+            const res = await fetch('/run_tool_logic/music-sharing/render', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: this.track.path, existing })
             });
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let progressCounter = 5;
-            // Real bug, found live 2026-07-28 (John's King Crimson "Elephant
-            // Talk" / "Frame By Frame" reports): the render always actually
-            // completed and the MP4 was always written to disk correctly --
-            // confirmed directly -- but the UI sat on "Initializing
-            // Studio..." forever, looking exactly like a hang. Root cause:
-            // music-sharing.py wraps every status emoji for accessibility
-            // (<span aria-hidden="true">✅</span> SUCCESS: ...), so the
-            // actual text is "✅</span> SUCCESS", never "✅ SUCCESS" adjacent
-            // -- these emoji+word checks could never match, on any render,
-            // ever. Anchored on the stable "WORD:" text instead (present in
-            // every Processing/SUCCESS/ERROR line regardless of whatever
-            // markup wraps it) rather than assuming emoji adjacency, which
-            // is exactly the kind of thing an accessibility pass can change
-            // without anyone noticing this check silently broke.
-            // Also accumulates into `buffer` (not just the latest fragment)
-            // so a marker split across two network chunks -- normal,
-            // expected behavior for any streamed HTTP response -- still
-            // gets caught as soon as its second half arrives. `finished`
-            // stops re-processing the terminal state once reached.
-            let buffer = '';
-            let finished = false;
-
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                if (!finished && buffer.includes('Processing:')) {
-                    progressCounter = Math.min(progressCounter + 2, 95);
-                    bar.style.width = `${progressCounter}%`;
-                    bar.setAttribute('aria-valuenow', progressCounter);
-                    statusMsg.innerHTML = '<span aria-hidden="true">⚙️</span> Generating an MP4 file for sharing...';
+            if (res.status === 409) throw new Error((await res.json()).message);
+            await window.MFEvents.read(res, {
+                log,
+                onSignal: (name, data) => {
+                    if (name === 'progress') this.setProgress(data.percent, data.label);
+                    if (name === 'video_ready') { this.lastVideo = data.path; made = true; }
                 }
-
-                if (buffer.includes('SUCCESS:')) {
-                    finished = true;
-                    bar.style.width = '100%';
-                    bar.setAttribute('aria-valuenow', 100);
-                    statusMsg.className = 'data-text status-success';
-                    statusMsg.innerHTML = '<span aria-hidden="true">📻</span> Your file is ready to be shared.';
-                    if (btnOpen) btnOpen.style.display = 'block';
-                }
-
-                if (buffer.includes('ERROR:')) {
-                    finished = true;
-                    statusMsg.className = 'data-text status-error';
-                    statusMsg.innerHTML = '<span aria-hidden="true">🔥</span> Render failed. Check file integrity.';
-                }
-            }
+            });
         } catch (err) {
-            statusMsg.className = 'data-text status-error';
-            statusMsg.innerText = `System Error: ${err.message}`;
+            window.MFEvents.render(log, { kind: 'error', text: `The video couldn't be made: ${err.message}` });
+            window.MFAnnounce(`Error: the video couldn't be made: ${err.message}`, { urgent: true });
         } finally {
-            this.isRendering = false;
+            this.running = false;
+            window.MFLeaveGuard?.clear('music-sharing');
+            // Look the screen up again: if the tool was left and come back to
+            // mid-render, it's a fresh screen, not `log`'s.
+            if ($('shr-console')) {
+                $('shr-stop').disabled = true;
+                $('shr-stop').textContent = 'Stop';
+                $('shr-pick').disabled = false;
+                if (!made) this.setProgress(0, $('shr-progress-label').textContent === 'Stopped' ? 'Stopped' : 'Not finished');
+                // Refresh "one already exists" (and the Keep-both name) for the next go.
+                if (this.track) await this.loadTrackQuietly(this.track.path);
+                this.updateShow();
+                (made ? $('shr-show') : $('shr-make')).focus();
+            }
         }
     },
 
-    /**
-     * UI Cleanup: Resets progress and buttons.
-     */
-    resetStudio: function() {
-        const wrapper = document.getElementById('sharing-progress-wrapper');
-        const bar = document.getElementById('sharing-progress-bar');
-        const btnOpen = document.getElementById('btn-open-output');
-        const statusMsg = document.getElementById('sharing-status-msg');
-        
-        if (wrapper) wrapper.style.display = 'none';
-        if (bar) bar.style.width = '0%';
-        if (btnOpen) btnOpen.style.display = 'none';
-        if (statusMsg) statusMsg.innerText = '';
+    loadTrackQuietly: async function (path) {
+        try {
+            const info = await (await fetch('/run_tool_logic/music-sharing/info', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path })
+            })).json();
+            if (info.status === 'ok' && document.getElementById('shr-form')) { this.track = info; this.showTrack(info); }
+        } catch (e) { /* keep what's shown */ }
     },
 
-    openOutputFolder: function() {
-        fetch('/run_tool_logic/music-sharing/open_folder');
+    stop: async function () {
+        const btn = document.getElementById('shr-stop');
+        if (btn) { btn.disabled = true; btn.textContent = 'Stopping…'; }
+        window.MFAnnounce('Stopping.');
+        try { await fetch('/run_tool_logic/music-sharing/stop', { method: 'POST' }); } catch (e) { /* the render ends anyway */ }
     },
 
+    askLeave: function () {
+        const dlg = document.getElementById('shr-leave');
+        if (!dlg) return Promise.resolve(true);
+        return new Promise((resolve) => {
+            dlg.addEventListener('close', () => {
+                const leave = dlg.returnValue === 'leave';
+                if (leave) this.stop();
+                resolve(leave);
+            }, { once: true });
+            dlg.returnValue = '';
+            dlg.showModal();
+        });
+    },
+
+    show: async function () {
+        try {
+            await fetch('/run_tool_logic/music-sharing/show', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: this.lastVideo })
+            });
+        } catch (e) { window.MFAnnounce("The folder couldn't be opened.", { urgent: true }); }
+    },
+
+    updateShow: function () {
+        const btn = document.getElementById('shr-show');
+        if (btn) btn.textContent = this.lastVideo ? 'Show the video' : 'Open the videos folder';
+    },
+
+    clock: function (secs) {
+        const s = Math.round(secs);
+        return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    },
+
+    setProgress: function (percent, label) {
+        const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+        const bar = document.getElementById('shr-progress-bar');
+        const fill = document.getElementById('shr-progress-fill');
+        const text = document.getElementById('shr-progress-label');
+        if (fill) fill.style.width = `${pct}%`;
+        if (text && label) text.textContent = label;
+        if (bar) {
+            bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+            if (label) bar.setAttribute('aria-valuetext', `${label} (${Math.round(pct)}%)`);
+        }
+    }
 };
-
-// Start the SPA observer/initialization
-(function() {
-    window.metaforge.sharing.init();
-})();
-
-console.log("MetaForge Music Sharing: Studio Bridge Build 1.0.3 Synchronized.");
-/* --- MUSIC SHARING LOGIC BRIDGE END --- */
 /* --- END OF FILE music-sharing.js --- */

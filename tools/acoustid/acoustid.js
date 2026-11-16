@@ -72,8 +72,9 @@ window.metaforge.acoustid = {
         } finally {
             this.running = false;
             window.MFLeaveGuard?.clear('acoustid');
-            // The tool may have been left mid-run; only touch the screen if it's still here.
-            if (document.body.contains(log)) {
+            // The tool may have been left mid-run (and maybe come back to: a
+            // fresh screen, not `log`'s), so look the screen up again.
+            if ($('aid-console')) {
                 $('aid-fieldset').disabled = false;
                 $('aid-stop').disabled = true;
                 $('aid-stop').textContent = 'Stop';
