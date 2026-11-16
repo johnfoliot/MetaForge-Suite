@@ -88,9 +88,17 @@ window.metaforge.settings.themes = {
 
         // 2. Handle the Branding Logo Swap (Brute Force)
         const mainLogo = document.getElementById('mf-main-logo');
-        if (mainLogo) {
-            mainLogo.src = (themeFile.includes('light')) ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
-        }
+		if (mainLogo) {
+		if (themeFile.includes('light')) {
+			mainLogo.src = '/ui/images/logo_blue.svg';
+		} else if (themeFile.includes('lavender')) {
+			mainLogo.src = '/ui/images/logo_lavender.svg';
+		} else if (themeFile.includes('festive')) {
+                    mainLogo.src = '/ui/images/logo_festive.svg';
+		} else {
+			mainLogo.src = '/ui/images/logo.svg';
+		}
+	}
 
         // 3. UI Status Feedback
         const status = document.getElementById('save-status');

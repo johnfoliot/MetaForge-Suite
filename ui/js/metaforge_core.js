@@ -47,7 +47,15 @@ window.initializeMetaForgeBranding = async function() {
             if (prefs.theme_file) window.applyThemeFile(prefs.theme_file);
             const mainLogo = document.getElementById('mf-main-logo');
             if (mainLogo && prefs.theme_file) {
-                mainLogo.src = (prefs.theme_file.includes('light')) ? '/ui/images/logo_blue.svg' : '/ui/images/logo.svg';
+                if (prefs.theme_file.includes('light')) {
+                    mainLogo.src = '/ui/images/logo_blue.svg';
+                } else if (prefs.theme_file.includes('lavender')) {
+                    mainLogo.src = '/ui/images/logo_lavender.svg';
+				} else if (prefs.theme_file.includes('festive')) {
+				mainLogo.src = '/ui/images/logo_festive.svg';
+                } else {
+                    mainLogo.src = '/ui/images/logo.svg';
+                }
             }
         }
     } catch (e) { console.warn("Branding Boot Error"); }

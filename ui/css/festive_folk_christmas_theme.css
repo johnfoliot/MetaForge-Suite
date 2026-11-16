@@ -1,0 +1,39 @@
+/* --- METAFORGE SKIN: FESTIVE FOLK CHRISTMAS (Rich Evergreen & Ruby) --- */
+/* Palette by John; contrast pass 2026-11-15 (lightness-only nudges, same
+   hues except muted text). Every text colour is 4.5:1 or better on all three
+   surfaces (bg-main, bg-stage, bg-accent); borders, focus ring and the
+   scrollbar 3:1 or better. #CC9900 is the ONLY gold (brand rule), so the
+   evergreen and ruby are a little deeper to let gold text pass. */
+:root {
+    color-scheme: dark;
+
+    /* --- 1.x legacy compatibility names --- */
+    --bg-main: #053c2b;            /* Forest Evergreen primary background (gold text 4.81:1) */
+    --bg-accent: #6e0e10;          /* Christmas Ruby raised cards (deepened: gold text 4.69:1) */
+    --bg-stage: #043625;           /* Deep Evergreen tool panels */
+    --mf-gold: #cc9900;            /* Brand gold (was Antique Gold #D79A35, a second gold) */
+    --text-output: #FFF3DE;        /* Warm Porcelain primary text */
+    --text-message: #F8EFE1;       /* Soft porcelain secondary text */
+    --status-success: #78ad49;     /* Holly Leaf, lightened (was 1.1-2.0:1) */
+    --status-error: #f17c82;       /* Cranberry, lightened (was 1.05-1.7:1) */
+    --input-foreground: #043625;   /* Dark text on gold buttons (5.21:1) */
+    --input-foreground2: #FFF3DE;  /* Light text inside input fields */
+    --input-background: #cc9900;   /* Brand gold button fills */
+    --input-background2: #032b1e;  /* Deep dark green input field background */
+
+    /* --- v2 semantic names --- */
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --text-muted: #c8bba4;         /* Warm grey (the coral looked like the error colour) */
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+    --border-ui: #cc9900;          /* Brand gold control borders */
+    --border-subtle: #7a1c1f;      /* Ruby subtle separators (decorative only) */
+    --focus-ring: #FFF3DE;         /* Porcelain: 10.6:1 or better on every surface */
+    --status-warning: #ff9a3c;     /* Orange, so a warning never reads as gold */
+}

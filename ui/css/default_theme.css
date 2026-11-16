@@ -1,18 +1,40 @@
-/* --- METAFORGE SKIN: INDUSTRIAL DARK --- */
+/* --- METAFORGE SKIN: INDUSTRIAL DARK (v2) --- */
+/* v2 palette (2026-11-13). Every text colour below passes WCAG 2.2 AA
+   (4.5:1) on every surface in this theme; borders and the focus ring pass
+   3:1. #CC9900 is the ONLY gold (brand rule, see CLAUDE.md).
+   The first block keeps the 1.x variable NAMES so existing tool styles and
+   the Settings theme preview (theme_engine.py reads these) keep working;
+   the second block adds the v2 names. */
 :root {
-    --bg-main: #141414;
-    --bg-accent: #2f2f2f;
-    --bg-stage: #2f2f2f;
-    --mf-gold: #cc9900;
-    --text-output: #ffffff;
-    --text-message: #cccccc;
-    --status-success: #2ad95a; 
-    --status-error: #ff5e70;
-    --input-foreground: #000000; /* Use for buttons */
-	--input-foreground2: #000000; /* Use for text inputs */
-    --input-background: #cc9900; /* Use for buttons */
-	--input-background2: #ffffff; /* Use for text inputs */
-}
+    color-scheme: dark;
 
-/* Dark Mode Scrollbar Color */
-::-webkit-scrollbar-thumb { background: #374151; }
+    /* --- 1.x names (values updated for v2) --- */
+    --bg-main: #121212;            /* page / console background */
+    --bg-accent: #262626;          /* raised surface (text on it passes) */
+    --bg-stage: #1c1c1c;           /* tool panels */
+    --mf-gold: #cc9900;            /* brand accent */
+    --text-output: #f0f0f0;        /* primary text */
+    --text-message: #cccccc;       /* secondary text */
+    --status-success: #48d97a;
+    --status-error: #ff7a86;
+    --input-foreground: #121212;   /* text on accent-filled buttons */
+    --input-foreground2: #f0f0f0;  /* text in fields */
+    --input-background: #cc9900;   /* accent-filled buttons */
+    --input-background2: #101010;  /* text fields */
+
+    /* --- v2 names --- */
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --text-muted: #b4b4b4;
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+    --border-ui: #8c8c8c;          /* boundaries of controls: 3:1 or better */
+    --border-subtle: #333333;      /* decorative separators only */
+    --focus-ring: #ffffff;
+    --status-warning: #ff9a3c;     /* orange, so it never reads as a second gold */
+}
