@@ -1,84 +1,192 @@
 <!-- --- START OF FILE acoustid.mfi --- -->
 <!-- ======================================================================
      MetaForge Interface: AcoustID Manager
-     Build 7.4.3: Global Help CSS Integration.
-     Accessibility: WCAG 2.2 AA Compliance
+     v2 (2026-11-16): rebuilt. Two steps on the left, each saying how many
+     tracks are waiting; progress, Stop and the shared Activity log
+     (MFEvents) on the right. No inline styles, no HTML from the server.
      ====================================================================== -->
+<style>
+    .aid-workbench {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    /* --- LEFT: THE TWO STEPS. Scrolls on its own. --- */
+    .aid-steps {
+        flex: 0 0 max(calc(34% - 0.5rem), 18rem);   /* widens as text grows */
+        display: flex;
+        flex-direction: column;
+        gap: 0.9rem;
+        position: relative;   /* contains hidden screen-reader text */
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.9rem;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .aid-steps fieldset {
+        display: contents;
+    }
+    .aid-step {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem 0.9rem 0.9rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-subtle);
+    }
+    .aid-step h2 {
+        margin: 0;
+        color: var(--mf-gold);
+        font-size: 1rem;
+    }
+    .aid-step p { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--text-primary); }
+    .aid-step .aid-count { font-weight: 700; }
+    .aid-step .aid-hint { font-size: 0.875rem; color: var(--text-muted); }
+    .aid-step button { align-self: flex-start; }
+    .aid-note {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.45;
+        color: var(--text-muted);
+    }
+    .aid-note code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
+    .aid-warn { color: var(--status-warning); }
+
+    /* --- RIGHT: PROGRESS, STOP, ACTIVITY LOG --- */
+    .aid-output {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    .aid-progress {
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 0.4rem 0.9rem;
+        padding: 0.6rem 0.9rem 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    #aid-progress-bar {
+        height: 0.75rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .aid-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+    #aid-progress-label {
+        grid-column: 1;
+        margin: 0;
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    #aid-stop { grid-column: 2; grid-row: 1 / span 2; }
+    #aid-console-outer { flex: 1; display: flex; min-height: 0; }
+    .aid-console {
+        position: relative;   /* contains hidden "Error:"/"Warning:" labels */
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.75rem 0.9rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+    .aid-log-intro { margin: 0; font-size: 0.9375rem; color: var(--text-muted); }
+
+    /* --- "LEAVE WHILE RUNNING?" (native modal <dialog>) --- */
+    .aid-dialog {
+        width: min(30rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .aid-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .aid-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .aid-dialog p { margin: 0 0 1rem; font-size: 0.9375rem; line-height: 1.45; }
+    .aid-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">AcoustID Manager</h1>
     <button type="button" class="mf-help-btn" data-mf-help="acoustid" data-mf-help-name="AcoustID Manager">Help</button>
 </div>
 
-<div class="active_stage" id="acoustid-stage">
-    <section class="acoustid-controls" aria-labelledby="acoustid-actions-label">
-        <h2 id="acoustid-actions-label" class="mf-grid-heading">Sync Operations</h2>
-        
-        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-            <button class="mf-button-gold-fixed" 
-                    onclick="metaforge.acoustid.runTask('submit')"
-                    aria-label="Step 1: Submit fingerprints to AcoustID">
-                1. Submit Fingerprints
-            </button>
-            
-            <button class="mf-button-gold-fixed" 
-                    onclick="metaforge.acoustid.runTask('resolve')"
-                    aria-label="Step 2: Check for resolved IDs and update library">
-                2. Resolve & Update
-            </button>
+<div class="active_stage">
+<div class="aid-workbench">
+
+    <div class="aid-steps">
+        <fieldset id="aid-fieldset">
+            <section class="aid-step" aria-labelledby="aid-submit-h">
+                <h2 id="aid-submit-h">1. Submit new fingerprints</h2>
+                <p><span class="aid-count" id="aid-pending-count">Counting…</span></p>
+                <p class="aid-hint">The Intelli-Tagger adds a track here when AcoustID doesn't know it yet. Submitting shares its fingerprint, with the track's title, artist and album, so it can be recognised.</p>
+                <p class="aid-hint aid-warn" id="aid-key-note" hidden></p>
+                <button type="button" class="mf-button-gold-fixed" id="aid-submit-btn">Submit fingerprints</button>
+            </section>
+
+            <section class="aid-step" aria-labelledby="aid-resolve-h">
+                <h2 id="aid-resolve-h">2. Collect AcoustIDs</h2>
+                <p><span class="aid-count" id="aid-submitted-count">Counting…</span></p>
+                <p class="aid-hint">AcoustID adds submissions in the background, so check back later. A track MetaForge already knows gets its AcoustID in its tag and the database. Other files are left alone; the Intelli-Tagger finds their ID when you process that album.</p>
+                <button type="button" class="mf-button-gold-fixed" id="aid-resolve-btn">Check for AcoustIDs</button>
+            </section>
+        </fieldset>
+
+        <p class="aid-note" id="aid-notfound-note" hidden></p>
+    </div>
+
+    <section class="aid-output" aria-label="Progress and results">
+        <div class="aid-progress">
+            <div id="aid-progress-bar" role="progressbar" aria-label="AcoustID progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="aid-progress-fill" class="aid-progress-fill mf-progress-shimmer"></div>
+            </div>
+            <p id="aid-progress-label">Standing by</p>
+            <button type="button" class="mf-button-gold-fixed" id="aid-stop" disabled>Stop</button>
         </div>
 
-        <div class="acoustid-console-container">
-            <div style="display: flex; flex: 1; min-height: 0;">
-                <div id="acoustid-console"
-                     role="log"
-                     aria-live="polite"
-                     class="mf-console-output mf-hide-native-scrollbar"
-                     style="border-right: none; border-radius: 4px 0 0 4px;">
-                    <p class="tool_notes">Awaiting operation...</p>
+        <div id="aid-console-outer">
+            <!-- role="log" but NOT live: steps, problems and the finish are
+                 spoken by the shared announcer (MFAnnounce). -->
+            <div id="aid-console" class="aid-console mf-hide-native-scrollbar" role="log" aria-live="off" aria-label="Activity log">
+                <p class="aid-log-intro">Choose a step to begin.</p>
+            </div>
+            <!-- Custom scrollbar, shared implementation (layout.css section 10 / MFScrollbar). -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="aid-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
                 </div>
-                <!-- Custom scrollbar, shared implementation -- see
-                     layout.css section 10 / metaforge_core.js's
-                     MFScrollbar. No per-tool JS needed. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="acoustid-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
             </div>
         </div>
     </section>
+
+</div>
 </div>
 
-<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
-<style>
-    /* LOCALIZED TOOL STYLES: acoustid */
-    #acoustid-stage { display: flex; flex-direction: column; gap: 20px; position: relative; }
-    
-    .acoustid-console-container {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 300px;
-    }
-
-    .mf-console-output {
-        flex: 1;
-        background-color: var(--bg-main);
-        border: 3px solid var(--bg-accent);
-        border-radius: 4px;
-        padding: 15px;
-        font-family: var(--font-mono);
-        font-size: 0.65rem;
-        color: var(--text-output);
-        overflow-y: auto;
-        white-space: pre-wrap;
-        line-height: 1.2;
-    }
-
-    .mf-console-output div { margin-bottom: 4px; }
-    .mf-console-output .status-ok { color: var(--status-success); }
-    .mf-console-output .status-err { color: var(--status-error); }
-    .mf-console-output .status-warn { color: var(--mf-gold); }
-    .mf-console-output .status-api { color: var(--mf-gold); font-weight: bold; }
-</style>
+<dialog class="aid-dialog" id="aid-leave" aria-labelledby="aid-leave-h">
+    <form method="dialog">
+        <h2 id="aid-leave-h">Stop the run and leave?</h2>
+        <p>The run stops after the current track. Everything done so far is saved, and the rest stays in the list for next time.</p>
+        <div class="aid-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="stay" autofocus>Keep running</button>
+            <button type="submit" class="mf-button-gold-fixed" value="leave">Stop and leave</button>
+        </div>
+    </form>
+</dialog>
 <!-- --- END OF FILE acoustid.mfi --- -->

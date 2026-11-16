@@ -1,40 +1,32 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- ======================================================================
-     MetaForge Interface: AcoustID Manager
-
-     ====================================================================== -->
-	 
-	 <div class="help-content-silo">
-    <!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
+<!-- v2 (2026-11-16): rewritten for the rebuilt tool. The opening paragraph
+     is the prose moved word for word from the 1.x screen header. -->
 <h3 class="help first">What this tool does</h3>
 <p class="help">Manage the AcoustID fingerprinting lifecycle. Submit unknown tracks to the global database, or check previously submitted tracks to resolve and finalize their identifiers.</p>
 
-<h3 class="help first">What it does:</h3>
-    <p class="help">The AcoustID Manager establishes a <b>Verified Identity</b> for your audio files. It allows you to contribute to the global effort of cataloging the world's music through digital acoustic fingerprinting.</p> 
-    
-    <p class="help"><strong>Important: Community submission is optional.</strong> The Intelli-Tagger automatically fingerprints every file and stores that signature in a dedicated metadata frame as well as the MetaForge database. However, if a song is not yet registered in the global AcoustID database, your fingerprint remains a unique local ID without links to the wider music community.</p>
+<p class="help">AcoustID is a free, shared database that recognises a recording by how it sounds (its "fingerprint"). The Intelli-Tagger looks up every track. When AcoustID doesn't know a track yet, the track is added to a waiting list here. Submitting is optional, and it helps everyone who uses AcoustID.</p>
 
-	<div class="tool_notes">
-        <h3 class="help">How to use this tool:</h3> 
-        <p>The identification process is tracked via two log files in the <code>/data/acoustid/</code> directory:</p>
-        <ul style="padding-left: 20px; margin-top: 5px;">
-            <li><strong>pending_acoustid.txt:</strong> Tracks tracks that have been fingerprinted but not yet shared with the community.</li>
-            <li><strong>submission_history.txt:</strong> Tracks fingerprints that have been submitted and are awaiting final database approval.</li>
-			<li>The workflow is a 2-step process: <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">1. Submit fingerprints</span> to Submit new AcoustID fingerprints to the global database, and then click<br> <span style="background-color:var(--mf-gold); color:var(--input-foreground); padding: 3px 5px; border-radius:2px;">2. Resolve &amp; Update</span> for confirmation of your submissions in Step 2. <br><b>Remember, it can take up-to 10 weeks to see your submission made public.</b></li>
-        </ul>
-    </div>
-</div>
+<h3>1. Submit new fingerprints</h3>
+<ul>
+    <li>Sends each waiting track's fingerprint to AcoustID, with its title, artist, album, release year and MusicBrainz recording ID when MetaForge has them.</li>
+    <li>Needs two keys in <strong>Settings &gt; Configuration &amp; keys</strong>: the AcoustID application key and your own AcoustID user key (shown at acoustid.org once you're signed in).</li>
+    <li>A track that can't be sent stays in the list for next time.</li>
+</ul>
 
-    <h3 class="help">The Contribution Cycle:</h3>
-    <p class="help"><b>Using this tool is an act of community service.</b> By submitting unknown fingerprints, you help build the global database for other collectors. The process consists of two primary stages:</p>
-    <ul style="padding-left: 20px; margin-top: 5px;">
-        <li><strong>1. Submission:</strong> New fingerprints found during tagging are uploaded to AcoustID servers. This adds your specific file's "signature" to the global registry.</li>
-        <li><strong>2. Resolution:</strong> Once the community verifies the submission, this step confirms that the fingerprint is now an official part of the global database.</li>
-    </ul>
+<h3>2. Collect AcoustIDs</h3>
+<ul>
+    <li>AcoustID adds submissions in the background. This step asks AcoustID which of your submissions are done, and collects their AcoustIDs.</li>
+    <li>A track MetaForge already knows gets its AcoustID in the file's tag and in the database.</li>
+    <li>A file whose album hasn't been through the Intelli-Tagger yet is left alone. Its submission still counts: the Intelli-Tagger finds the AcoustID itself when you process that album.</li>
+    <li>Tracks still being processed stay in the list. Check again later.</li>
+</ul>
 
-    <h3 class="help">How it does it:</h3>
-    <p class="help">MetaForge uses a dedicated specialty engine (<code>fpcalc.exe</code>) to generate high-fidelity acoustic fingerprints. These are transmitted to AcoustID servers for matching. Because this is a crowd-sourced effort, there is a "cooling period" while the global network processes and confirms your data.</p>
+<h3>Stopping and leaving</h3>
+<ul>
+    <li><strong>Stop</strong> ends the run after the current track. Everything done so far is kept, and the rest stays in the list.</li>
+    <li>If you switch tools during a run, MetaForge asks first.</li>
+</ul>
 
-    
-
+<h3>Where the lists are kept</h3>
+<p>In the <code>data\acoustid</code> folder: <code>pending_acoustid.txt</code> (waiting to be submitted), <code>submission_history.txt</code> (waiting for an AcoustID), <code>submission_ids.json</code> (AcoustID's number for each submission) and <code>not_found.txt</code> (files that were moved or renamed before they could be handled).</p>
 <!-- --- END OF FILE help.mfi --- -->

@@ -1,290 +1,393 @@
 # --- START OF FILE acoustid.py ---
 # ======================================================================
-# MetaForge Tool Logic: AcoustID Manager (V.Core - Build 1.0.5)
-# Role: Fingerprint submission and resolution.
-# Build 1.0.5: Accessibility Hardening (WCAG 2.2) & COGA Linguistic Sync.
+# MetaForge Tool Logic: AcoustID Manager
+# v2 (2026-11-16): rebuilt.
+#   Step 1 submits fingerprints AcoustID doesn't know yet and KEEPS the
+#   submission number AcoustID returns. Step 2 asks AcoustID for the status
+#   of those submissions (no re-fingerprinting); tracks submitted before v2
+#   have no number and fall back to a fresh lookup.
+#   A found AcoustID goes to the standard "Acoustid Id" tag (the same frame
+#   the Intelli-Tagger writes) and tracks.acoustid, but only for tracks the
+#   database knows; other files are left alone (John, 2026-11-16) and the
+#   Intelli-Tagger finds the ID itself when that album is processed.
+#   Queue files are updated after every track, so stopping or a crash
+#   never loses work, and always end with a newline (1.x left it off and
+#   the next appended path was glued onto the last line).
+# Files (data/acoustid, shared with 1.x through the junction, so the two
+# .txt formats are unchanged: one path per line):
+#   pending_acoustid.txt    waiting to be submitted (Intelli-Tagger adds)
+#   submission_history.txt  submitted, waiting for an AcoustID
+#   submission_ids.json     {path: AcoustID submission id} (v2 only)
+#   not_found.txt           paths that no longer exist on disk
 # ======================================================================
 import json
+import os
+import re
 import subprocess
-import requests
+import threading
 import time
 from pathlib import Path
-from flask import Response, stream_with_context
+
+import requests
+from flask import Response, current_app, jsonify, request, stream_with_context
+
 from common import config_handler, db_engine, tag_engine
+from common.mf_events import event, signal, run_stream
+from common.version import APP_VERSION
 
-# --- [ CONFIGURATION ] ---
-DATA_DIR     = config_handler.DATA_DIR / "acoustid"
-PENDING_FILE = DATA_DIR / "pending_acoustid.txt"
-HISTORY_FILE = DATA_DIR / "submission_history.txt"
-# Bounded retry/backoff for AcoustID 429 responses -- added 2026-07-14
-# ahead of a real 7,700+ track bulk run, where hitting a rate limit
-# somewhere in the middle was a real, not hypothetical, risk.
+API = "https://api.acoustid.org/v2/"
+REQUEST_GAP = 0.4            # AcoustID asks for no more than 3 requests a second
 MAX_RATE_LIMIT_RETRIES = 5
-RATE_LIMIT_BASE_DELAY  = 2  # seconds; doubles each retry, capped below
-# Real bug fixed here 2026-07-13, found live: this was
-# `config_handler.ACOUSTID_API_KEY` with no `()` -- assigning the
-# function OBJECT itself, not its return value. requests would have
-# serialized that as the literal string "<function ACOUSTID_API_KEY at
-# 0x...>" for the "client" parameter on every lookup/submit call this
-# tool ever made, regardless of whatever key was actually in .env.
-# Confirmed live: type(API_KEY) was <class 'function'> before this fix.
-API_KEY      = config_handler.ACOUSTID_APPLICATION_KEY()
-# Only needed for real submissions (the "user" parameter) -- lookups
-# never use this. Not yet wired into submit_fingerprints() itself; that
-# function still needs its own fix (wrong endpoint entirely -- see
-# project memory) before this constant does anything useful.
-USER_KEY     = config_handler.ACOUSTID_USER_KEY()
-FPCALC       = config_handler.FPCALC_EXE
+STATUS_BATCH = 20            # submission ids per status request
+LOOKUP_MIN_SCORE = 0.9       # legacy lookups: only a near-certain match counts
 
-def run_logic(action, tools_dir, env_path):
-    """
-    Universal Dispatcher Entry Point.
-    """
-    if action == "submit":
-        return Response(stream_with_context(submit_fingerprints()), mimetype='text/plain')
-    elif action == "resolve":
-        return Response(stream_with_context(resolve_ids()), mimetype='text/plain')
-    
-    return json.dumps({"status": "error", "message": "Unknown action"}), 400
+http = requests.Session()    # replaced by a stub in tests
 
-# --- [ CORE OPERATIONS ] ---
 
-def _lookup_track_metadata(path):
-    """
-    Best-effort track metadata (title/artist/album/year/MB recording ID)
-    to enrich an AcoustID submission -- every field AcoustID's submit API
-    accepts here is optional, so a lookup failure must never block the
-    actual fingerprint submission, just make it plainer. Joins `tracks`
-    to `library_master` since artist/album live on the album row, not
-    the track row.
-    """
+# --- [ QUEUE FILES ] -------------------------------------------------------
+
+def _dir():
+    return Path(config_handler.DATA_DIR) / "acoustid"
+
+
+def _file(name):
+    return _dir() / {
+        "pending": "pending_acoustid.txt",
+        "history": "submission_history.txt",
+        "ids": "submission_ids.json",
+        "not_found": "not_found.txt",
+    }[name]
+
+
+_JOINED = re.compile(r"(?<!^)(?=[A-Za-z]:[\\/])")   # a drive letter mid-line = two paths glued together
+
+
+def normalise(lines):
+    """Split glued-together paths, trim, drop blanks and duplicates (keeps the first, in order)."""
+    out, seen = [], set()
+    for line in lines:
+        for part in _JOINED.split(line.strip()):
+            p = part.strip()
+            key = os.path.normcase(p)
+            if p and key not in seen:
+                seen.add(key)
+                out.append(p)
+    return out
+
+
+def read_list(name):
+    f = _file(name)
+    if not f.exists():
+        return []
+    return normalise(f.read_text(encoding="utf-8").splitlines())
+
+
+def _write_text(f, text):
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_suffix(f.suffix + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(tmp, f)
+
+
+def write_list(name, paths):
+    _write_text(_file(name), "".join(p + "\n" for p in paths))
+
+
+def _remove(name, path):
+    """Re-read, drop one path, write back: keeps anything another tool appended meanwhile."""
+    key = os.path.normcase(path)
+    write_list(name, [p for p in read_list(name) if os.path.normcase(p) != key])
+
+
+def _add(name, path):
+    items = read_list(name)
+    if os.path.normcase(path) not in {os.path.normcase(p) for p in items}:
+        write_list(name, items + [path])
+
+
+def read_ids():
+    f = _file("ids")
     try:
-        db_path = str(path).replace('\\', '/')
-        rows = db_engine.execute_query(
-            "SELECT t.title, t.mb_recording_id, t.original_year, "
-            "       lm.artist_name, lm.album_title "
-            "FROM tracks t LEFT JOIN library_master lm ON t.mf_id = lm.mf_id "
-            "WHERE t.file_path = ?",
-            (db_path,)
-        )
-        return rows[0] if rows else {}
-    except Exception:
+        return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    except (OSError, ValueError):
         return {}
 
 
-def submit_fingerprints():
-    """STEP 1: Submit unknown tracks to the AcoustID database.
+def _set_id(path, sub_id):
+    ids = read_ids()
+    if sub_id is None:
+        ids.pop(path, None)
+    else:
+        ids[path] = sub_id
+    _write_text(_file("ids"), json.dumps(ids, indent=1, ensure_ascii=False))
 
-    Rebuilt 2026-07-13 -- this previously called /v2/lookup (a read-only
-    endpoint) and reported "SUBMITTED" whenever that merely returned
-    HTTP 200, regardless of whether anything was actually contributed.
-    Nothing had ever been genuinely submitted to AcoustID through this
-    tool. Real submission needs the /v2/submit endpoint, POST, BOTH the
-    application key (client) and a separate personal user key (user)
-    together -- AcoustID rejects a submission missing either -- and
-    AcoustID's own index-suffixed batch convention (duration.0/
-    fingerprint.0/etc.), always index 0 here since this still submits
-    one track per request, matching the existing per-track loop/progress
-    reporting rather than batching many tracks into one call.
-    """
-    if not API_KEY or not USER_KEY:
-        missing = [name for name, val in (("ACOUSTID_APPLICATION_KEY", API_KEY), ("ACOUSTID_USER_KEY", USER_KEY)) if not val]
-        yield (f'<div class="status-error"><span aria-hidden="true">🔥</span> '
-               f'Missing {" and ".join(missing)} -- add {"it" if len(missing) == 1 else "them"} in Settings before submitting.</div>')
-        return
 
-    if not PENDING_FILE.exists() or PENDING_FILE.stat().st_size == 0:
-        yield f'<span aria-hidden="true">⚠</span> No pending tracks found in data/acoustid/pending_acoustid.txt'
-        return
+# --- [ DISPATCH ] -----------------------------------------------------------
 
-    pending_paths = PENDING_FILE.read_text(encoding='utf-8').splitlines()
-    total_tracks = len(pending_paths)
-    remaining_pending = []
+def _run_state():
+    """Survives the per-request module reload (ui/routes.py re-executes this file each call)."""
+    return current_app.extensions.setdefault("acoustid_run", {"lock": threading.Lock(), "stop": threading.Event()})
 
-    yield f'<div class="status-api"><span aria-hidden="true">📨</span> Starting submission of {total_tracks} tracks...</div>'
 
-    with requests.Session() as session:
-        for index, path_str in enumerate(pending_paths, 1):
-            path = Path(path_str.strip())
-            if not path.exists():
-                # Real bug fixed 2026-07-14, found live: this used to just
-                # `continue` without re-queuing, so a track moved/renamed
-                # after being queued vanished from pending_acoustid.txt for
-                # good instead of waiting to be found again. Now stays
-                # queued like every other failure branch below.
-                yield f'<div class="status-message"><span aria-hidden="true">🤷🏻</span> [{index}/{total_tracks}] LOST: {path.name}</div>'
-                remaining_pending.append(path_str)
-                continue
+def run_logic(action, tools_dir, env_path):
+    if action == "status":
+        return jsonify(status())
+    if action == "stop":
+        _run_state()["stop"].set()
+        return jsonify({"status": "ok"})
+    if action in ("submit", "resolve"):
+        state = _run_state()
+        if not state["lock"].acquire(blocking=False):
+            return jsonify({"status": "error", "message": "A run is already going."}), 409
+        state["stop"].clear()
+        work = submit_stream if action == "submit" else resolve_stream
 
+        def guarded():
             try:
-                # 1. Generate Fingerprint
-                result = subprocess.run([str(FPCALC), "-json", str(path)], capture_output=True, text=True)
-                fp_data = json.loads(result.stdout)
-                fingerprint = fp_data.get('fingerprint')
-                duration = fp_data.get('duration')
+                yield from work(state["stop"])
+            finally:
+                state["lock"].release()
 
-                if not fingerprint or duration is None:
-                    yield f'<div class="status-message"><span aria-hidden="true">⚠</span> [{index}/{total_tracks}] NO FINGERPRINT: {path.name}</div>'
-                    remaining_pending.append(path_str)
-                    continue
+        return Response(stream_with_context(run_stream(guarded(), "AcoustID Manager")),
+                        mimetype="application/x-ndjson")
+    return jsonify({"status": "error", "message": f"Unknown action: {action}"}), 400
 
-                # 2. Real AcoustID submission
-                meta = _lookup_track_metadata(path)
-                params = {
-                    "client": API_KEY,
-                    "user": USER_KEY,
-                    "format": "json",
-                    "duration.0": int(round(float(duration))),
-                    "fingerprint.0": fingerprint,
-                }
-                if meta.get("title"):
-                    params["track.0"] = meta["title"]
-                if meta.get("artist_name"):
-                    params["artist.0"] = meta["artist_name"]
-                if meta.get("album_title"):
-                    params["album.0"] = meta["album_title"]
-                if meta.get("original_year"):
-                    params["year.0"] = meta["original_year"]
-                if meta.get("mb_recording_id"):
-                    params["mbid.0"] = meta["mb_recording_id"]
 
-                response, rate_limited = None, False
-                delay = RATE_LIMIT_BASE_DELAY
-                for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
-                    response = session.post("https://api.acoustid.org/v2/submit", data=params, timeout=15)
-                    if response.status_code != 429:
-                        break
-                    retry_after = response.headers.get("Retry-After")
-                    wait = float(retry_after) if retry_after and retry_after.replace('.', '', 1).isdigit() else delay
-                    rate_limited = True
-                    if attempt < MAX_RATE_LIMIT_RETRIES:
-                        yield (f'<div class="status-message" style="color:var(--mf-gold);"><span aria-hidden="true">⏳</span> '
-                               f'[{index}/{total_tracks}] Rate-limited, waiting {wait:.0f}s (retry {attempt + 1}/{MAX_RATE_LIMIT_RETRIES})...</div>')
-                        time.sleep(wait)
-                        delay = min(delay * 2, 60)
+def status():
+    """Counts for the screen."""
+    return {
+        "status": "ok",
+        "pending": len(read_list("pending")),
+        "submitted": len(read_list("history")),
+        "not_found": len(read_list("not_found")),
+        "has_app_key": bool(config_handler.ACOUSTID_APPLICATION_KEY()),
+        "has_user_key": bool(config_handler.ACOUSTID_USER_KEY()),
+    }
 
-                if rate_limited and response.status_code == 429:
-                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
-                           f'[{index}/{total_tracks}] STILL RATE LIMITED after {MAX_RATE_LIMIT_RETRIES} retries: {path.name} -- will retry next run</div>')
-                    remaining_pending.append(path_str)
-                    time.sleep(1)
-                    continue
 
-                data = response.json()
+# --- [ HELPERS ] ------------------------------------------------------------
 
-                if data.get("status") == "ok":
-                    submissions = data.get("submissions") or []
-                    sub_status = submissions[0].get("status") if submissions else "pending"
-                    yield f'<div class="status-message"><span aria-hidden="true">✅</span> [{index}/{total_tracks}] SUBMITTED ({sub_status}): {path.name}</div>'
-                    with open(HISTORY_FILE, 'a', encoding='utf-8') as h:
-                        h.write(f"{path}\n")
-                else:
-                    err = data.get("error", {})
-                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
-                           f'[{index}/{total_tracks}] API REJECTED: {path.name} (code {err.get("code")}: {err.get("message")})</div>')
-                    remaining_pending.append(path_str)
+def _fingerprint(path):
+    result = subprocess.run([str(config_handler.FPCALC_EXE), "-json", str(path)],
+                            capture_output=True, text=True, timeout=180)
+    data = json.loads(result.stdout or "{}")
+    fp, duration = data.get("fingerprint"), data.get("duration")
+    if not fp or duration is None:
+        raise ValueError("fpcalc couldn't read the audio")
+    return fp, int(round(float(duration)))
 
-                time.sleep(1)
 
-            except Exception as e:
-                yield f'<div class="status-error"><span aria-hidden="true">🔥</span> [{index}/{total_tracks}] ERROR: {path.name} ({str(e)})</div>'
-                remaining_pending.append(path_str)
+def _call(method, endpoint, stop, **kw):
+    """One API call, with backoff on 429. Yields waiting events; returns the JSON (or None if stopped)."""
+    delay = 2
+    for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
+        r = http.request(method, API + endpoint, timeout=20, **kw)
+        time.sleep(REQUEST_GAP)
+        if r.status_code != 429:
+            return r.json()
+        if attempt == MAX_RATE_LIMIT_RETRIES:
+            break
+        ra = r.headers.get("Retry-After", "")
+        wait = float(ra) if ra.replace(".", "", 1).isdigit() else delay
+        yield event("info", f"AcoustID is busy. Waiting {wait:.0f} seconds, then trying again.")
+        if stop.wait(wait):
+            return None
+        delay = min(delay * 2, 60)
+    raise RuntimeError("AcoustID was still busy after several tries")
 
-    PENDING_FILE.write_text("\n".join(remaining_pending), encoding='utf-8')
-    
-    # TERMINAL WARNING: COGA 4.4.1 Expectations Management
-    yield f'''
-    <div class="status-ok" style="margin-top:10px; border-top:1px solid var(--bg-accent); padding-top:10px;">
-        <span aria-hidden="true">✅</span> Step 1 Sequence Concluded.
-        <div style="color:var(--mf-gold); font-size:0.75rem; margin-top:5px; margin-left:20px;">
-            <strong>Archival Note:</strong> Verified identity resolution typically takes up to 10 weeks to become public.
-        </div>
-    </div>'''
 
-def resolve_ids():
-    """STEP 2: Resolve previously submitted tracks and finalize library."""
-    if not HISTORY_FILE.exists() or HISTORY_FILE.stat().st_size == 0:
-        yield f'<span aria-hidden="true">⚠</span> No submission history found.'
+def _db_track(path):
+    """The database row for a file, matched regardless of upper/lower case and slash direction."""
+    rows = db_engine.execute_query(
+        "SELECT t.file_path, t.title, t.acoustid, t.mb_recording_id, "
+        "       lm.artist_name, lm.album_title, lm.original_year AS release_year "
+        "FROM tracks t LEFT JOIN library_master lm ON t.mf_id = lm.mf_id "
+        "WHERE lower(replace(t.file_path, '\\', '/')) = lower(?)",
+        (str(path).replace("\\", "/"),))
+    return rows[0] if rows else None
+
+
+def _blank(v):
+    return v in (None, "", "None")
+
+
+def _progress(i, total, label):
+    return signal("progress", percent=round(100 * i / total) if total else 100, label=label)
+
+
+def _stopped(name):
+    left = len(read_list(name))
+    return event("warning", f"Stopped. {left} track{'s' if left != 1 else ''} still waiting; nothing was lost.")
+
+
+def _not_found(name, path):
+    _remove(name, path)
+    _set_id(path, None)
+    _add("not_found", path)
+    return event("warning", "File not found. Moved to the not-found list.", file=path)
+
+
+# --- [ STEP 1: SUBMIT ] -----------------------------------------------------
+
+def submit_stream(stop):
+    app_key, user_key = config_handler.ACOUSTID_APPLICATION_KEY(), config_handler.ACOUSTID_USER_KEY()
+    missing = [n for n, v in (("application key", app_key), ("user key", user_key)) if not v]
+    if missing:
+        yield event("error", f"The AcoustID {' and '.join(missing)} {'is' if len(missing) == 1 else 'are'} missing. "
+                             "Add them in Settings > Configuration & keys.")
         return
-
-    history_paths = HISTORY_FILE.read_text(encoding='utf-8').splitlines()
-    total_tracks = len(history_paths)
-    remaining_history = []
-    resolved_count = 0
-
-    yield f'<div class="status-api"><span aria-hidden="true">✨</span> Auditing {total_tracks} previously submitted tracks...</div>'
-
-    with requests.Session() as session:
-        for index, path_str in enumerate(history_paths, 1):
-            path = Path(path_str.strip())
-            if not path.exists():
-                # Same silent-drop bug as submit_fingerprints() -- was
-                # falling out of submission_history.txt for good instead of
-                # staying queued for a later resolution attempt.
-                remaining_history.append(path_str)
+    paths = read_list("pending")
+    total = len(paths)
+    if not total:
+        yield event("done", "Nothing is waiting to be submitted.")
+        return
+    yield event("step", f"Submitting {total} track{'s' if total != 1 else ''} to AcoustID")
+    sent = kept = 0
+    for i, path in enumerate(paths, 1):
+        if stop.is_set():
+            break
+        yield _progress(i - 1, total, f"Submitting {i} of {total}")
+        name = Path(path).name
+        if not Path(path).exists():
+            yield _not_found("pending", path)
+            continue
+        try:
+            fp, duration = _fingerprint(path)
+            meta = _db_track(path) or {}
+            data = {"client": app_key, "user": user_key, "clientversion": APP_VERSION, "format": "json",
+                    "duration.0": duration, "fingerprint.0": fp}
+            for field, key in (("track.0", "title"), ("artist.0", "artist_name"), ("album.0", "album_title"),
+                               ("year.0", "release_year"), ("mbid.0", "mb_recording_id")):
+                if not _blank(meta.get(key)):
+                    data[field] = meta[key]
+            res = yield from _call("POST", "submit", stop, data=data)
+            if res is None:
+                continue                      # stopped while waiting; the loop reports it
+            if res.get("status") != "ok":
+                err = res.get("error") or {}
+                yield event("warning", f"AcoustID refused it: {err.get('message', 'no reason given')}. It stays in the list.", file=name)
+                kept += 1
                 continue
+            sub = (res.get("submissions") or [{}])[0]
+            _add("history", path)
+            if sub.get("id") is not None:
+                _set_id(path, sub["id"])
+            _remove("pending", path)
+            sent += 1
+            yield event("track", "Submitted. Check for AcoustIDs later to collect its ID.", file=name)
+        except Exception as e:  # one bad file never stops the run
+            kept += 1
+            yield event("warning", f"Not submitted ({e}). It stays in the list.", file=name)
+    if stop.is_set():
+        yield _stopped("pending")
+    yield _progress(1, 1, "Stopped" if stop.is_set() else "Finished")
+    yield event("done", f"Submitted {sent} of {total}." + (f" {kept} stay in the list to try again." if kept else ""))
 
-            try:
-                result = subprocess.run([str(FPCALC), "-json", str(path)], capture_output=True, text=True)
-                fp_data = json.loads(result.stdout)
-                params = {
-                    "client": API_KEY,
-                    "format": "json",
-                    "duration": int(fp_data.get('duration', 0)),
-                    "fingerprint": fp_data.get('fingerprint'),
-                    "meta": "recordings"
-                }
-                
-                res_obj, rate_limited = None, False
-                delay = RATE_LIMIT_BASE_DELAY
-                for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
-                    res_obj = session.get("https://api.acoustid.org/v2/lookup", params=params, timeout=15)
-                    if res_obj.status_code != 429:
-                        break
-                    retry_after = res_obj.headers.get("Retry-After")
-                    wait = float(retry_after) if retry_after and retry_after.replace('.', '', 1).isdigit() else delay
-                    rate_limited = True
-                    if attempt < MAX_RATE_LIMIT_RETRIES:
-                        yield (f'<div class="status-message" style="color:var(--mf-gold);"><span aria-hidden="true">⏳</span> '
-                               f'[{index}/{total_tracks}] Rate-limited, waiting {wait:.0f}s (retry {attempt + 1}/{MAX_RATE_LIMIT_RETRIES})...</div>')
-                        time.sleep(wait)
-                        delay = min(delay * 2, 60)
 
-                if rate_limited and res_obj.status_code == 429:
-                    yield (f'<div class="status-message"><span aria-hidden="true">⚠</span> '
-                           f'[{index}/{total_tracks}] STILL RATE LIMITED after {MAX_RATE_LIMIT_RETRIES} retries: {path.name} -- will retry next run</div>')
-                    remaining_history.append(path_str)
-                    time.sleep(1)
-                    continue
+# --- [ STEP 2: COLLECT ACOUSTIDS ] -----------------------------------------
 
-                res = res_obj.json()
+def _record(path, aid):
+    """Store a found AcoustID. Returns (kind, text) for the track's entry."""
+    row = _db_track(path)
+    if row is None:
+        return "track", f"AcoustID {aid}. Not in the database yet, so the file was left alone; the Intelli-Tagger will add it."
+    if not _blank(row["acoustid"]) and row["acoustid"] != aid:
+        return "warning", f"AcoustID {aid} found, but the database already has {row['acoustid']}. Left as it is."
+    if row["acoustid"] == aid:
+        return "track", f"AcoustID {aid}. Already in the database."
+    ok, msg = tag_engine.update_tags(str(path), {"acoustid": aid})
+    if not ok:
+        raise RuntimeError(f"the tag couldn't be written: {msg}")
+    db_engine.execute_query("UPDATE tracks SET acoustid = ? WHERE file_path = ?", (aid, row["file_path"]), commit=True)
+    return "track", f"AcoustID {aid}. Tag and database updated."
 
-                if res.get('results') and res['results'][0].get('id'):
-                    new_aid = res['results'][0]['id']
-                    tag_engine.update_tags(path, {'mf_acoustid': new_aid})
-                    
-                    db_path = str(path).replace('\\', '/')
-                    db_engine.execute_query(
-                        "UPDATE tracks SET acoustid = ? WHERE file_path = ?", 
-                        (new_aid, db_path), 
-                        commit=True
-                    )
-                    
-                    yield f'<div class="status-message"><span aria-hidden="true">✨</span> [{index}/{total_tracks}] RESOLVED: {path.name}</div>'
-                    resolved_count += 1
-                else:
-                    remaining_history.append(path_str)
-                    if index % 10 == 0:
-                        yield f'<div class="status-message" style="color:var(--text-message);"><span aria-hidden="true">🕑</span> [{index}/{total_tracks}] Still pending resolution...</div>'
 
-                time.sleep(1)
+def _done(path, kind, text):
+    _remove("history", path)
+    _set_id(path, None)
+    return event(kind, text, file=Path(path).name)
 
-            except Exception as e:
-                yield f'<div class="status-error"><span aria-hidden="true">🔥</span> [{index}/{total_tracks}] ERROR: {path.name}</div>'
-                remaining_history.append(path_str)
 
-    HISTORY_FILE.write_text("\n".join(remaining_history), encoding='utf-8')
-    yield f'<div class="status-ok"><span aria-hidden="true">✅</span> Step 2 Sequence Concluded. {resolved_count} tracks finalized.</div>'
+def resolve_stream(stop):
+    app_key = config_handler.ACOUSTID_APPLICATION_KEY()
+    if not app_key:
+        yield event("error", "The AcoustID application key is missing. Add it in Settings > Configuration & keys.")
+        return
+    paths = read_list("history")
+    total = len(paths)
+    if not total:
+        yield event("done", "No submitted tracks are waiting for an AcoustID.")
+        return
+    ids = read_ids()
+    with_id = [p for p in paths if p in ids]
+    without = [p for p in paths if p not in ids]
+    yield event("step", f"Checking {total} submitted track{'s' if total != 1 else ''} for AcoustIDs")
+    found = waiting = 0
+    done_n = 0
 
-# --- ACOUSTID ENGINE END ---
+    # 1) Submissions with a number: ask for their status, many per request.
+    for b in range(0, len(with_id), STATUS_BATCH):
+        if stop.is_set():
+            break
+        batch = with_id[b:b + STATUS_BATCH]
+        yield _progress(done_n, total, f"Checking {done_n + 1} of {total}")
+        try:
+            res = yield from _call("GET", "submission_status", stop,
+                                   params=[("client", app_key), ("format", "json")] + [("id", ids[p]) for p in batch])
+        except Exception as e:
+            yield event("warning", f"AcoustID couldn't be reached ({e}). These stay in the list.")
+            done_n += len(batch); waiting += len(batch)
+            continue
+        if res is None:
+            break
+        by_id = {str(s.get("id")): s for s in res.get("submissions") or []}
+        for p in batch:
+            done_n += 1
+            s = by_id.get(str(ids[p])) or {}
+            aid = (s.get("result") or {}).get("id")
+            if not Path(p).exists():
+                yield _not_found("history", p)
+            elif s.get("status") == "imported" and aid:
+                try:
+                    kind, text = _record(p, aid)
+                    yield _done(p, kind, text)
+                    found += 1
+                except Exception as e:
+                    waiting += 1
+                    yield event("warning", f"AcoustID {aid} found, but {e}. It stays in the list.", file=Path(p).name)
+            else:
+                waiting += 1
+
+    # 2) Older submissions (before v2) have no number: fingerprint and look up.
+    for p in without:
+        if stop.is_set():
+            break
+        done_n += 1
+        yield _progress(done_n - 1, total, f"Checking {done_n} of {total}")
+        if not Path(p).exists():
+            yield _not_found("history", p)
+            continue
+        try:
+            fp, duration = _fingerprint(p)
+            res = yield from _call("POST", "lookup", stop,
+                                   data={"client": app_key, "format": "json", "duration": duration, "fingerprint": fp})
+            if res is None:
+                break
+            best = max(res.get("results") or [], key=lambda r: r.get("score", 0), default=None)
+            if best and best.get("score", 0) >= LOOKUP_MIN_SCORE and best.get("id"):
+                kind, text = _record(p, best["id"])
+                yield _done(p, kind, text)
+                found += 1
+            else:
+                waiting += 1
+        except Exception as e:
+            waiting += 1
+            yield event("warning", f"Couldn't check it ({e}). It stays in the list.", file=Path(p).name)
+
+    if stop.is_set():
+        yield _stopped("history")
+    yield _progress(1, 1, "Stopped" if stop.is_set() else "Finished")
+    yield event("done", f"Found {found} AcoustID{'s' if found != 1 else ''}."
+                        + (f" {waiting} {'are' if waiting != 1 else 'is'} still being processed by AcoustID; check again later." if waiting else ""))
+
 # --- END OF FILE acoustid.py ---
