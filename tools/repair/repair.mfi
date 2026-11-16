@@ -1,92 +1,203 @@
 <!-- --- START OF FILE repair.mfi --- -->
 <!-- ======================================================================
      MetaForge Interface: Audio Repair
-     Build 7.4.5: Global Help CSS Integration & Repair Grid Preservation.
-     Accessibility: WCAG 2.2 AA Compliance
+     v2 (2026-11-16): rebuilt. The list on the left (each file's album and
+     why it was queued, with Remove); Repair pinned under it; progress,
+     Stop and the shared Activity log (MFEvents) on the right. Native
+     <dialog>s for "Repair these files?" and "Stop and leave?".
      ====================================================================== -->
+<style>
+    .rep-workbench {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    /* --- LEFT: THE LIST. Scrolls on its own; Repair is pinned. --- */
+    .rep-list-silo {
+        flex: 0 0 max(calc(36% - 0.5rem), 19rem);   /* widens as text grows */
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+    }
+    .rep-list-head {
+        flex-shrink: 0;
+        padding: 0.7rem 0.9rem 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .rep-list-head h2 { margin: 0; color: var(--mf-gold); font-size: 1rem; }
+    .rep-list-head p { margin: 0.25rem 0 0; font-size: 0.9375rem; color: var(--text-primary); }
+    .rep-list-scroll {
+        flex: 1;
+        position: relative;   /* contains hidden screen-reader text */
+        min-height: 0;
+        overflow-y: auto;
+        padding: 0.5rem 0.9rem;
+    }
+    .rep-list { list-style: none; margin: 0; padding: 0; }
+    .rep-item {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.15rem 0.6rem;
+        align-items: start;
+        padding: 0.55rem 0;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .rep-item:last-child { border-bottom: 0; }
+    .rep-name { font-family: var(--font-mono); font-size: 0.875rem; color: var(--text-primary); overflow-wrap: anywhere; }
+    .rep-meta { grid-column: 1; font-size: 0.875rem; line-height: 1.4; color: var(--text-muted); overflow-wrap: anywhere; }
+    .rep-missing { color: var(--status-warning); }
+    .rep-item button { grid-column: 2; grid-row: 1 / span 2; }
+    .rep-empty, .rep-note { margin: 0; font-size: 0.9375rem; line-height: 1.45; color: var(--text-muted); }
+    .rep-note { margin-top: 0.75rem; font-size: 0.875rem; }
+    .rep-note code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
+    .rep-actions {
+        flex-shrink: 0;
+        padding: 0.6rem 0.9rem;
+        border-top: 1px solid var(--border-subtle);
+        text-align: right;
+    }
+
+    /* --- RIGHT: PROGRESS, STOP, ACTIVITY LOG --- */
+    .rep-output {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--surface-page);
+        border: 3px solid var(--surface-raised);
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    .rep-progress {
+        flex-shrink: 0;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 0.4rem 0.9rem;
+        padding: 0.6rem 0.9rem 0.5rem;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    #rep-progress-bar {
+        height: 0.75rem;
+        background: var(--surface-raised);
+        border: 1px solid var(--border-ui);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    .rep-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
+    #rep-progress-label { grid-column: 1; margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); }
+    #rep-stop { grid-column: 2; grid-row: 1 / span 2; }
+    #rep-console-outer { flex: 1; display: flex; min-height: 0; }
+    .rep-console {
+        position: relative;   /* contains hidden "Error:"/"Warning:" labels */
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0.75rem 0.9rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+    .rep-log-intro { margin: 0; font-size: 0.9375rem; color: var(--text-muted); }
+
+    /* --- DIALOGS --- */
+    .rep-dialog {
+        width: min(32rem, 90vw);
+        padding: 1.1rem 1.25rem;
+        background: var(--surface-panel);
+        color: var(--text-primary);
+        border: 1px solid var(--mf-gold);
+        border-radius: 6px;
+    }
+    .rep-dialog::backdrop { background: rgb(0 0 0 / 0.6); }
+    .rep-dialog h2 { margin: 0 0 0.5rem; color: var(--mf-gold); font-size: 1.125rem; }
+    .rep-dialog p, .rep-dialog li { font-size: 0.9375rem; line-height: 1.45; }
+    .rep-dialog p { margin: 0 0 0.75rem; }
+    .rep-dialog ul { margin: 0 0 1rem; padding-left: 1.2rem; }
+    .rep-dialog-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+</style>
+
 <div class="mf-page-head">
     <h1 class="main" tabindex="-1">Audio Repair</h1>
     <button type="button" class="mf-help-btn" data-mf-help="repair" data-mf-help-name="Audio Repair">Help</button>
 </div>
 
-<div class="active_stage" id="repair-stage">
-    <div class="repair-grid" style="display: grid; grid-template-columns: 30% 1fr; gap: 30px; min-height: 450px; width: 100%;">
-        
-        <!-- COLUMN 1: THE QUEUE (Locked at 30%) -->
-        <section class="repair-column" 
-                 aria-labelledby="repair-queue-label" 
-                 style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start; ">
-            
-            <h2 id="repair-queue-label" class="mf-grid-heading">Remediation Queue</h2>
-            
-            <div style="width: 100%; display: flex; max-height: 400px; flex: 1;">
-                <div id="repair-queue-container"
-                     class="repair-list-container mf-hide-native-scrollbar"
-                     style="flex: 1; background-color: var(--bg-main); border: 3px solid var(--bg-accent); border-right: none; border-radius: 4px 0 0 4px; padding: 10px; overflow-y: auto; box-sizing: border-box;">
-                    <p class="tool_notes">Synchronizing remediation log...</p>
-                </div>
-                <!-- Custom scrollbar, shared implementation -- see
-                     layout.css section 10 / metaforge_core.js's
-                     MFScrollbar. No per-tool JS needed. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="repair-queue-container" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
+<div class="active_stage">
+<div class="rep-workbench">
+
+    <section class="rep-list-silo" aria-labelledby="rep-list-h">
+        <div class="rep-list-head">
+            <h2 id="rep-list-h" tabindex="-1">Files waiting for repair</h2>
+            <p id="rep-count">Reading the list…</p>
+        </div>
+        <div class="rep-list-scroll">
+            <ul class="rep-list" id="rep-list"></ul>
+            <p class="rep-empty" id="rep-empty" hidden>Nothing is waiting. Unpack &amp; Convert and the Intelli-Tagger add a file here when they find damage they can't fix themselves.</p>
+            <p class="rep-note" id="rep-notfound" hidden></p>
+        </div>
+        <div class="rep-actions">
+            <button type="button" class="mf-button-gold-fixed" id="rep-run-btn" disabled>Repair the files</button>
+        </div>
+    </section>
+
+    <section class="rep-output" aria-label="Progress and results">
+        <div class="rep-progress">
+            <div id="rep-progress-bar" role="progressbar" aria-label="Repair progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div id="rep-progress-fill" class="rep-progress-fill mf-progress-shimmer"></div>
             </div>
-        </section>
-
-        <!-- COLUMN 2: THE CONSOLE (Flexible) -->
-        <section class="repair-column" 
-                 aria-labelledby="repair-console-label" 
-                 style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start; width: 100%;">
-            
-            <h2 id="repair-console-label" class="mf-grid-heading">Repair Console</h2>
-
-            <button id="btn-repair-all" 
-                    class="mf-button-gold-fixed" 
-                    onclick="metaforge.repair.runBatch()" 
-                    style="margin-top:-1.2rem; display:none;"
-                    aria-label="Begin batch rebuild for all queued files">
-                Repair The Files
-            </button>
-
-            <div style="width: 100%; display: flex; min-height: 0; flex: 1;">
-                <div id="repair-console"
-                     role="log"
-                     aria-live="polite"
-                     class="mf-console-output mf-hide-native-scrollbar"
-                     style="flex: 1; background-color: var(--bg-main); border: 3px solid var(--bg-accent); border-right: none; border-radius: 4px 0 0 4px; padding: 15px; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-output); overflow-y: auto; white-space: pre-wrap; line-height: 1.2; box-sizing: border-box;">
-                    <p class="tool_notes">Awaiting operation...</p>
-                </div>
-                <!-- Custom scrollbar, shared implementation -- see
-                     layout.css section 10 / metaforge_core.js's
-                     MFScrollbar. No per-tool JS needed. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="repair-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
-                    <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
-                    <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
-                </div>
+            <p id="rep-progress-label">Standing by</p>
+            <button type="button" class="mf-button-gold-fixed" id="rep-stop" disabled>Stop</button>
+        </div>
+        <div id="rep-console-outer">
+            <!-- role="log" but NOT live: steps, problems and the finish are
+                 spoken by the shared announcer (MFAnnounce). -->
+            <div id="rep-console" class="rep-console mf-hide-native-scrollbar" role="log" aria-live="off" aria-label="Activity log">
+                <p class="rep-log-intro">Results appear here.</p>
             </div>
-        </section>
-    </div>
+            <!-- Custom scrollbar, shared implementation (layout.css section 10 / MFScrollbar). -->
+            <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="rep-console" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
+                <div class="mf-scroll-track">
+                    <div class="mf-scroll-thumb"></div>
+                </div>
+                <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>
+            </div>
+        </div>
+    </section>
+
+</div>
 </div>
 
-<!-- FLOATING HELP PANEL (Inherits from ui/css/help.css) -->
-<style>
-    /* LOCALIZED TOOL STYLES: repair */
-    #repair-stage { position: relative; }
-    
-    .repair-item {
-        padding: 6px 10px;
-        border-bottom: 1px solid var(--bg-accent);
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
+<dialog class="rep-dialog" id="rep-confirm" aria-labelledby="rep-confirm-h">
+    <form method="dialog">
+        <h2 id="rep-confirm-h">Repair these files?</h2>
+        <p id="rep-confirm-count"></p>
+        <ul>
+            <li>Each file is repaired on a copy and checked: it must play cleanly and keep its length.</li>
+            <li>Only a copy that passes replaces the file. A copy of the original is kept in <code>%APPDATA%\MetaForge\backups\repair</code>.</li>
+            <li>A file that can't be repaired is left exactly as it is.</li>
+        </ul>
+        <div class="rep-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="cancel" autofocus>Cancel</button>
+            <button type="submit" class="mf-button-gold-fixed" value="run">Repair</button>
+        </div>
+    </form>
+</dialog>
 
-    .repair-item:last-child { border-bottom: none; }
-    .repair-item .file-name { font-family: var(--font-mono); font-size: 0.75rem; color: var(--mf-gold); }
-    .repair-item .error-msg { font-size: 0.65rem; color: var(--status-error); }
-</style>
+<dialog class="rep-dialog" id="rep-leave" aria-labelledby="rep-leave-h">
+    <form method="dialog">
+        <h2 id="rep-leave-h">Stop the repair and leave?</h2>
+        <p>The run stops after the current file. Everything repaired so far is kept, and the rest stays on the list.</p>
+        <div class="rep-dialog-actions">
+            <button type="submit" class="mf-button-gold-fixed" value="stay" autofocus>Keep running</button>
+            <button type="submit" class="mf-button-gold-fixed" value="leave">Stop and leave</button>
+        </div>
+    </form>
+</dialog>
 <!-- --- END OF FILE repair.mfi --- -->

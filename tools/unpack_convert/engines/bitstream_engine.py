@@ -11,6 +11,7 @@ from pathlib import Path
 from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from mutagen.id3 import ID3, ID3NoHeaderError, TXXX, TPE1, TALB, TIT2, TRCK, TPOS
 from common.config_handler import FFMPEG_EXE, MP3VAL_EXE, DATA_DIR
+from common.audio_check import mp3val_problems
 
 # --- [ PROTOCOLS ] ---
 EXTENSIONS_TO_CONVERT = {'.flac', '.ape', '.wav', '.m4a', '.wma', '.ogg', '.aiff', '.aif', '.wv', '.shn', '.tta'}
@@ -27,8 +28,10 @@ def _queue_for_repair(file_path, reason):
         for line in REMEDIATION_LOG.read_text(encoding="utf-8").splitlines():
             existing_paths.add(line.split("|")[0].strip())
     if resolved not in existing_paths:
+        text = REMEDIATION_LOG.read_text(encoding="utf-8") if REMEDIATION_LOG.exists() else ""
         with open(REMEDIATION_LOG, "a", encoding="utf-8") as f:
-            f.write(f"{resolved} | {reason}\n")
+            # Never glue onto a last line that has no newline.
+            f.write(("\n" if text and not text.endswith("\n") else "") + f"{resolved} | {reason}\n")
 
 
 def _check_mp3val(mp3_path):
@@ -38,9 +41,12 @@ def _check_mp3val(mp3_path):
     FFmpeg raw-stream rebuild. Returns True if the file was queued.
     """
     try:
+        # mp3val always exits 0 (measured 2026-11-16); damage shows only as
+        # WARNING/ERROR lines, so the 1.x return-code test never queued anything.
+        if not mp3val_problems(mp3_path):
+            return False
         subprocess.run([str(MP3VAL_EXE), "-f", str(mp3_path)], capture_output=True, timeout=30)
-        verify = subprocess.run([str(MP3VAL_EXE), str(mp3_path)], capture_output=True, timeout=30)
-        if verify.returncode != 0:
+        if mp3val_problems(mp3_path):
             _queue_for_repair(mp3_path, "Bitstream Data Corruption (Unpack/Convert)")
             return True
     except Exception:
@@ -289,7 +295,7 @@ def _enforce_metadata_truth(f_path, artist, album, title, track, category, disc_
         if is_multidisc:
             tags.add(TPOS(encoding=1, text=[f"{disc_num}/{total_discs}"]))
         if category:
-            tags.add(TXXX(encoding=1, description='CATEGORY', text=[category]))
+            tags.add(TXXX(encoding=1, desc='CATEGORY', text=[category]))
         # save() alone doesn't downgrade v2.4-native frames (e.g. TDRC ->
         # TYER) even when v2_version=3 is requested -- must call this first.
         tags.update_to_v23()
@@ -303,7 +309,7 @@ def _enforce_metadata_truth(f_path, artist, album, title, track, category, disc_
         if is_multidisc:
             tags.add(TPOS(encoding=1, text=[f"{disc_num}/{total_discs}"]))
         if category:
-            tags.add(TXXX(encoding=1, description='CATEGORY', text=[category]))
+            tags.add(TXXX(encoding=1, desc='CATEGORY', text=[category]))
         tags.update_to_v23()
         tags.save(str(f_path), v2_version=3)
 

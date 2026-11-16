@@ -2,7 +2,7 @@
   "name": "Audio Repair",
   "id": "repair",
   "version": "1.0.0",
-  "description": "Nuclear repair option. Rebuilds the .mp3 file from RAW using FFMPED",
+  "description": "Repairs damaged audio files safely, keeping a copy of every original.",
   "entry_point": "repair.py",
   "ui_template": "repair.mfi",
   "icon": "toolbox.svg",

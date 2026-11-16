@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 from common.mf_events import event, signal   # v2: events, not HTML (see common/mf_events.py)
 from common import config_handler
+from common.audio_check import mp3val_problems
 
 # --- [ CONFIGURATION ] ---
 MP3VAL_EXE = config_handler.MP3VAL_EXE
@@ -51,10 +52,15 @@ def check_health(root_path, health_summary=None):
             continue
 
         try:
-            # Attempt a container/header-level fix
-            fix_res = subprocess.run([str(MP3VAL_EXE), "-f", str(f)], capture_output=True, text=True)
+            # mp3val always exits 0 (measured 2026-11-16): damage shows only
+            # as WARNING/ERROR lines, so the 1.x return-code checks below
+            # never saw any. Check first; fix only what needs it.
+            if not mp3val_problems(f):
+                continue
+            # Attempt a container/header-level fix (keeps a .bak, see below)
+            subprocess.run([str(MP3VAL_EXE), "-f", str(f)], capture_output=True, text=True)
             # Verify the fix actually resolved the issue
-            verify_res = subprocess.run([str(MP3VAL_EXE), str(f)], capture_output=True, text=True)
+            still_damaged = bool(mp3val_problems(f)) if f.exists() and f.stat().st_size else True
 
             # Defense-in-depth around mp3val's own in-place rewrite: if the
             # "fixed" file is gone or has collapsed to (near-)zero bytes,
@@ -72,10 +78,10 @@ def check_health(root_path, health_summary=None):
                     yield event("error", "CRITICAL: the repair destroyed this file and no backup was found to restore. It may be unrecoverable", file=f.name)
                 continue
 
-            if verify_res.returncode != 0:
+            if still_damaged:
                 _log_to_remediation_queue(f, "Bitstream Data Corruption (Intelli-Tagger)")
                 queued_count += 1
-            elif fix_res.returncode != 0:
+            else:
                 repair_count += 1
 
         except Exception as e:
@@ -112,8 +118,10 @@ def _log_to_remediation_queue(file_path, reason="Bitstream Data Corruption"):
         return
 
     try:
+        text = QUEUE_LOG.read_text(encoding="utf-8") if QUEUE_LOG.exists() else ""
         with open(QUEUE_LOG, "a", encoding="utf-8") as f:
-            f.write(f"{resolved} | {reason}\n")
+            # Never glue onto a last line that has no newline.
+            f.write(("\n" if text and not text.endswith("\n") else "") + f"{resolved} | {reason}\n")
     except Exception:
         pass
 # --- END OF FILE health_engine.py ---
