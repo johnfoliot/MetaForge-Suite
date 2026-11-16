@@ -133,6 +133,9 @@ NOT_INSTRUMENT = re.compile(
     r"compiled|edited|editor|director|assistant|technician|tour|a&r|copyist|transcri\w*)\b")
 
 
+QUALIFIED_ROLE = re.compile(r"\b(executive|reissue|compilation|film|associate|assistant|additional|co|remaster\w*)\b")
+
+
 def _role_base(role):
     """'Arranged By [Strings]' -> 'Arranged By'; 'Drums [Studio]' -> 'Drums'; Wikipedia <ref> tags dropped."""
     role = re.sub(r"<ref[^>]*?/>|<ref[^>]*>.*?</ref>|<ref[^>]*>", " ", role or "")
@@ -158,6 +161,11 @@ def mb_relationship(relation_type, role, tracks=None):
         on = f" (tracks {tracks})" if tracks else ""
         return _not_sendable(base or role, f"Only on some tracks{on}, so it isn't a credit for the whole release. "
                              "Sending credits to single tracks is a later step.", "tracks")
+    # Qualified or non-musical roles never fall back to their broad relation:
+    # "Executive Producer", "Reissue Producer" and "Compilation Producer" are
+    # not the release's producer, and "Mastered By" is not a performance.
+    if QUALIFIED_ROLE.search(low) or NOT_INSTRUMENT.search(low):
+        return _not_sendable(base, "MetaForge can't send this kind of credit to MusicBrainz yet.", "unsupported")
     kind = next((k for rx, k in ROLE_RULES if rx.search(low)), None)
     if not kind:
         kind = RELATION_KIND.get(relation_type)
@@ -165,8 +173,6 @@ def mb_relationship(relation_type, role, tracks=None):
         if relation_type in ("PERFORMED_ON", "ASSOCIATED_WITH"):
             if not low or low in VAGUE_ROLES:
                 return _not_sendable(base or "No role given", "Too general for a MusicBrainz relationship.", "vague")
-            if NOT_INSTRUMENT.search(low):
-                return _not_sendable(base, "MetaForge can't send this kind of credit to MusicBrainz yet.", "unsupported")
             kind = "instrument"
         else:
             return _not_sendable(base or role or relation_type,
@@ -790,6 +796,10 @@ def _skip_album():
 
 def _note_line(c):
     rel = c["relationship"]
+    if c["provenance"] == "Submitter Confirmed" and not c.get("verification_tier"):
+        # Personnel's quick Confirmed/Inferred toggle: a human judgment with
+        # no source page recorded, so the note mustn't claim one was checked.
+        return f"- {rel['label']}: {c['name']} (confirmed by the submitter)"
     line = f"- {rel['label']}: {c['name']} (from {SOURCE_PHRASE.get(c['provenance'], c['provenance'])}"
     if c.get("verified_source_url"):
         line += f": {c['verified_source_url']}"
