@@ -132,7 +132,11 @@
         background: var(--surface-page);
         border: 3px solid var(--surface-raised);
         box-sizing: border-box;
-        overflow: hidden;
+        /* At large text sizes the next-step bar can outgrow what's left:
+           the column then scrolls on its own and the log keeps a usable height. */
+        position: relative;
+        overflow-y: auto;
+        overflow-x: hidden;
     }
     .yt-progress {
         flex-shrink: 0;
@@ -153,7 +157,8 @@
     .yt-progress-fill { height: 100%; width: 0%; transition: width 0.3s ease; }
     #yt-progress-label { grid-column: 1; margin: 0; font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); overflow-wrap: anywhere; }
     #yt-stop { grid-column: 2; grid-row: 1 / span 2; }
-    #yt-console-outer { flex: 1; display: flex; min-height: 0; }
+    #yt-console-outer { flex: 1; display: flex; min-height: 6rem; }
+    #yt-handoff { flex-shrink: 0; }
     .yt-console {
         position: relative;   /* contains hidden "Error:"/"Warning:" labels */
         flex: 1;
@@ -302,7 +307,7 @@
         </div>
         <!-- Next-step bar (shared .mf-handoff, layout.css section 13). -->
         <div class="mf-handoff" id="yt-handoff" hidden>
-            <p id="yt-next-desc"><span class="mf-handoff-kicker">Next step</span> Unpack &amp; Convert. The new folder, artist and album carry over.</p>
+            <p id="yt-next-desc"><span class="mf-handoff-kicker">Next step</span> Unpack &amp; Convert adds cover art and sets up the album. It only re-encodes MP3s if you tick Loudness Normalization.</p>
             <button type="button" class="mf-button-gold-fixed" id="yt-continue" aria-describedby="yt-next-desc">Continue to Unpack &amp; Convert</button>
         </div>
     </section>

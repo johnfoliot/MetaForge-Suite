@@ -354,7 +354,9 @@ window.metaforge.youtube_mp3 = {
         this.made = made;
         const h = document.getElementById('yt-handoff');
         h.hidden = false;
-        document.getElementById('yt-continue').focus();
+        const btn = document.getElementById('yt-continue');
+        btn.focus();
+        btn.scrollIntoView({ block: 'nearest' });   // large text: the column may scroll
     },
 
     continueOn: function () {

@@ -833,7 +833,9 @@ input, textarea, select {
     font-size: 0.9375rem;
     color: var(--text-primary);
 }
-.mf-handoff button { flex: none; }
+/* Never wider than the bar: at large text sizes the label wraps instead of
+   being cut off at the column edge. */
+.mf-handoff button { flex: 0 1 auto; max-width: 100%; }
 /* More than one next step (e.g. Intelli-Tagger: Personnel and Bio Builder) */
 .mf-handoff-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .mf-handoff-kicker {
