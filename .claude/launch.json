@@ -8,16 +8,10 @@
       "port": 5000
     },
     {
-      "name": "metaforge-v2-ui",
+      "name": "metaforge-ui",
       "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
-      "runtimeArgs": ["D:\\MetaForge Suite (New Build)\\dev\\serve_ui_only.py", "5050"],
+      "runtimeArgs": ["D:\\MetaForge Suite\\dev\\serve_ui_only.py", "5050"],
       "port": 5050
-    },
-    {
-      "name": "metaforge-v2-sandbox",
-      "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
-      "runtimeArgs": ["D:\\MetaForge Suite (New Build)\\dev\\serve_ui_only.py", "5051", "C:\\Users\\John Foliot\\AppData\\Local\\Temp\\claude\\8c3049e4a8d50bc8\\ea5ea670-6b27-4b3c-a4dd-7e23a12c404f\\scratchpad\\idops"],
-      "port": 5051
     },
     {
       "name": "survey-tool",
