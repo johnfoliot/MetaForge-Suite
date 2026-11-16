@@ -24,12 +24,12 @@ def _queue_for_submission(file_path):
     """Logs a track with a confirmed-absent AcoustID match so tools/acoustid can submit it later."""
     PENDING_FILE.parent.mkdir(parents=True, exist_ok=True)
     entry = str(file_path)
-    existing = set()
-    if PENDING_FILE.exists():
-        existing = set(PENDING_FILE.read_text(encoding="utf-8").splitlines())
-    if entry not in existing:
+    text = PENDING_FILE.read_text(encoding="utf-8") if PENDING_FILE.exists() else ""
+    if entry not in set(text.splitlines()):
         with open(PENDING_FILE, "a", encoding="utf-8") as f:
-            f.write(entry + "\n")
+            # The AcoustID tool used to rewrite this file without a final
+            # newline, so a plain append glued the new path onto the last one.
+            f.write(("\n" if text and not text.endswith("\n") else "") + entry + "\n")
 
 
 def generate_acoustid(file_path):

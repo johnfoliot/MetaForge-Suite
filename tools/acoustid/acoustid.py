@@ -190,7 +190,8 @@ def submit_fingerprints():
                 yield f'<div class="status-error"><span aria-hidden="true">🔥</span> [{index}/{total_tracks}] ERROR: {path.name} ({str(e)})</div>'
                 remaining_pending.append(path_str)
 
-    PENDING_FILE.write_text("\n".join(remaining_pending), encoding='utf-8')
+    # Always end with a newline, or the next append glues onto the last path.
+    PENDING_FILE.write_text("".join(p + "\n" for p in remaining_pending), encoding='utf-8')
     
     # TERMINAL WARNING: COGA 4.4.1 Expectations Management
     yield f'''
@@ -283,7 +284,8 @@ def resolve_ids():
                 yield f'<div class="status-error"><span aria-hidden="true">🔥</span> [{index}/{total_tracks}] ERROR: {path.name}</div>'
                 remaining_history.append(path_str)
 
-    HISTORY_FILE.write_text("\n".join(remaining_history), encoding='utf-8')
+    # Always end with a newline, or the next append glues onto the last path.
+    HISTORY_FILE.write_text("".join(p + "\n" for p in remaining_history), encoding='utf-8')
     yield f'<div class="status-ok"><span aria-hidden="true">✅</span> Step 2 Sequence Concluded. {resolved_count} tracks finalized.</div>'
 
 # --- ACOUSTID ENGINE END ---
