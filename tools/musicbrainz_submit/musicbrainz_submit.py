@@ -60,7 +60,11 @@ METAFORGE_HEURISTICS_URL = "https://github.com/johnfoliot/MetaForge-Suite/blob/m
 BATCH_SIZE = 25
 
 # --- [ QUEUE RULE ] ---------------------------------------------------------
-QUEUE_SOURCES = {"Discogs", "AllMusic", "Wikipedia", "MetaForge (Manual)", "Submitter Confirmed"}
+QUEUE_SOURCES = {"Discogs", "AllMusic", "Wikipedia", "MetaForge (Manual)"}
+# AI-found credits (and ones confirmed with Personnel's quick toggle) are sent
+# only after the submitter checked a source page and found it explicit or
+# inferred evidence. Anecdotal checks and no-source confirmations stay home.
+SENDABLE_TIERS = {"explicit", "inferred"}
 
 SOURCE_PHRASE = {
     "Discogs": "Discogs release credits",
@@ -83,7 +87,9 @@ def in_queue(c):
     prov = c.get("provenance")
     if prov in QUEUE_SOURCES:
         return True
-    return prov == "AI Web Search" and bool(c.get("verification_tier"))
+    return (prov in ("AI Web Search", "Submitter Confirmed")
+            and c.get("verification_tier") in SENDABLE_TIERS
+            and bool(c.get("verified_source_url")))
 
 
 # --- [ ROLE -> MUSICBRAINZ RELEASE RELATIONSHIP ] ---------------------------
@@ -796,10 +802,6 @@ def _skip_album():
 
 def _note_line(c):
     rel = c["relationship"]
-    if c["provenance"] == "Submitter Confirmed" and not c.get("verification_tier"):
-        # Personnel's quick Confirmed/Inferred toggle: a human judgment with
-        # no source page recorded, so the note mustn't claim one was checked.
-        return f"- {rel['label']}: {c['name']} (confirmed by the submitter)"
     line = f"- {rel['label']}: {c['name']} (from {SOURCE_PHRASE.get(c['provenance'], c['provenance'])}"
     if c.get("verified_source_url"):
         line += f": {c['verified_source_url']}"

@@ -17,7 +17,7 @@
 
 <h3>What's sent</h3>
 <ul>
-    <li><strong>Sources:</strong> credits from Discogs, AllMusic and Wikipedia, your own entries, and AI web search credits you confirmed in the verify window. Unconfirmed AI credits are never sent.</li>
+    <li><strong>Sources:</strong> credits from Discogs, AllMusic and Wikipedia, your own entries, and AI web search credits you checked in the verify window and rated Explicit or Inferred. AI credits that are unchecked, rated Anecdotal, or only switched to Confirmed in Personnel are never sent.</li>
     <li><strong>Roles:</strong> producer, arranger, composer, writer, lyricist, vocals, backing vocals, and named instruments. Instruments are matched to MusicBrainz's own instrument list ("Sax (Tenor)" becomes "tenor saxophone"); a role with no exact match isn't sent.</li>
     <li><strong>Artists:</strong> a credit goes out only when the person is matched for certain: by their MusicBrainz ID, or because exactly one MusicBrainz artist has that name. Otherwise MetaForge shows the likely artists and you choose (or choose "None of these").</li>
 </ul>

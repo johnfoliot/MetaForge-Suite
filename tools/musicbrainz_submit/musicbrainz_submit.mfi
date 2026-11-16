@@ -236,7 +236,7 @@
         </div>
 
             <div id="mbs-body" class="mbs-body">
-                <p class="mbs-intro">These albums have credits that Discogs, AllMusic or Wikipedia list (or that you added or confirmed) but MusicBrainz doesn't have yet.</p>
+                <p class="mbs-intro">These albums have credits that Discogs, AllMusic or Wikipedia list (or that you added, or checked against a source) but MusicBrainz doesn't have yet.</p>
                 <p class="mbs-intro">Choose an album. MetaForge checks MusicBrainz first, so nothing it already has is sent again. Untick anything you don't want to send, then open MusicBrainz: MetaForge adds the ticked credits and the edit note there, and you click "Enter edit".</p>
             </div>
        </div>
