@@ -563,7 +563,9 @@ window.MFEvents = {
                         pair.className = 'mf-ev-pair';
                         const k = document.createElement('span');
                         k.className = 'mf-ev-pair-k';
-                        k.textContent = label;
+                        // "Genre:" in bold (John, 2026-11-16). The colon is real
+                        // text so screen readers hear the label as a label.
+                        k.textContent = `${label}:`;
                         const v = document.createElement('span');
                         v.className = 'mf-ev-pair-v';
                         v.textContent = value;

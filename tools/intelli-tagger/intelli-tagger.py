@@ -507,7 +507,7 @@ def _track_event(idx, total, filename, data):
         [["MusicBrainz track ID", val("mb_track_id", "None")]],
         [["AcoustID", val("acoustid", "None")]],
     ]
-    text = "; ".join(f"{k} {v}" for line in details for k, v in line)
+    text = "; ".join(f"{k}: {v}" for line in details for k, v in line)
     return event("track", text, file=filename, details=details, position=f"{idx} of {total}")
 
 

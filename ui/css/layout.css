@@ -688,7 +688,7 @@ input, textarea, select {
 }
 /* A ✓ in the mark column for an otherwise ordinary line (event ok: true) */
 .mf-ev-ok .mf-ev-mark { color: var(--status-success); }
-.mf-ev-pair-k { color: var(--text-muted); }
+.mf-ev-pair-k { color: var(--text-muted); font-weight: 700; }
 .mf-ev-pair-v { color: var(--text-primary); white-space: normal; overflow-wrap: anywhere; }
 .mf-ev-thumb {
     width: 2.5rem;
