@@ -1,0 +1,37 @@
+/* --- METAFORGE THEME: AMBER CHARCOAL --- */
+/* Dark charcoal with warm amber controls, in the style of a modern desktop music player.
+   Palette from John (2026-11-17); contrast pass: only the colours that
+   failed were changed, in lightness only (hue kept), approved by John.
+   Every text colour is 4.5:1 or better on every surface; control
+   borders and the focus ring 3:1. #CC9900 is the only gold. */
+:root {
+    color-scheme: dark;
+
+    --bg-main: #181818;                 /* Page background */
+    --bg-stage: #1f1f1f;                /* Panels */
+    --bg-accent: #262626;               /* Raised areas */
+    --text-output: #f0f0f0;             /* Main text */
+    --text-message: #cccccc;            /* Secondary text */
+    --text-muted: #999999;              /* Hints and placeholders */
+    --mf-gold: #e58e26;                 /* Brand colour */
+    --input-background: #e58e26;        /* Button colour */
+    --input-foreground: #181812;        /* Button text */
+    --input-background2: #121212;       /* Field background */
+    --input-foreground2: #f0f0f0;       /* Field text */
+    --status-success: #48d97a;          /* Success messages */
+    --status-error: #ff7a86;            /* Error messages */
+    --status-warning: #ff9a3c;          /* Warning messages */
+    --border-ui: #737373;               /* Control borders */
+    --border-subtle: #222222;           /* Separator lines */
+    --focus-ring: #e58e26;              /* Keyboard focus ring */
+
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+}

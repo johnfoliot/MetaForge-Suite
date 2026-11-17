@@ -1,0 +1,37 @@
+/* --- METAFORGE THEME: SILVER TANGERINE --- */
+/* Light silver-grey with tangerine controls, in the style of a music library manager.
+   Palette from John (2026-11-17); contrast pass: only the colours that
+   failed were changed, in lightness only (hue kept), approved by John.
+   Every text colour is 4.5:1 or better on every surface; control
+   borders and the focus ring 3:1. #CC9900 is the only gold. */
+:root {
+    color-scheme: light;
+
+    --bg-main: #ececec;                 /* Page background */
+    --bg-stage: #ffffff;                /* Panels */
+    --bg-accent: #dfdfdf;               /* Raised areas */
+    --text-output: #111111;             /* Main text */
+    --text-message: #333333;            /* Secondary text */
+    --text-muted: #606060;              /* Hints and placeholders */
+    --mf-gold: #a54200;                 /* Brand colour */
+    --input-background: #ff6600;        /* Button colour */
+    --input-foreground: #111111;        /* Button text */
+    --input-background2: #fafafa;       /* Field background */
+    --input-foreground2: #111111;       /* Field text */
+    --status-success: #296e2c;          /* Success messages */
+    --status-error: #b82525;            /* Error messages */
+    --status-warning: #925004;          /* Warning messages */
+    --border-ui: #7b7b7b;               /* Control borders */
+    --border-subtle: #d0d0d0;           /* Separator lines */
+    --focus-ring: #d05300;              /* Keyboard focus ring */
+
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+}

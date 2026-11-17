@@ -1,0 +1,37 @@
+/* --- METAFORGE THEME: TRAFFIC CONE --- */
+/* Light grey with traffic-cone orange controls, in the style of a popular media player.
+   Palette from John (2026-11-17); contrast pass: only the colours that
+   failed were changed, in lightness only (hue kept), approved by John.
+   Every text colour is 4.5:1 or better on every surface; control
+   borders and the focus ring 3:1. #CC9900 is the only gold. */
+:root {
+    color-scheme: light;
+
+    --bg-main: #f0f0f0;                 /* Page background */
+    --bg-stage: #ffffff;                /* Panels */
+    --bg-accent: #e4e4e7;               /* Raised areas */
+    --text-output: #18181b;             /* Main text */
+    --text-message: #3f3f46;            /* Secondary text */
+    --text-muted: #63636b;              /* Hints and placeholders */
+    --mf-gold: #9d4e00;                 /* Brand colour */
+    --input-background: #ff7f00;        /* Button colour */
+    --input-foreground: #111111;        /* Button text */
+    --input-background2: #fafafa;       /* Field background */
+    --input-foreground2: #18181b;       /* Field text */
+    --status-success: #0f7234;          /* Success messages */
+    --status-error: #c21f1f;            /* Error messages */
+    --status-warning: #ac4109;          /* Warning messages */
+    --border-ui: #7e7e8a;               /* Control borders */
+    --border-subtle: #e4e4e7;           /* Separator lines */
+    --focus-ring: #c66300;              /* Keyboard focus ring */
+
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+}

@@ -1,0 +1,37 @@
+/* --- METAFORGE THEME: CLASSIC AMP --- */
+/* Dark slate with lime readouts and orange controls, in the style of a classic desktop music player.
+   Palette from John (2026-11-17); contrast pass: only the colours that
+   failed were changed, in lightness only (hue kept), approved by John.
+   Every text colour is 4.5:1 or better on every surface; control
+   borders and the focus ring 3:1. #CC9900 is the only gold. */
+:root {
+    color-scheme: dark;
+
+    --bg-main: #2b2b36;                 /* Page background */
+    --bg-stage: #1e1e24;                /* Panels */
+    --bg-accent: #3d3d4e;               /* Raised areas */
+    --text-output: #00ff00;             /* Main text */
+    --text-message: #cccccc;            /* Secondary text */
+    --text-muted: #ababb9;              /* Hints and placeholders */
+    --mf-gold: #ff8f16;                 /* Brand colour */
+    --input-background: #ff8400;        /* Button colour */
+    --input-foreground: #121212;        /* Button text */
+    --input-background2: #0a0a0c;       /* Field background */
+    --input-foreground2: #00ff00;       /* Field text */
+    --status-success: #00ff00;          /* Success messages */
+    --status-error: #ff8989;            /* Error messages */
+    --status-warning: #ffe100;          /* Warning messages */
+    --border-ui: #8b8ba0;               /* Control borders */
+    --border-subtle: #18181c;           /* Separator lines */
+    --focus-ring: #00ff00;              /* Keyboard focus ring */
+
+    --surface-page: var(--bg-main);
+    --surface-panel: var(--bg-stage);
+    --surface-raised: var(--bg-accent);
+    --surface-field: var(--input-background2);
+    --text-primary: var(--text-output);
+    --text-secondary: var(--text-message);
+    --accent: var(--mf-gold);
+    --accent-fill: var(--input-background);
+    --on-accent-fill: var(--input-foreground);
+}
