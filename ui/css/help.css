@@ -104,7 +104,7 @@
 }
 .mf-help-doc :is(p, ul, ol, dl, aside, .faq) { max-width: 70ch; margin: 0 0 0.75rem; }
 .mf-help-doc :is(ul, ol) { padding-inline-start: 1.5rem; }
-.mf-help-doc li + li { margin-top: 0.35rem; }
+.mf-help-doc li + li { margin-top: 0.25rem; }
 .mf-help-doc :is(ul, ol) :is(ul, ol) { margin: 0.35rem 0 0; }
 
 .mf-help-doc h3 {
@@ -119,35 +119,34 @@
     font-size: 1rem;
     color: var(--text-output);
 }
-.mf-help-doc strong { color: var(--text-output); }
+/* Matches John's model (MusicBrainz IDs help, 2026-11-17): bold text keeps
+   the paragraph colour; lists and notes are the paragraphs' size (John
+   chose this over the model's smaller list text: larger text first). */
 
 /* "How to use this tool:" - the gold bar down its left side */
 .mf-help-doc .steps {
     margin: 1.25rem 0 0.75rem;
-    padding-inline-start: 0.9rem;
+    padding-inline-start: 0.75rem;
     border-inline-start: 4px solid var(--mf-gold);
 }
 .mf-help-doc .steps > h3 { margin-top: 0; }
 
-/* A button's name, drawn like the button itself (the theme's button colours) */
+/* A button's name, drawn like the button itself. The theme's button
+   colours: the same as the model's gold in most themes, and readable in
+   every theme (button text on --mf-gold is under 4.5:1 in some). */
 .mf-help-doc .ui-button {
-    display: inline-block;
-    padding: 0 0.4em;
-    border-radius: 3px;
+    padding: 0.1em 0.3em;
+    border-radius: 2px;
     background: var(--input-background);
     color: var(--input-foreground);
-    font-weight: 600;
+    font-weight: 400;
     white-space: nowrap;
 }
-/* A tool's name */
-.mf-help-doc .tool { color: var(--mf-gold); }
+/* A tool's (or panel's) name: gold, bold, a little larger */
+.mf-help-doc .tool { color: var(--mf-gold); font-weight: 700; font-size: 110%; }
 
-/* A note: italic and set apart, at full size (never smaller text) */
-.mf-help-doc .note {
-    font-style: italic;
-    padding-inline-start: 0.75rem;
-    border-inline-start: 2px solid var(--border-ui);
-}
+/* A note: italic, at full size (never smaller text) */
+.mf-help-doc .note { font-style: italic; }
 .mf-help-doc li .note { margin: 0.35rem 0 0; }
 
 /* A tip or bonus box */
