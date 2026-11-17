@@ -125,7 +125,9 @@
 <!-- Detail of one tile (filled by dashboard.js) -->
 <dialog id="db-detail" class="db-dialog" aria-labelledby="db-detail-h">
     <h2 id="db-detail-h"></h2>
-    <div class="db-dialog-body" id="db-detail-body"></div>
+    <!-- Long details scroll: a named keyboard stop, as in the Help window
+         (2026-11-17, axe scan of the deeper screens). -->
+    <div class="db-dialog-body" id="db-detail-body" tabindex="0" role="region" aria-label="Details"></div>
     <form method="dialog" class="db-dialog-actions">
         <button type="submit" class="mf-button-gold-fixed">Close</button>
     </form>

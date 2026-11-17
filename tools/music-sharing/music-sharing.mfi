@@ -184,7 +184,7 @@
 
                 <div class="shr-log-wrap">
                     <!-- role="log" but NOT live: the shared announcer speaks steps, problems and the finish. -->
-                    <div id="shr-console" class="shr-console" role="log" aria-live="off" aria-label="Activity log">
+                    <div id="shr-console" class="shr-console" role="log" aria-live="off" aria-label="Activity log" tabindex="0">
                         <p class="shr-log-intro">Choose a track to begin.</p>
                     </div>
                 </div>

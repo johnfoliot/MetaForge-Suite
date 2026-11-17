@@ -245,7 +245,12 @@ window.metaforge.musicbrainz_id = {
             const artist = document.createElement('span');
             artist.className = 'mb-release-artist';
             artist.textContent = r.artist;
-            title.append(artist, document.createTextNode(r.title));
+            // The artist sits on its own line; a hidden comma keeps the
+            // radio's name "The Sundays, Goodbye", not "The SundaysGoodbye".
+            const gap = document.createElement('span');
+            gap.className = 'mf-visually-hidden';
+            gap.textContent = ', ';
+            title.append(artist, gap, document.createTextNode(r.title));
 
             const format = td(); format.textContent = r.format;
             const tracks = td('mb-num'); tracks.textContent = r.track_count;

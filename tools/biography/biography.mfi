@@ -212,7 +212,7 @@
                      textarea changes via .value, which MFScrollbar's observer
                      can't see, so biography.js dispatches 'scroll' after each
                      .value assignment to resync it. -->
-                <div class="mf-custom-scrollbar" role="scrollbar" aria-controls="bio-text-editor" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="mf-custom-scrollbar" aria-hidden=\"true\" aria-controls="bio-text-editor">
                     <button type="button" class="mf-scroll-btn" aria-label="Scroll up" tabindex="-1">▲</button>
                     <div class="mf-scroll-track"><div class="mf-scroll-thumb"></div></div>
                     <button type="button" class="mf-scroll-btn" aria-label="Scroll down" tabindex="-1">▼</button>

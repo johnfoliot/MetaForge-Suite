@@ -400,6 +400,12 @@ window.MFScrollbar = {
         const upBtn = btns[0], downBtn = btns[1];
         if (!target || !upBtn || !downBtn || !track || !thumb) return;
         bar.dataset.mfWired = 'true';
+        // Mouse-only copy of what the wheel and keyboard already do, so it is
+        // hidden from screen readers (its buttons stay tabindex="-1"). It used
+        // to be role="scrollbar" holding buttons: an unoperable "scrollbar"
+        // with controls nested inside (axe nested-interactive, 2026-11-17).
+        // Keyboard users scroll the target itself, which is a tab stop.
+        bar.setAttribute('aria-hidden', 'true');
 
         const sync = () => {
             const scrollable = target.scrollHeight - target.clientHeight;
@@ -422,7 +428,6 @@ window.MFScrollbar = {
 
             thumb.style.height = thumbHeight + 'px';
             thumb.style.top = thumbTop + 'px';
-            bar.setAttribute('aria-valuenow', Math.round(scrollRatio * 100));
         };
 
         upBtn.addEventListener('click', () => target.scrollBy({ top: -40, behavior: 'smooth' }));
