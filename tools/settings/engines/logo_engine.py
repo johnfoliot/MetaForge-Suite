@@ -4,7 +4,9 @@
 # Physical Location: \tools\settings\engines\logo_engine.py
 # v2 (2026-11-17, theme folders): makes a theme's 3-D logo as a PNG from
 # one master, ui/images/logo_master.png: John's silver logo (option B),
-# rendered once from logo_silver.svg. Every pixel of the master is a pure
+# rendered once from logo_silver.svg (the SVG logos were retired the same
+# day; they're in git history and in Work files\images\retired logos).
+# Every pixel of the master is a pure
 # grey with the letter faces at #CCCCCC, so a pixel's grey says only how
 # light or dark it is. Recolouring keeps that, relative to the faces:
 # the faces become exactly the theme's logo colour (#CC9900 for the default
