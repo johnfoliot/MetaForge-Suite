@@ -451,14 +451,17 @@
 
 <div class="active_stage">
 <div class="set-stage" id="settings-stage">
-    <div class="set-tabs" focusgroup="tablist block nomemory" aria-label="Settings" aria-orientation="vertical" id="set-tabs">
-        <button type="button" id="set-tab-theme" aria-selected="true" focusgroupstart>Theme</button>
-        <button type="button" id="set-tab-toolbar" aria-selected="false">Toolbar</button>
-        <button type="button" id="set-tab-dashboard" aria-selected="false">Dashboard</button>
-        <button type="button" id="set-tab-genres" aria-selected="false">Genre list</button>
-        <button type="button" id="set-tab-config" aria-selected="false">Configuration &amp; keys</button>
-        <button type="button" id="set-tab-updates" aria-selected="false">Updates</button>
-        <button type="button" id="set-tab-help" aria-selected="false">Help files</button>
+    <!-- Explicit tab roles (2026-11-17, axe scan): focusgroup gives the arrow
+         keys but not the tab semantics, so without role="tab" a screen reader
+         heard plain buttons and never "selected". -->
+    <div class="set-tabs" role="tablist" focusgroup="tablist block nomemory" aria-label="Settings" aria-orientation="vertical" id="set-tabs">
+        <button type="button" role="tab" id="set-tab-theme" aria-controls="set-panel-theme" aria-selected="true" focusgroupstart>Theme</button>
+        <button type="button" role="tab" id="set-tab-toolbar" aria-controls="set-panel-toolbar" aria-selected="false">Toolbar</button>
+        <button type="button" role="tab" id="set-tab-dashboard" aria-controls="set-panel-dashboard" aria-selected="false">Dashboard</button>
+        <button type="button" role="tab" id="set-tab-genres" aria-controls="set-panel-genres" aria-selected="false">Genre list</button>
+        <button type="button" role="tab" id="set-tab-config" aria-controls="set-panel-config" aria-selected="false">Configuration &amp; keys</button>
+        <button type="button" role="tab" id="set-tab-updates" aria-controls="set-panel-updates" aria-selected="false">Updates</button>
+        <button type="button" role="tab" id="set-tab-help" aria-controls="set-panel-help" aria-selected="false">Help files</button>
     </div>
 
     <div class="set-panels" id="set-panels">

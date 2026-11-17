@@ -93,7 +93,10 @@
             <h2 id="mf-help-title">Help</h2>
             <form method="dialog"><button type="submit" class="mf-help-close" value="close" autofocus>Close</button></form>
         </div>
-        <div class="mf-help-body" id="mf-help-body"></div>
+        <!-- The text scrolls when it's long: a named keyboard stop, so arrow
+             keys / Page Down scroll it and a screen reader says what it is
+             (2026-11-17, axe scan). -->
+        <div class="mf-help-body" id="mf-help-body" tabindex="0" role="region" aria-label="Help text"></div>
     </dialog>
 
     <footer role="contentinfo" style="display: flex; justify-content: flex-end; padding: 0 15px;">

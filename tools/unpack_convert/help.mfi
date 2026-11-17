@@ -43,7 +43,7 @@
 </p>
 
 <div id="footnote" class="help" style="font-size:85%">
-<h3 class="help"><abbr title="Frequently Asked Questions" aria-label="Frequently Asked Questions">F.A.Q.</abbr></h3>
+<h3 class="help"><abbr title="Frequently Asked Questions">F.A.Q.</abbr></h3>
 <h4 class="help" id="footnote1" style="size:1.2rem; font-weight:bold;">Why Convert to MP3 VBR (V0)?</h4> 
 
 	<p class="help">The MetaForge Suite has chosen MP3 VBR (V0) as the MetaForge library standard, in an attempt to balance <b>high-quality sound</b> with technical efficiency and optimized storage capacity.</p>

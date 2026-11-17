@@ -172,10 +172,12 @@
 
 <div class="active_stage">
 <div class="dbt-stage">
-    <div class="dbt-tabs" focusgroup="tablist inline nomemory" aria-label="Database Tools" id="dbt-tabs">
-        <button type="button" id="dbt-tab-artist" aria-selected="true" focusgroupstart>Artists</button>
-        <button type="button" id="dbt-tab-album" aria-selected="false">Albums</button>
-        <button type="button" id="dbt-tab-remove" aria-selected="false">Remove records</button>
+    <!-- Explicit tab roles (2026-11-17, axe scan): focusgroup gives the arrow
+         keys but not the tab semantics. -->
+    <div class="dbt-tabs" role="tablist" focusgroup="tablist inline nomemory" aria-label="Database Tools" id="dbt-tabs">
+        <button type="button" role="tab" id="dbt-tab-artist" aria-controls="dbt-panel-artist" aria-selected="true" focusgroupstart>Artists</button>
+        <button type="button" role="tab" id="dbt-tab-album" aria-controls="dbt-panel-album" aria-selected="false">Albums</button>
+        <button type="button" role="tab" id="dbt-tab-remove" aria-controls="dbt-panel-remove" aria-selected="false">Remove records</button>
     </div>
 
     <div class="dbt-panels" id="dbt-panels">
