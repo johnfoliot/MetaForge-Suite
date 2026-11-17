@@ -528,17 +528,34 @@
                 return;
             }
             nameBox.removeAttribute('aria-invalid');
+            // Gold is always refused; contrast is advisory (John, 2026-11-17):
+            // with "Also show themes that don't meet contrast guidelines" on,
+            // a theme below them can be saved after a warning.
             const p = problems();
-            if (p.length) {
-                select(p[0].keys[0], true);
+            const gold = p.filter(x => /reads as gold/.test(x.text));
+            const allowLow = S.themes && S.themes.allowLow();
+            if (gold.length || (p.length && !allowLow)) {
+                const first = gold[0] || p[0];
+                select(first.keys[0], true);
                 renderList();
-                S.say('tm-status', `Not saved: ${p.length} ${p.length === 1 ? 'check fails' : 'checks fail'}.`, 'error');
-                S.say('tm-ed-status', `${p[0].text}. Change this colour, or use Fix.`, 'error');
+                const tip = gold.length ? '' : ' Or, to save it anyway, turn on “Also show themes that don’t meet contrast guidelines” in the theme list.';
+                S.say('tm-status', `Not saved: ${p.length} ${p.length === 1 ? 'check fails' : 'checks fail'}.${tip}`, 'error');
+                S.say('tm-ed-status', `${first.text}. Change this colour, or use Fix.`, 'error');
                 return;
+            }
+            if (p.length) {
+                const hard = [...new Set(failingPairs().map(x => labels[x.fg]))];
+                const ok = await S.confirm({
+                    title: 'Save below contrast guidelines?',
+                    body: [`Hard to see in this theme: ${hard.join(', ')}.`,
+                           'Many people, especially people with low vision, can’t read these colours. You can still save and use it, because “Also show themes that don’t meet contrast guidelines” is on.'],
+                    ok: 'Save anyway', cancel: 'Keep editing'
+                });
+                if (!ok) { S.say('tm-status', 'Not saved.'); return; }
             }
             const send = async (overwrite) => (await fetch('/run_tool_logic/settings/save_custom_theme', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, values, logo, overwrite })
+                body: JSON.stringify({ name, values, logo, overwrite, allow_low_contrast: p.length > 0 })
             })).json();
             try {
                 S.say('tm-status', 'Saving the theme…');

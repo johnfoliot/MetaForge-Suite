@@ -84,25 +84,48 @@ def reads_as_gold(h):
     return R["hue_min"] <= hue * 360 <= R["hue_max"] and sat >= R["sat_min"] and R["light_min"] <= light <= R["light_max"]
 
 
-def problems(values, logo_colour=None):
-    """Every reason this theme can't be saved, in plain language."""
-    out = []
-    labels = {t[0]: t[1] for t in TOKENS}
-    for k in KEYS:
-        if not HEX.match(values.get(k) or ""):
-            out.append(f"{labels[k]} isn't a 6-digit colour code like #1a2fb5.")
+LABELS = {t[0]: t[1] for t in TOKENS}
+
+# Two kinds of check (John, 2026-11-17):
+#  - brand_problems: malformed colours and the one-gold rule. Always refused.
+#  - contrast_problems: WCAG contrast. ADVISORY: a theme below the
+#    guidelines can still be used by someone it doesn't affect, once they
+#    turn on Settings > Theme > "Also show themes that don't meet contrast
+#    guidelines". Built-in themes always pass.
+
+
+def brand_problems(values, logo_colour=None):
+    """Reasons a theme is refused outright, in plain language."""
+    out = [f"{LABELS[k]} isn't a 6-digit colour code like #1a2fb5." for k in KEYS if not HEX.match(values.get(k) or "")]
     if out:
         return out
-    for fg, bg, need, _ in PAIRS:
-        r = contrast(values[fg], values[bg])
-        if r < need:
-            out.append(f"{labels[fg]} on {labels[bg]}: {r:.2f}:1 (needs {need:g}:1).")
     for k in KEYS:
         if reads_as_gold(values[k]):
-            out.append(f"{labels[k]} ({values[k]}) reads as gold: the only gold allowed is #CC9900.")
+            out.append(f"{LABELS[k]} ({values[k]}) reads as gold: the only gold allowed is #CC9900.")
     if logo_colour and reads_as_gold(logo_colour):
         out.append(f"Logo colour ({logo_colour}) reads as gold: the only gold allowed is #CC9900.")
     return out
+
+
+def contrast_failures(values):
+    """[(foreground key, background key, ratio, needed)] for each failing pair."""
+    return [(fg, bg, r, need) for fg, bg, need, _ in PAIRS
+            if (r := contrast(values[fg], values[bg])) < need]
+
+
+def contrast_problems(values):
+    return [f"{LABELS[fg]} on {LABELS[bg]}: {r:.2f}:1 (needs {need:g}:1)." for fg, bg, r, need in contrast_failures(values)]
+
+
+def hard_to_see(values):
+    """The colours that fall short, by name, each once (for the advisory)."""
+    return list(dict.fromkeys(LABELS[fg] for fg, _, _, _ in contrast_failures(values)))
+
+
+def problems(values, logo_colour=None):
+    """Every failing check, brand and contrast (the strict, all-pass view)."""
+    out = brand_problems(values, logo_colour)
+    return out if any("isn't a 6-digit" in p for p in out) else out + contrast_problems(values)
 
 
 def as_json():
@@ -117,12 +140,16 @@ def as_json():
 def render_css(name, values, stamp):
     """A theme folder's theme.css (its name and logo colour live in manifest.json)."""
     scheme = "light" if luminance(values["bg-main"]) > 0.4 else "dark"
-    labels = {t[0]: t[1] for t in TOKENS}
+    labels = LABELS
+    short = hard_to_see(values)
+    note = (["   Every contrast pair in the theme template passed when it was saved",
+             "   (text 4.5:1, control borders and focus ring 3:1). */"] if not short else
+            ["   Saved BELOW the contrast guidelines (text 4.5:1, borders and focus",
+             "   ring 3:1) by choice. Hard to see: " + ", ".join(short) + ". */"])
     lines = [
         f"/* --- METAFORGE THEME: {name.upper()} --- */",
         "/* Made with Settings > Theme > Create a theme (" + stamp + ").",
-        "   Every contrast pair in the theme template passed when it was saved",
-        "   (text 4.5:1, control borders and focus ring 3:1). */",
+        *note,
         ":root {",
         f"    color-scheme: {scheme};",
         "",

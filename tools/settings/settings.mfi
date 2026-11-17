@@ -166,6 +166,7 @@
     .set-theme-card .set-row button { padding: 0.25rem 0.75rem; }
     .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
     .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
+    .set-theme-adv { color: var(--status-warning); }
     .set-theme-rejected { margin: 1rem 0 0; color: var(--text-secondary); }
     .set-theme-rejected summary { cursor: pointer; color: var(--text-primary); font-weight: 600; width: fit-content; }
     .set-theme-rejected ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
@@ -477,6 +478,15 @@
             <form class="set-panel-in" id="set-theme-form">
                 <h2>Theme</h2>
                 <p class="set-intro">Choosing a theme shows it straight away. Choose <strong>Save theme</strong> to keep it the next time MetaForge starts.</p>
+                <!-- Contrast is advisory, not a block (John, 2026-11-17): themes
+                     below the guidelines are offered only when this is on. -->
+                <div class="mf-pref-row">
+                    <div class="mf-pref-control">
+                        <input type="checkbox" switch id="set-theme-lowcontrast" aria-describedby="set-theme-lowcontrast-hint">
+                        <label for="set-theme-lowcontrast">Also show themes that don’t meet contrast guidelines</label>
+                    </div>
+                    <p class="mf-pref-hint" id="set-theme-lowcontrast-hint">Off by default. Some colours in those themes are hard, or impossible, for many people to read, especially people with low vision. Turn this on only if they work for you. Each of those themes says what’s hard to see.</p>
+                </div>
                 <fieldset class="set-theme-grid" id="theme-selector-grid">
                     <legend class="mf-visually-hidden">Theme</legend>
                     <p class="set-hint">Loading the themes…</p>
@@ -485,7 +495,7 @@
                      by default, opens to each folder and the reason. -->
                 <details class="set-theme-rejected" id="set-theme-rejected" hidden>
                     <summary id="set-theme-rejected-sum">Themes that aren’t offered</summary>
-                    <p class="set-hint">These theme folders were found but didn’t pass MetaForge’s checks, so they can’t be chosen. Whoever made a theme can fix it and it will appear here.</p>
+                    <p class="set-hint">These themes were found but can’t be chosen right now. Each says why.</p>
                     <ul id="set-theme-rejected-list"></ul>
                 </details>
                 <div class="set-actions">
@@ -501,7 +511,7 @@
                         <button type="button" class="set-secondary" id="tm-back">Back to themes</button>
                         <h2 id="tm-title" tabindex="-1">Create a theme</h2>
                     </div>
-                    <p class="set-intro">Choose a colour from the list, then change it with its code, the picker or the sliders. The preview shows the result as you go. Every colour is checked for contrast, so the theme stays readable for everyone; Save works once every check passes.</p>
+                    <p class="set-intro">Choose a colour from the list, then change it with its code, the picker or the sliders. The preview shows the result as you go. Every colour is checked for contrast, so the theme stays readable for everyone; Save works once every check passes. (If “Also show themes that don’t meet contrast guidelines” is on, you can save one that falls short, after a warning.)
                     <div class="tm-cols">
                         <div class="tm-col">
                             <div class="set-field">

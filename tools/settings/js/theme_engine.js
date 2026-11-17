@@ -24,6 +24,10 @@
         '--input-background': 'Buttons'
     };
     let themes = [];
+    let rejected = [];
+    let allowLow = false;        // preferences: allow_low_contrast_themes (default off)
+
+    const shortText = (t) => `Below contrast guidelines. Hard to see: ${t.hard_to_see.join(', ')}.`;
 
     function currentId() {
         const link = $('mf-theme-stylesheet');
@@ -33,6 +37,7 @@
     S.themes = {
         list: () => themes,
         currentId,
+        allowLow: () => allowLow,
 
         load: async function (selectId) {
             const grid = $('theme-selector-grid');
@@ -44,7 +49,27 @@
                 grid.addEventListener('change', (e) => {
                     if (!e.target.matches('input[type="radio"]')) return;
                     window.applyTheme(e.target.value);
-                    S.say('set-theme-status', `Showing ${e.target.dataset.name}. Choose Save theme to keep it.`);
+                    const t = themes.find(x => x.id === e.target.value);
+                    S.say('set-theme-status', `Showing ${e.target.dataset.name}.${t && t.below_contrast ? ` ${shortText(t)}` : ''} Choose Save theme to keep it.`,
+                          t && t.below_contrast ? 'warning' : '');
+                });
+                $('set-theme-lowcontrast').addEventListener('change', async (e) => {
+                    allowLow = e.target.checked;
+                    const checked = document.querySelector('#theme-selector-grid input:checked');
+                    this.render(checked ? checked.value : currentId());
+                    try {
+                        const r = await (await fetch('/run_tool_logic/settings/save_prefs', {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ allow_low_contrast_themes: allowLow })
+                        })).json();
+                        if (r.status !== 'success') throw new Error(r.message || 'unknown error');
+                        const n = themes.filter(t => t.below_contrast).length;
+                        S.say('set-theme-status', allowLow
+                            ? `Saved. ${n ? `${n} ${n === 1 ? 'theme' : 'themes'} below contrast guidelines ${n === 1 ? 'is' : 'are'} now in the list, marked.` : 'No themes are below the guidelines right now.'}`
+                            : 'Saved. Only themes that meet contrast guidelines are offered.', 'ok');
+                    } catch (err) {
+                        S.say('set-theme-status', `The list changed for now, but the setting couldn't be saved: ${err.message}`, 'error');
+                    }
                 });
                 grid.addEventListener('click', (e) => {
                     const b = e.target.closest('button[data-act]');
@@ -56,35 +81,55 @@
                 $('set-theme-create').addEventListener('click', () => S.maker && S.maker.open({ id: currentId() }));
             }
             try {
-                const r = await (await fetch('/run_tool_logic/settings/get_themes')).json();
+                const [r, prefs] = await Promise.all([
+                    fetch('/run_tool_logic/settings/get_themes').then(x => x.json()),
+                    fetch('/run_tool_logic/settings/get_prefs').then(x => x.json()).catch(() => ({}))
+                ]);
                 themes = r.themes;
+                rejected = r.rejected || [];
+                allowLow = prefs.allow_low_contrast_themes === true;
+                $('set-theme-lowcontrast').checked = allowLow;
                 if (!Array.isArray(themes) || !themes.length) throw new Error(r.message || 'no themes were found');
                 this.render(selectId || currentId());
-                this.renderRejected(r.rejected || []);
             } catch (e) {
                 S.say('set-theme-status', `The themes couldn't be loaded: ${e.message}`, 'error');
             }
         },
 
-        // Theme folders that failed their checks: one closed line ("1 theme
-        // isn't offered") that opens to each folder and the reason.
-        renderRejected: function (rejected) {
+        // Themes that can't be chosen right now: broken folders, and (while the
+        // switch is off) themes below contrast guidelines. One closed line
+        // ("1 theme isn't offered") that opens to each one and the reason.
+        renderRejected: function (hiddenLow) {
             const box = $('set-theme-rejected');
             if (!box) return;
-            box.hidden = !rejected.length;
-            if (!rejected.length) return;
-            const n = rejected.length;
+            const items = [
+                ...hiddenLow.map(t => el('li', {}, el('strong', { textContent: t.name }),
+                    `: ${shortText(t)} Turn on “Also show themes that don’t meet contrast guidelines” to choose it.`)),
+                ...rejected.map(x => el('li', {}, el('strong', { textContent: x.folder }),
+                    ` (${x.custom ? 'your themes' : 'built-in'}): ${x.reason}`))
+            ];
+            box.hidden = !items.length;
+            if (!items.length) return;
+            const n = items.length;
             $('set-theme-rejected-sum').textContent = `${n} ${n === 1 ? 'theme isn’t' : 'themes aren’t'} offered`;
-            $('set-theme-rejected-list').replaceChildren(...rejected.map(x =>
-                el('li', {}, el('strong', { textContent: x.folder }), ` (${x.custom ? 'your themes' : 'built-in'}): ${x.reason}`)));
+            $('set-theme-rejected-list').replaceChildren(...items);
         },
 
         render: function (checkedId) {
             const grid = $('theme-selector-grid');
             const legend = grid.querySelector('legend');
-            const cards = themes.map(t => {
+            // A theme below the guidelines is listed when the switch is on, or
+            // when it's the one in use (so the current theme never vanishes).
+            const shown = themes.filter(t => !t.below_contrast || allowLow || t.id === checkedId);
+            this.renderRejected(themes.filter(t => !shown.includes(t)));
+            const cards = shown.map(t => {
                 const radio = el('input', { type: 'radio', name: 'set-theme', value: t.id, checked: t.id === checkedId });
                 radio.dataset.name = t.name;
+                let advisory = null;
+                if (t.below_contrast) {
+                    advisory = el('p', { className: 'set-hint set-theme-adv', id: `set-adv-${t.id}`, textContent: shortText(t) });
+                    radio.setAttribute('aria-describedby', advisory.id);
+                }
                 const list = el('ul', { className: 'set-palette' });
                 list.setAttribute('aria-hidden', 'true');   // decorative sample; the name is the choice
                 for (const [v, label] of Object.entries(LABELS)) {
@@ -98,6 +143,7 @@
                 const pick = el('label', { className: 'set-theme-pick' },
                     el('span', { className: 'set-theme-name' }, radio, t.name), list);
                 const card = el('div', { className: 'set-theme-card' }, pick);
+                if (advisory) card.append(advisory);
                 if (t.custom) {
                     const edit = el('button', { type: 'button', className: 'set-secondary' }, 'Edit', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));
                     const del = el('button', { type: 'button', className: 'set-del-btn' }, 'Delete', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));

@@ -14,9 +14,11 @@
 # MetaForge\themes\ (they survive updates; one can be shared by copying its
 # folder). A built-in id always wins over one of yours.
 # Every theme is checked before it's offered (manifest, the 17 colours,
-# colours only - no @import / url() / other rules - and the theme
-# template's contrast and one-gold checks). One that fails isn't offered;
-# Settings lists it with the reason, so whoever made it knows what to fix.
+# colours only - no @import / url() / other rules - and the one-gold
+# rule). One that fails isn't offered; Settings lists it with the reason,
+# so whoever made it knows what to fix. Contrast is ADVISORY (John,
+# 2026-11-17): a theme below the guidelines is flagged (below_contrast,
+# hard_to_see) and offered only when the user turns that on.
 # ======================================================================
 import json
 import re
@@ -83,11 +85,16 @@ def check(folder, custom):
     missing = [k for k in T.KEYS if k not in values]
     if missing:
         return None, f"Its theme.css is missing {len(missing)} of the 17 colours (for example --{missing[0]})."
-    problems = T.problems(values, colour)
-    if problems:
-        return None, "Its colours don't pass the contrast check: " + _first(problems)
+    brand = T.brand_problems(values, colour)
+    if brand:
+        return None, "Its colours can't be used: " + _first(brand)
+    # Contrast is advisory (John, 2026-11-17): the theme is usable, flagged
+    # with the colours that are hard to see; Settings offers it only when
+    # "Also show themes that don't meet contrast guidelines" is on.
+    short = T.hard_to_see(values)
     return {"id": folder.name, "name": name, "description": str(man.get("description") or ""),
             "logo_colour": colour, "custom": custom, "folder": folder, "header_image": header,
+            "below_contrast": bool(short), "hard_to_see": short,
             "palette": {f"--{k}": v for k, v in values.items()}}, None
 
 
@@ -214,7 +221,9 @@ def save_custom():
         return jsonify({"status": "error", "message": "Choose a logo colour."}), 400
     if (BUILTIN_DIR / slug).exists():
         return jsonify({"status": "error", "message": f"“{name}” is the name of a built-in theme. Choose another name."}), 400
-    issues = T.problems(vals, colour)
+    issues = T.brand_problems(vals, colour)
+    if not issues and not body.get("allow_low_contrast"):
+        issues = T.contrast_problems(vals)     # below the guidelines: only with the user's say-so
     if issues:
         return jsonify({"status": "error", "message": "The theme wasn't saved: " + " ".join(issues[:3])
                         + (f" (and {len(issues) - 3} more)" if len(issues) > 3 else ""), "problems": issues}), 400
