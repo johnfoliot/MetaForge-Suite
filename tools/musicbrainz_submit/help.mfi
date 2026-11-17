@@ -30,7 +30,7 @@
 <ul>
     <li><strong>Already on MusicBrainz:</strong> found on the release, a track or a song.</li>
     <li><strong>Similar credit already there:</strong> MusicBrainz has the same person credited differently (say, "bass" where the source says "double bass"). These start unticked; tick one only if it's a different credit.</li>
-    <li><strong>Only on some tracks:</strong> the source credits certain tracks only, so it isn't a credit for the whole release. Sending credits to single tracks is a later step.</li>
+    <li><strong>Only on some tracks:</strong> the source credits certain tracks only, so it isn't a credit for the whole release. MusicBrainz Submit can't send credits for single tracks yet.</li>
     <li><strong>Can't be sent:</strong> roles too general for MusicBrainz ("Featuring", "Musician") and kinds MetaForge can't send yet (engineering, mastering, artwork and so on).</li>
     <li><strong>Confirmed against a different release:</strong> if the page you confirmed a credit with names a different album, the credit starts unticked, with the link, so you can check.</li>
 </ul>

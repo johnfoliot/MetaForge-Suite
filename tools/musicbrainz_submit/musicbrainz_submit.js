@@ -275,12 +275,12 @@ window.metaforge.musicbrainz_submit = {
         this.otherList(body, 'Already on MusicBrainz', g.there, (c) => [`${c.relationship.label || c.role}: ${c.name}`,
             c.status === 'submitted' ? 'added by you' : '']);
         this.otherList(body, 'Only on some tracks', g.tracks, (c) => [`${c.relationship.label}: ${c.name}`, c.tracks ? `tracks ${c.tracks}` : ''],
-            'These aren\'t credits for the whole release. Sending credits to single tracks is a later step.');
+            'These aren\'t credits for the whole release. MusicBrainz Submit can\'t send credits for single tracks yet.');
         this.otherList(body, 'Can\'t be sent', g.no, (c) => [`${c.relationship.label}: ${c.name}`, c.relationship.reason]);
         if (g.trackScoped) {
             const p = document.createElement('p');
             p.className = 'mbs-intro';
-            p.textContent = `${g.trackScoped} more credit${g.trackScoped === 1 ? ' is' : 's are'} for single tracks: a later step.`;
+            p.textContent = `${g.trackScoped} more credit${g.trackScoped === 1 ? ' is' : 's are'} for single tracks. MusicBrainz Submit can't send ${g.trackScoped === 1 ? 'that' : 'those'} yet.`;
             body.append(p);
         }
         $('mbs-foot').hidden = false;

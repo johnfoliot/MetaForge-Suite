@@ -167,7 +167,7 @@ def mb_relationship(relation_type, role, tracks=None):
     if tracks or TRACK_LIST.search(low):
         on = f" (tracks {tracks})" if tracks else ""
         return _not_sendable(base or role, f"Only on some tracks{on}, so it isn't a credit for the whole release. "
-                             "Sending credits to single tracks is a later step.", "tracks")
+                             "MusicBrainz Submit can't send credits for single tracks yet.", "tracks")
     # Qualified or non-musical roles never fall back to their broad relation:
     # "Executive Producer", "Reissue Producer" and "Compilation Producer" are
     # not the release's producer, and "Mastered By" is not a performance.
@@ -482,7 +482,7 @@ def _albums():
         a["newest"] = max(a["newest"], c.get("timestamp", ""))
         st = _status(c, state)
         if c.get("mb_recording_id"):
-            continue   # single-track credits: a later step
+            continue   # single-track credits: not sendable yet (backlog, John 2026-11-17)
         if st == "sent":
             a["waiting"] += 1
         elif st == "pending" and _relationship(c, instruments)["sendable"]:
