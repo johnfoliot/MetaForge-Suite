@@ -80,6 +80,31 @@ def serve_theme_logo(file_name):
     return send_file(str(_theme_engine().logo_path_for(file_name)), mimetype="image/svg+xml", max_age=0)
 
 # --- [ SECTION 4: UTILITY FUNCTIONS ] ---
+DEFAULTS_DIR = PROJECT_ROOT / "defaults"
+
+def install_defaults():
+    """
+    First-run files (v2, 2026-11-17). data\\ is never in git (it holds the
+    user's own state), so a fresh copy had no fonts, genre list, moods or
+    toolbar layout: an empty rail with no Settings button. defaults\\ is in
+    git; any file there that is missing from data\\ is copied over. A file
+    that already exists is never touched, so the user's own changes stay.
+    """
+    if not DEFAULTS_DIR.is_dir():
+        return
+    for src in DEFAULTS_DIR.rglob("*"):
+        if not src.is_file():
+            continue
+        dest = DATA_DIR / src.relative_to(DEFAULTS_DIR)
+        if dest.exists():
+            continue
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(src.read_bytes())
+            print(f"[setup] Installed default {dest.relative_to(DATA_DIR)}")
+        except OSError as ex:
+            print(f"⚠️ Couldn't install default {src.name}: {ex}")
+
 def initialize_database():
     APPDATA_ROOT.mkdir(parents=True, exist_ok=True)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -920,15 +945,8 @@ def run_flask():
     # default; it's spelled out so no future edit drops it by accident.)
     app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False, threaded=True)
 
-@app.route('/scan_library', methods=['GET'])
-def scan_library_route():
-    path = request.args.get('path')
-    if not path: return jsonify({"status": "error", "message": "No path provided"}), 400
-    from common import io_bridge
-    targets = io_bridge.get_audio_targets(path, recursive=True)
-    return jsonify({"status": "success", "count": len(targets), "files": [str(t) for t in targets]})
-
 if __name__ == '__main__':
+    install_defaults()
     initialize_database()
     if ENV_PATH.exists(): load_dotenv(ENV_PATH)
     

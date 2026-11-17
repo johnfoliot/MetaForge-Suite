@@ -1,0 +1,90 @@
+[
+    {
+        "id": "dashboard",
+        "visible": true
+    },
+    {
+        "id": "separator",
+        "type": "separator",
+        "order": 1
+    },
+    {
+        "id": "unpack_convert",
+        "visible": true,
+        "order": 2
+    },
+    {
+        "id": "musicbrainz_id",
+        "visible": true,
+        "order": 3
+    },
+    {
+        "id": "intelli-tagger",
+        "visible": true,
+        "order": 4
+    },
+    {
+        "id": "separator",
+        "type": "separator",
+        "order": 5
+    },
+    {
+        "id": "personnel",
+        "visible": true,
+        "order": 6
+    },
+    {
+        "id": "biography",
+        "visible": true,
+        "order": 7
+    },
+    {
+        "id": "separator",
+        "type": "separator",
+        "order": 8
+    },
+    {
+        "id": "database_tools",
+        "visible": true,
+        "order": 9
+    },
+    {
+        "id": "acoustid",
+        "visible": true,
+        "order": 10
+    },
+    {
+        "id": "musicbrainz_submit",
+        "visible": true,
+        "order": 11
+    },
+    {
+        "id": "repair",
+        "visible": true,
+        "order": 12
+    },
+    {
+        "id": "separator",
+        "type": "separator",
+        "order": 13
+    },
+    {
+        "id": "music-sharing",
+        "visible": true,
+        "order": 14
+    },
+    {
+        "id": "playlist_generator",
+        "visible": false,
+        "order": 15
+    },
+    {
+        "id": "youtube_mp3",
+        "visible": true,
+        "order": 16
+    },
+    {
+        "id": "settings",
+        "visible": true
+    }
+]

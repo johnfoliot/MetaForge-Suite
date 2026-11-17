@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "standard": "Russell-GEMS-Hybrid",
+  "anchors": [
+    "Peaceful",
+    "Joyful",
+    "Tense",
+    "Melancholic",
+    "Energetic",
+    "Aggressive"
+  ],
+  "modifiers": {
+    "Sonic_Texture": [
+      "Acoustic",
+      "Synthetic",
+      "Organic",
+      "Polished",
+      "Raw",
+      "Lo-Fi",
+      "Hi-Fi",
+      "Minimal",
+      "Orchestral"
+    ],
+    "Emotional_Flavor": [
+      "Nostalgic",
+      "Dreamy",
+      "Dark",
+      "Playful",
+      "Hopeful",
+      "Intense",
+      "Atmospheric",
+      "Driving",
+      "Smooth"
+    ]
+  }
+}

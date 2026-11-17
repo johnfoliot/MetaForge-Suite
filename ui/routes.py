@@ -63,21 +63,30 @@ def initialize_routes(app, window_func, TOOLS_DIR, ENV_PATH, set_file_attribute)
                 "trace": error_trace
             }), 500
 
-    # --- [ SPECIAL ROUTE: SETUP RE-ENTRY ] ---
-    @app.route('/save_setup', methods=['POST'])
-    def save_setup():
-        """Handles the initial bootstrap config write."""
-        try:
-            data = request.form
-            content = (
-                f"USER_EMAIL={data.get('user_email')}\n"
-                f"ACOUSTID_APPLICATION_KEY={data.get('acoustid_key')}\n"
-                f"GEMINI_KEY={data.get('gemini_key')}\n"
-                f"LIBRARY_ROOT={data.get('library_root')}\n"
-                f"ENABLED_TOOLS=dashboard:0,settings:99\n"
-            )
-            ENV_PATH.write_text(content)
-            return jsonify({"status": "success"})
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
+    # --- [ FIRST-RUN SETUP (v2 rebuild, 2026-11-17) ] ---
+    # Used by ui/html/setup.html only, and only until MetaForge is set up:
+    # once the settings file exists both routes refuse (setup can never
+    # overwrite real settings). The work is in ui/setup_engine.py.
+    import setup_engine
+
+    def _already_set_up():
+        return jsonify({"status": "error", "message": "MetaForge is already set up. Change settings in Settings."}), 409
+
+    @app.route('/setup/scan')
+    def setup_scan():
+        if ENV_PATH.exists():
+            return _already_set_up()
+        return jsonify(setup_engine.scan(request.args.get('path', '')))
+
+    @app.route('/setup/save', methods=['POST'])
+    def setup_save():
+        if ENV_PATH.exists():
+            return _already_set_up()
+        body, code = setup_engine.save(ENV_PATH, ENV_PATH.parent, request.get_json(silent=True) or {})
+        if code == 200:
+            # The tools read the keys from the environment: load them now,
+            # so MetaForge works straight away without a restart.
+            from dotenv import load_dotenv
+            load_dotenv(ENV_PATH, override=True)
+        return jsonify(body), code
 # --- END OF FILE routes.py ---

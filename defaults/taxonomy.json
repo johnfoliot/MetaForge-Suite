@@ -1,0 +1,241 @@
+{
+    "Americana": [
+        "Alt-Country",
+        "Americana",
+        "Folk",
+        "Folk-Rock",
+        "Roots Rock",
+        "Singer-Songwriter (Roots)"
+    ],
+    "Bluegrass & Roots": [
+        "Appalachian",
+        "Bluegrass",
+        "Cajun & Zydeco",
+        "Old-Time",
+        "Piedmont Blues",
+        "Traditional Country"
+    ],
+    "Blues": [
+        "Acoustic Blues",
+        "Blues-Rock",
+        "Chicago Blues",
+        "Delta Blues",
+        "Electric Blues",
+        "Memphis Blues",
+        "Swamp Blues",
+        "Texas Blues",
+        "West Coast Blues"
+    ],
+    "Christmas Music": [
+        "Choral",
+        "Contemporary Christmas",
+        "Country Christmas",
+        "Instrumental Christmas",
+        "Novelty Holiday",
+        "Traditional Carols"
+    ],
+    "Classical": [
+        "Baroque",
+        "Chamber",
+        "Choral",
+        "Classical",
+        "Early Music",
+        "Opera",
+        "Solo Instrumental"
+    ],
+    "Comedy": [
+        "Musical Comedy",
+        "Novelty",
+        "Satire",
+        "Spoken Word",
+        "Stand-Up"
+    ],
+    "Country": [
+        "Bakersfield Sound",
+        "Contemporary Country",
+        "Country-Rock",
+        "Countrypolitan",
+        "Cowboy / Western",
+        "Honky Tonk",
+        "Outlaw Country",
+        "Rockabilly"
+    ],
+    "Disco": [
+        "Boogie",
+        "Classic Disco",
+        "Disco-Funk",
+        "Italo-Disco"
+    ],
+    "Doo Wop": [
+        "Ballad Groups",
+        "Gospel-Influenced",
+        "Pop Doo Wop",
+        "R&B Doo Wop",
+        "Street Corner Doo Wop",
+        "Up-tempo Groups"
+    ],
+    "Easy Listening": [
+        "Bossa Nova",
+        "Exotica",
+        "Instrumental Pop",
+        "Lounge",
+        "Mid-Century Cinema",
+        "Mood Music",
+        "Space Age Pop"
+    ],
+    "Electronic/Dance": [
+        "Ambient",
+        "House",
+        "Techno",
+        "Trance",
+        "Trip-Hop / Downtempo",
+        "UK Garage"
+    ],
+    "Funk": [
+        "Deep Funk",
+        "Disco-Funk",
+        "Jazz-Funk",
+        "P-Funk",
+        "Street Funk"
+    ],
+    "Fusion": [
+        "Acid Jazz",
+        "Chamber Jazz",
+        "Electronic",
+        "Fusion",
+        "Jazz-Rock",
+        "Soul-Jazz"
+    ],
+    "Gospel": [
+        "Choral",
+        "Contemporary Christian",
+        "Gospel-Blues",
+        "Gospel-Soul",
+        "Quartet",
+        "Traditional Gospel"
+    ],
+    "Hip-Hop": [
+        "Alternative Hip-Hop",
+        "East Coast",
+        "West Coast",
+        "Southern Hip-Hop",
+        "G-Funk",
+        "Instrumental Hip-Hop",
+        "Old School / Electro-Rap"
+    ],
+    "Jazz": [
+        "Bebop",
+        "Cool Jazz",
+        "Hard Bop",
+        "Modern Jazz",
+        "Smooth Jazz",
+        "Soul-Jazz",
+        "Traditional Jazz"
+    ],
+    "Metal": [
+        "Black Metal",
+        "Death Metal",
+        "Doom Metal",
+        "Heavy Metal",
+        "Industrial Metal",
+        "Metalcore",
+        "Progressive Metal",
+        "Thrash Metal"
+    ],
+    "Pop": [
+        "Adult Contemporary",
+        "Brill Building",
+        "Britpop",
+        "New Wave",
+        "Power Pop",
+        "Singer-Songwriter",
+        "Soft Rock",
+        "Synth-Pop"
+    ],
+    "R&B": [
+        "Blues Shouter",
+        "Classic R&B",
+        "Early Rock & Roll",
+        "Honking Sax",
+        "Jive",
+        "Jump Blues",
+        "New Orleans R&B",
+        "Rockabilly-Blues"
+    ],
+    "Reggae": [
+        "Dancehall",
+        "Dub",
+        "Lovers Rock",
+        "Mento",
+        "Roots Reggae"
+    ],
+    "Rock": [
+        "Alt Rock",
+        "Blues-Rock",
+        "Classic Rock",
+        "Country-Rock",
+        "Folk-Rock",
+        "Garage Rock",
+        "Glam Rock",
+        "Grunge",
+        "Hard Rock",
+        "Pop Rock",
+        "Progressive Rock",
+        "Psychedelic Rock",
+        "Punk & Post-Punk"
+    ],
+    "Ska": [
+        "Rocksteady",
+        "Ska",
+        "Two-Tone"
+    ],
+    "Soul": [
+        "Blue-Eyed Soul",
+        "California Soul",
+        "Deep Soul",
+        "Gospel-Soul",
+        "Memphis Soul",
+        "Neo-Soul",
+        "Northern Soul",
+        "Philly Soul",
+        "Pop Soul",
+        "Southern Soul"
+    ],
+    "Sound Effects": [
+        "Ambience",
+        "Field Recordings",
+        "Nature",
+        "Studio Effects"
+    ],
+    "Soundtracks": [
+        "Broadway Cast",
+        "Film Score",
+        "Television Themes"
+    ],
+    "Swing": [
+        "Big Band",
+        "Big Band & Vocalist",
+        "Gypsy Swing",
+        "Kansas City Blues-Swing",
+        "Swing",
+        "Western Swing"
+    ],
+    "Vocalists": [
+        "Belter",
+        "Crooners",
+        "Interpretive Standards",
+        "Torch Songs",
+        "Traditional Pop",
+        "Vocal Jazz"
+    ],
+    "World & International": [
+        "Afro-Cuban",
+        "Afrobeat",
+        "Chanson",
+        "Fado",
+        "Flamenco",
+        "Mariachi",
+        "Salsa",
+        "Tango"
+    ]
+}

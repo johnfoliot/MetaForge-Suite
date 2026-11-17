@@ -3,346 +3,499 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MetaForge | Initial Setup Wizard</title>
-    <link rel="stylesheet" href="/ui/css/default_theme.css">
+    <title>Step 1 of 3: Your music library – Set up MetaForge Studio</title>
     <link rel="stylesheet" href="/ui/css/layout.css">
-    
-    <script src="/common/common_ui.js"></script>
-
+    <link rel="stylesheet" href="/ui/css/default_theme.css">
+    <!--
+        First-run setup, v2 rebuild (2026-11-17). Shown by app.py whenever
+        there is no settings file (.env). Three short steps, each a real
+        <form> (Enter moves on). The server half is ui/setup_engine.py via
+        /setup/scan and /setup/save; both refuse once MetaForge is set up.
+        The three service keys are strictly required and checked with each
+        service before anything is saved (John, 2026-11-17).
+    -->
     <style>
-        /* --- LOCALIZED WORKBENCH OVERRIDES --- */
-        body { 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            min-height: 100vh; 
-            background-color: #0a0a0a;
-            margin: 0;
-            font-family: var(--font-mono);
+        .su-main {                 /* layout.css makes <main> a column; setup centres one card */
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
         }
-
-        .setup-card { 
-            background-color: var(--bg-stage); 
-            padding: 30px; 
-            border: 1px solid var(--mf-gold); 
-            width: 550px; 
-            border-radius: 4px; 
-            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
-        }
-
-        .setup-header {
-            text-align: center;
-            background: #000;
-            margin: -30px -30px 30px -30px;
-            padding: 20px;
-            border-bottom: 1px solid var(--mf-gold);
-        }
-
-        .setup-logo {
-            width: 280px;
-            height: auto;
-        }
-
-        .setup-step { display: none; }
-        .setup-step.active { display: block; }
-
-        .input-group { 
-            margin-bottom: 8px; 
+        .su-card {
+            width: min(48rem, 100%);
+            max-height: 100%;      /* never taller than the window: the step's text scrolls instead */
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            min-height: 0;
+            background: var(--surface-panel);
+            border: 1px solid var(--border-subtle);
+            border-radius: 6px;
         }
-
-        .input-group label {
+        .su-head { padding: 1rem 1.5rem 0; }
+        .su-head h1 {
+            margin: 0;
             color: var(--mf-gold);
-            font-size: 0.75rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 1.625rem;
+            line-height: 1.2;
+        }
+        .su-progress { margin: 0.25rem 0 0; color: var(--text-secondary); font-size: 0.9375rem; }
+
+        /* One step at a time. The step's text scrolls on its own when it
+           doesn't fit (large text); its buttons stay below it, never on top
+           of a field. */
+        .su-step { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .su-step[hidden] { display: none; }
+        .su-step form { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .su-body {
+            position: relative;      /* keeps hidden screen-reader text inside */
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 0.75rem 1.5rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .su-body h2 { margin: 0; color: var(--text-primary); font-size: 1.25rem; line-height: 1.3; }
+        .su-body h2:focus { outline: none; }
+        .su-body p { margin: 0; max-width: 65ch; color: var(--text-secondary); }
+
+        .su-field { display: flex; flex-direction: column; gap: 0.25rem; }
+        .su-field > label, .su-label { color: var(--text-primary); font-weight: 700; }
+        .su-hint { margin: 0; font-size: 0.875rem; line-height: 1.4; color: var(--text-muted); max-width: 65ch; }
+        .su-input {
+            width: 100%;
+            padding: 0.45rem 0.55rem;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            background: var(--surface-field);
+            color: var(--input-foreground2);
+            border: 1px solid var(--border-ui);
+            border-radius: 3px;
+        }
+        .su-input.is-code { font-family: var(--font-mono); font-size: 0.9375rem; }
+        .su-input[aria-invalid="true"] { border-color: var(--status-error); border-width: 2px; }
+        .su-row { display: flex; gap: 0.5rem; align-items: stretch; }
+        .su-row .su-input { flex: 1; min-width: 0; }
+        .su-error { margin: 0; color: var(--status-error); font-weight: 700; font-size: 0.9375rem; }
+        .su-error:empty { display: none; }
+        .su-ok { margin: 0; color: var(--status-success); font-weight: 700; font-size: 0.9375rem; }
+        .su-ok:empty { display: none; }
+
+        .su-fieldset {
+            margin: 0;
+            padding: 0.75rem 1rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+        }
+        .su-fieldset[hidden] { display: none; }
+        .su-fieldset legend { padding: 0 0.35rem; color: var(--mf-gold); font-size: 1rem; font-weight: 700; }
+        .su-choice { display: flex; align-items: flex-start; gap: 0.6rem; }
+        .su-choice input { flex: none; width: 1.2rem; height: 1.2rem; margin: 0.15rem 0 0; accent-color: var(--mf-gold); }
+        .su-choice label { color: var(--text-primary); }
+        .su-choice .su-hint { display: block; }
+        .su-found { color: var(--mf-gold); font-weight: 700; }
+        .su-cats {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+            gap: 0.5rem 1rem;
         }
 
-        .help-text { 
-            color: var(--text-message); 
-            font-size: 0.7rem; 
-            line-height: 1.4;
-            margin-bottom: 15px;
-        }
+        .su-link { color: var(--mf-gold); text-underline-offset: 0.15em; }
 
-        .mf-input {
-            background-color: #111 !important;
-            border: 1px solid #333 !important;
-            color: #eee !important;
-            padding: 8px !important;
-            font-size: 0.85rem !important;
+        .su-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem 1rem;
+            border-top: 1px solid var(--border-subtle);
         }
-
-        .mf-input[readonly] {
+        .su-actions .su-status { margin: 0 auto 0 0; color: var(--text-secondary); font-size: 0.9375rem; }
+        .su-quiet {
             color: var(--mf-gold) !important;
-            border-color: var(--bg-accent) !important;
+            background: transparent !important;
+            border: 1px solid var(--mf-gold) !important;
+            min-block-size: 2.5rem;
         }
+        .su-quiet:hover { background: var(--bg-accent) !important; filter: none; }
 
-        /* Logic: Disabled State for the Next Button */
-        .mf-button-gold-fixed:disabled {
-            background-color: #333 !important;
-            color: #777 !important;
-            border: 1px solid #444 !important;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .silo-list-container {
-            max-height: 200px;
-            overflow-y: auto;
-            background: #050505;
-            border: 1px solid #222;
-            padding: 10px;
-            margin-top: 15px;
-        }
-
-        .silo-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 6px;
-            border-bottom: 1px solid #111;
-        }
-
-        .silo-item label { 
-            font-size: 0.8rem; 
-            color: var(--text-output); 
-            cursor: pointer; 
-        }
-
-        .policy-badge {
-            display: inline-block;
-            padding: 4px 10px;
-            background: var(--mf-gold);
-            color: #000;
-            font-weight: bold;
-            font-size: 0.75rem;
-            margin-bottom: 15px;
-        }
-
-        .button-row {
-            margin-top: 10px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            align-items: center;
-        }
-        
-        .mf-button-gold-fixed {
-            align-self: flex-start;
-        }
-
-        #validation-hint {
-            font-size: 0.65rem;
-            color: var(--status-error);
-            margin-right: auto;
-        }
+        .su-summary { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; }
+        .su-summary dt { color: var(--text-primary); font-weight: 700; }
+        .su-summary dd { margin: 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+        .su-summary dd.is-code { font-family: var(--font-mono); font-size: 0.9375rem; }
     </style>
 </head>
 <body>
 
-    <div class="setup-card" role="main">
-        <div class="setup-header">
-            <img src="/ui/images/logo.svg" alt="MetaForge Studio" class="setup-logo">
+<header role="banner">
+    <div class="global-nav">
+        <img src="/ui/images/logo.svg" class="mf-logo" alt="MetaForge Studio">
+    </div>
+</header>
+
+<main class="su-main">
+    <div class="su-card">
+        <div class="su-head">
+            <h1>Set up MetaForge Studio</h1>
+            <p class="su-progress" id="su-progress">Step 1 of 3</p>
         </div>
 
-        <section id="step-1" class="setup-step active">
-            <h1 id="hd-step-1" class="main" tabindex="-1" style="font-size: 1.2rem; margin-bottom: 5px;">1. Core Credentials</h1>
-            <p class="help-text">Initialize your system identity and integration keys. All fields are mandatory.</p>
+        <!-- STEP 1: the library -->
+        <section class="su-step" id="su-step-1" aria-labelledby="su-h1">
+            <form id="su-form-1" novalidate>
+                <div class="su-body">
+                    <h2 id="su-h1" tabindex="-1">Your music library</h2>
+                    <p>MetaForge works on the music folders on this PC. Choose the top folder of your music library, and MetaForge will look at how it's organised.</p>
 
-            <form id="creds-form" oninput="validateStepOne()">
-                <div class="input-group">
-                    <label for="email">User Email</label>
-                    <input type="email" id="email" class="mf-input" placeholder="user@example.com" required>
-                </div>
-
-                <div class="input-group">
-                    <label for="lib_root">Library Root Path</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="lib_root" class="mf-input" style="flex:1;" readonly placeholder="Select folder..." required>
-                        <button type="button" class="mf-button-gold-fixed" onclick="pickFolder()">Browse</button>
+                    <div class="su-field">
+                        <label for="su-library">Music library folder</label>
+                        <div class="su-row">
+                            <input type="text" id="su-library" name="library" class="su-input is-code" required
+                                   autocomplete="off" spellcheck="false" autocapitalize="none"
+                                   aria-describedby="su-library-hint su-library-err">
+                            <button type="button" id="su-browse" class="su-quiet">Choose folder…</button>
+                        </div>
+                        <p class="su-hint" id="su-library-hint">For example <code>F:\</code> or <code>D:\Music</code>. You can type it or choose it.</p>
+                        <p class="su-error" id="su-library-err"></p>
                     </div>
-                </div>
 
-                <div class="input-group">
-                    <label for="acoustid">AcoustID Application Key</label>
-                    <input type="text" id="acoustid" class="mf-input" placeholder="Your API key..." required>
-                    <p style="font-size:.75rem">Need a key? Register an application to get one:
-                        <a href="https://acoustid.org/my-applications"
-                           onclick="if (window.pywebview && window.pywebview.api && window.pywebview.api.open_external_url) { window.pywebview.api.open_external_url(this.href); return false; }"
-                           style="color:var(--mf-gold)!important;">acoustid.org/my-applications</a>
-                        &mdash; a separate personal "user" key can be added later in Settings, only needed if you want to submit new fingerprints back to AcoustID.
-                    </p>
-                </div>
+                    <fieldset class="su-fieldset" id="su-policy-set" hidden aria-describedby="su-policy-hint">
+                        <legend>How your library is organised</legend>
+                        <p class="su-hint" id="su-policy-hint">MetaForge looked at your folders and chose the closest match. Change it if it's wrong; you can also change it later in Settings.</p>
+                        <div class="su-choice">
+                            <input type="radio" name="policy" id="su-pol-basic" value="BASIC">
+                            <label for="su-pol-basic">Basic: album folders at the top <span class="su-hint">For example <code>F:\Abbey Road</code></span></label>
+                        </div>
+                        <div class="su-choice">
+                            <input type="radio" name="policy" id="su-pol-standard" value="STANDARD">
+                            <label for="su-pol-standard">Standard: artist, then album <span class="su-hint">For example <code>F:\The Beatles\Abbey Road</code></span></label>
+                        </div>
+                        <div class="su-choice">
+                            <input type="radio" name="policy" id="su-pol-enhanced" value="ENHANCED">
+                            <label for="su-pol-enhanced">Enhanced: category, then artist, then album <span class="su-hint">For example <code>F:\Pop, Rock\The Beatles\Abbey Road</code></span></label>
+                        </div>
+                    </fieldset>
 
-                <div class="input-group">
-                    <label for="gemini">Gemini AI Key</label>
-                    <input type="text" id="gemini" class="mf-input" placeholder="Your Gemini key..." required>
-                    <p style="font-size:.75rem">Need a key? See: <a href="https://aistudio.google.com/app/api-keys" target="_blank" style="color:var(--mf-gold)!important;">Google AI Studio</a></p>
+                    <fieldset class="su-fieldset" id="su-cat-set" hidden aria-describedby="su-cat-hint su-cat-err">
+                        <legend>Category folders</legend>
+                        <p class="su-hint" id="su-cat-hint">These are the folders at the top of your library. Untick any that aren't music categories (a downloads folder, for example).</p>
+                        <ul class="su-cats" id="su-cats"></ul>
+                        <p class="su-error" id="su-cat-err"></p>
+                    </fieldset>
                 </div>
-
-                <div class="input-group">
-                    <label for="discogs">Discogs Token</label>
-                    <input type="text" id="discogs" class="mf-input" placeholder="Your Personal Access Token..." required>
-                    <p style="font-size:.75rem">Need a key? See: <a href="https://www.discogs.com/settings/developers" target="_blank" style="color:var(--mf-gold)!important;">Discogs Developers</a></p>
-                </div>
-
-                <div class="button-row">
-                    <span id="validation-hint">Waiting for all mandatory fields...</span>
-                    <button type="button" id="btn-next" class="mf-button-gold-fixed" onclick="proceedToDiscovery()" disabled>Next: Scan Library</button>
+                <div class="su-actions">
+                    <p class="su-status" id="su-status-1" role="status"></p>
+                    <button type="submit" class="mf-button-gold-fixed" id="su-next-1">Next</button>
                 </div>
             </form>
         </section>
 
-        <section id="step-2" class="setup-step">
-            <h1 id="hd-step-2" class="main" tabindex="-1" style="font-size: 1.2rem;">2. Library Discovery</h1>
-            
-            <div id="discovery-results" style="margin-top: 10px;">
+        <!-- STEP 2: email and keys -->
+        <section class="su-step" id="su-step-2" aria-labelledby="su-h2" hidden>
+            <form id="su-form-2" novalidate>
+                <div class="su-body">
+                    <h2 id="su-h2" tabindex="-1">Your email and service keys</h2>
+
+                    <div class="su-field">
+                        <label for="su-email">Your email address</label>
+                        <input type="email" id="su-email" name="email" class="su-input" required
+                               autocomplete="email" spellcheck="false" autocapitalize="none"
+                               aria-describedby="su-email-hint su-email-err">
+                        <p class="su-hint" id="su-email-hint">MusicBrainz asks for it with each lookup, so they can contact you about heavy use. It is sent only to MusicBrainz.</p>
+                        <p class="su-error" id="su-email-err"></p>
+                    </div>
+
+                    <fieldset class="su-fieldset" aria-describedby="su-keys-hint">
+                        <legend>Service keys</legend>
+                        <p class="su-hint" id="su-keys-hint">All three are needed: Intelli-Tagger, MetaForge's main tagging tool, uses them to tag your music. They're free. MetaForge checks each one with its service before saving, and keeps them only on this PC.</p>
+
+                        <div class="su-field">
+                            <label for="su-gemini">Google Gemini API key</label>
+                            <input type="text" id="su-gemini" name="gemini" class="su-input is-code" required
+                                   autocomplete="off" spellcheck="false" autocapitalize="none"
+                                   aria-describedby="su-gemini-hint su-gemini-err su-gemini-ok">
+                            <p class="su-hint" id="su-gemini-hint">Used to work out genre, mood and more, and to write artist biographies. <a class="su-link" href="https://aistudio.google.com/app/api-keys">Get a key at Google AI Studio<span class="mf-visually-hidden"> (opens in your browser)</span></a></p>
+                            <p class="su-error" id="su-gemini-err"></p>
+                            <p class="su-ok" id="su-gemini-ok"></p>
+                        </div>
+
+                        <div class="su-field">
+                            <label for="su-discogs">Discogs personal token</label>
+                            <input type="text" id="su-discogs" name="discogs" class="su-input is-code" required
+                                   autocomplete="off" spellcheck="false" autocapitalize="none"
+                                   aria-describedby="su-discogs-hint su-discogs-err su-discogs-ok">
+                            <p class="su-hint" id="su-discogs-hint">Used for release years, musician credits, artist photos and missing cover art. <a class="su-link" href="https://www.discogs.com/settings/developers">Get a token at Discogs Developers<span class="mf-visually-hidden"> (opens in your browser)</span></a></p>
+                            <p class="su-error" id="su-discogs-err"></p>
+                            <p class="su-ok" id="su-discogs-ok"></p>
+                        </div>
+
+                        <div class="su-field">
+                            <label for="su-acoustid">AcoustID application key</label>
+                            <input type="text" id="su-acoustid" name="acoustid" class="su-input is-code" required
+                                   autocomplete="off" spellcheck="false" autocapitalize="none"
+                                   aria-describedby="su-acoustid-hint su-acoustid-err su-acoustid-ok">
+                            <p class="su-hint" id="su-acoustid-hint">Used to recognise songs by their sound. Register an application to get one. <a class="su-link" href="https://acoustid.org/my-applications">Get a key at acoustid.org<span class="mf-visually-hidden"> (opens in your browser)</span></a></p>
+                            <p class="su-error" id="su-acoustid-err"></p>
+                            <p class="su-ok" id="su-acoustid-ok"></p>
+                        </div>
+                    </fieldset>
                 </div>
-			
-            <div class="button-row">
-                <button type="button" class="mf-button-gold-fixed" style="background:transparent; border: 1px solid var(--mf-gold); color:var(--mf-gold);" onclick="showStep(1)">Back</button>
-                <button type="button" class="mf-button-gold-fixed" onclick="commitSetup()">Finalize Setup</button>
-            </div>
+                <div class="su-actions">
+                    <p class="su-status" id="su-status-2" role="status"></p>
+                    <button type="button" class="su-quiet" id="su-back">Back</button>
+                    <button type="submit" class="mf-button-gold-fixed" id="su-next-2">Check keys and finish</button>
+                </div>
+            </form>
         </section>
 
-        <section id="step-3" class="setup-step" style="text-align: center; padding: 40px 0;">
-            <h1 id="hd-step-3" class="main" tabindex="-1">Initializing Engine</h1>
-            <div id="setup-status" class="data-text" style="margin-top: 20px; color: var(--mf-gold);">
-                Writing environment variables and generating library map...
-            </div>
+        <!-- STEP 3: done -->
+        <section class="su-step" id="su-step-3" aria-labelledby="su-h3" hidden>
+            <form id="su-form-3" novalidate>
+                <div class="su-body">
+                    <h2 id="su-h3" tabindex="-1">MetaForge is ready</h2>
+                    <p>Your settings are saved. You can change any of them later in Settings.</p>
+                    <dl class="su-summary">
+                        <dt>Music library</dt><dd class="is-code" id="su-sum-library"></dd>
+                        <dt>Organised as</dt><dd id="su-sum-policy"></dd>
+                        <dt>Service keys</dt><dd>All three checked and working</dd>
+                    </dl>
+                    <p>A good place to start is Unpack &amp; Convert, the first step for a new album. Every tool has a Help button with the details.</p>
+                </div>
+                <div class="su-actions">
+                    <button type="submit" class="mf-button-gold-fixed" id="su-open">Open MetaForge</button>
+                </div>
+            </form>
         </section>
     </div>
+</main>
 
-    <script>
-        let discoveredData = null;
+<script>
+(function () {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const TITLES = ['Your music library', 'Your email and service keys', 'MetaForge is ready'];
+    const POLICY_NAMES = { BASIC: 'Basic: album folders at the top', STANDARD: 'Standard: artist, then album', ENHANCED: 'Enhanced: category, then artist, then album' };
+    const KEYS = ['gemini', 'discogs', 'acoustid'];
+    let scanned = null;     // { path, policy, folders } once the library has been looked at
 
-        function validateStepOne() {
-            const fields = ['email', 'lib_root', 'acoustid', 'gemini', 'discogs'];
-            const nextBtn = document.getElementById('btn-next');
-            const hint = document.getElementById('validation-hint');
-            
-            const allFilled = fields.every(id => {
-                const val = document.getElementById(id).value.trim();
-                return val !== "";
+    function showStep(n) {
+        [1, 2, 3].forEach((i) => { $(`su-step-${i}`).hidden = i !== n; });
+        $('su-progress').textContent = `Step ${n} of 3`;
+        document.title = `Step ${n} of 3: ${TITLES[n - 1]} – Set up MetaForge Studio`;
+        $(`su-h${n}`).focus();
+    }
+
+    // --- field errors: shown on submit, cleared as soon as the field is edited
+    function setError(input, errId, msg) {
+        $(errId).textContent = msg || '';
+        if (msg) input.setAttribute('aria-invalid', 'true');
+        else input.removeAttribute('aria-invalid');
+    }
+    function clearOnInput(input, errId, also) {
+        input.addEventListener('input', () => { setError(input, errId, ''); if (also) also(); });
+    }
+
+    // --- links open in the user's browser (a link can't open a tab inside MetaForge's window)
+    document.addEventListener('click', (e) => {
+        const a = e.target.closest('a.su-link');
+        if (!a) return;
+        const api = window.pywebview && window.pywebview.api;
+        if (api && api.open_external_url) { e.preventDefault(); api.open_external_url(a.href); }
+        else { a.target = '_blank'; a.rel = 'noopener'; }
+    });
+
+    // ================= STEP 1 =================
+    const lib = $('su-library');
+
+    function forgetScan() {
+        scanned = null;
+        $('su-policy-set').hidden = true;
+        $('su-cat-set').hidden = true;
+        $('su-status-1').textContent = '';
+    }
+    clearOnInput(lib, 'su-library-err', forgetScan);
+
+    $('su-browse').addEventListener('click', async () => {
+        try {
+            const res = await fetch('/select_folder');
+            const data = await res.json();
+            if (!data.path) return;              // picker closed
+            lib.value = data.path;
+            setError(lib, 'su-library-err', '');
+            forgetScan();
+            await runScan();
+        } catch (err) {
+            $('su-status-1').textContent = 'The folder picker didn’t open. Type the folder instead.';
+        }
+    });
+
+    async function runScan() {
+        const path = lib.value.trim();
+        $('su-status-1').textContent = 'Looking at your library…';
+        $('su-next-1').disabled = true;
+        let data;
+        try {
+            const res = await fetch(`/setup/scan?path=${encodeURIComponent(path)}`);
+            data = await res.json();
+        } catch (err) {
+            data = { status: 'error', message: 'MetaForge couldn’t look at that folder. Try again.' };
+        }
+        $('su-next-1').disabled = false;
+        if (data.status !== 'ok') {
+            $('su-status-1').textContent = '';
+            setError(lib, 'su-library-err', `Error: ${data.message}`);
+            lib.focus();
+            return false;
+        }
+        scanned = { path, policy: data.policy, folders: data.folders };
+        // The suggestion, marked as what MetaForge found.
+        document.querySelectorAll('.su-found').forEach((s) => s.remove());
+        const radio = document.querySelector(`input[name="policy"][value="${data.policy}"]`);
+        radio.checked = true;
+        const found = document.createElement('span');
+        found.className = 'su-found';
+        found.textContent = ' (what MetaForge found)';
+        radio.nextElementSibling.firstChild.after(found);
+        buildCategories(data.folders);
+        $('su-policy-set').hidden = false;
+        $('su-cat-set').hidden = data.policy !== 'ENHANCED';
+        $('su-status-1').textContent = `MetaForge looked at your library: ${POLICY_NAMES[data.policy]}. Check it, then choose Next.`;
+        return true;
+    }
+
+    function buildCategories(folders) {
+        $('su-cats').replaceChildren(...folders.map((name, i) => {
+            const li = document.createElement('li');
+            li.className = 'su-choice';
+            const box = document.createElement('input');
+            box.type = 'checkbox';
+            box.id = `su-cat-${i}`;
+            box.value = name;           // set as a value, never pasted into markup
+            box.checked = true;
+            box.addEventListener('change', () => $('su-cat-err').textContent = '');
+            const label = document.createElement('label');
+            label.htmlFor = box.id;
+            label.textContent = name;
+            li.append(box, label);
+            return li;
+        }));
+    }
+
+    document.querySelectorAll('input[name="policy"]').forEach((r) => r.addEventListener('change', () => {
+        $('su-cat-set').hidden = r.value !== 'ENHANCED' || !r.checked;
+    }));
+
+    $('su-form-1').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!lib.value.trim()) {
+            setError(lib, 'su-library-err', 'Error: choose your music library folder.');
+            lib.focus();
+            return;
+        }
+        // First Next (or a changed folder): look at the library and show
+        // what was found, so it can be checked before moving on.
+        if (!scanned || scanned.path !== lib.value.trim()) {
+            if (await runScan()) $('su-policy-set').querySelector('input:checked').focus();
+            return;
+        }
+        const policy = document.querySelector('input[name="policy"]:checked').value;
+        if (policy === 'ENHANCED' && !document.querySelector('#su-cats input:checked')) {
+            $('su-cat-err').textContent = 'Error: tick at least one category folder.';
+            document.querySelector('#su-cats input').focus();
+            return;
+        }
+        showStep(2);
+    });
+
+    // ================= STEP 2 =================
+    const email = $('su-email');
+    clearOnInput(email, 'su-email-err');
+    KEYS.forEach((k) => clearOnInput($(`su-${k}`), `su-${k}-err`, () => { $(`su-${k}-ok`).textContent = ''; }));
+    $('su-back').addEventListener('click', () => showStep(1));
+
+    $('su-form-2').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        let first = null;
+        const flag = (input, errId, msg) => { setError(input, errId, msg); if (msg && !first) first = input; };
+        flag(email, 'su-email-err', !email.value.trim() ? 'Error: enter your email address.'
+            : !email.checkValidity() ? 'Error: that doesn’t look like an email address. For example name@example.com.' : '');
+        const labels = { gemini: 'Gemini API key', discogs: 'Discogs token', acoustid: 'AcoustID application key' };
+        KEYS.forEach((k) => flag($(`su-${k}`), `su-${k}-err`, $(`su-${k}`).value.trim() ? '' : `Error: enter your ${labels[k]}.`));
+        if (first) { first.focus(); return; }
+
+        const policy = document.querySelector('input[name="policy"]:checked').value;
+        const payload = {
+            library: lib.value.trim(),
+            policy,
+            categories: policy === 'ENHANCED' ? [...document.querySelectorAll('#su-cats input:checked')].map((b) => b.value) : [],
+            email: email.value.trim(),
+            gemini: $('su-gemini').value.trim(),
+            discogs: $('su-discogs').value.trim(),
+            acoustid: $('su-acoustid').value.trim()
+        };
+        const btn = $('su-next-2');
+        btn.disabled = true;
+        $('su-back').disabled = true;
+        $('su-status-2').textContent = 'Checking your keys with Google, Discogs and AcoustID…';
+        let data;
+        try {
+            const res = await fetch('/setup/save', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
-
-            nextBtn.disabled = !allFilled;
-            hint.style.visibility = allFilled ? 'hidden' : 'visible';
+            data = await res.json();
+        } catch (err) {
+            data = { status: 'error', message: 'MetaForge couldn’t save your settings. Try again.' };
         }
+        btn.disabled = false;
+        $('su-back').disabled = false;
 
-        function showStep(stepNum) {
-            document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
-            const target = document.getElementById(`step-${stepNum}`);
-            target.classList.add('active');
-            setTimeout(() => {
-                const hd = document.getElementById(`hd-step-${stepNum}`);
-                if (hd) hd.focus();
-            }, 10);
-        }
-
-        async function pickFolder() {
-            // Using common UI service
-            window.metaforge.ui.openFilePicker((path) => {
-                document.getElementById('lib_root').value = path;
-                validateStepOne();
-            });
-        }
-
-        async function proceedToDiscovery() {
-            const path = document.getElementById('lib_root').value;
-            showStep(2);
-            const container = document.getElementById('discovery-results');
-            container.innerHTML = '<p class="data-text">Analyzing your music collection and probing for audio depth...<br> (This may take a few seconds - stand by)</p>';
-
-            try {
-                const res = await fetch(`/scan_library?path=${encodeURIComponent(path)}`);
-                const data = await res.json();
-                discoveredData = data;
-                renderDiscovery(data);
-            } catch (e) {
-                container.innerHTML = '<p class="status-error">Discovery Engine failed to respond.</p>';
-            }
-        }
-
-        function renderDiscovery(data) {
-            const container = document.getElementById('discovery-results');
-            let policyHeading = "";
-            let policyDesc = "";
-            let listLabel = "";
-
-            switch(data.policy_suggestion) {
-                case "BASIC":
-                    policyHeading = "MetaForge recognizes you file your music by Albums.";
-                    policyDesc = "Your root directory contains individual album folders.<br>NOTE: you can change this in the Settings at any time.<br>";
-                    listLabel = "Albums Detected at Root";
-                    break;
-                case "STANDARD":
-                    policyHeading = "MetaForge recognizes you file your music by Artist/Album(s).";
-                    policyDesc = "Folders at your root directory represent Artist silos.<br>NOTE: you can change this in the Settings at any time.<br>";
-                    listLabel = "Artists Detected at Root";
-                    break;
-                case "ENHANCED":
-                    policyHeading = "MetaForge recognizes you file your music by Category/Artist/Album(s).";
-                    policyDesc = "Folders at your root directory represent physical filing categories (e.g. Rock, Blues).<br>NOTE: you can change this in the Settings at any time.<br>";
-                    listLabel = "Physical Filing Categories Detected";
-                    break;
-            }
-
-            let siloHtml = data.silos.map(s => `
-                <div class="silo-item">
-                    <input type="checkbox" id="silo-${s}" class="silo-checkbox" value="${s}" checked>
-                    <label for="silo-${s}">${s}</label>
-                </div>
-            `).join('');
-
-            container.innerHTML = `
-                <div class="policy-badge">Suggested Policy: ${data.policy_suggestion}</div>
-                <h2 class="data-text" style="color: var(--mf-gold); font-size: 0.9rem; margin-bottom: 5px;">${policyHeading}</h2>
-                <p class="help-text">${policyDesc} Uncheck any system or non-music folders below.</p>
-                
-                <h3 class="data-text" style="font-size: 0.75rem; color: var(--mf-gold); margin-top: 15px; border-bottom: 1px solid #333;">${listLabel}</h3>
-                <div class="silo-list-container">
-                    ${siloHtml || '<p class="data-text">No subfolders detected.</p>'}
-                </div>
-            `;
-        }
-
-        async function commitSetup() {
+        if (data.status === 'ok') {
+            $('su-status-2').textContent = '';
+            $('su-sum-library').textContent = payload.library;
+            $('su-sum-policy').textContent = POLICY_NAMES[policy];
             showStep(3);
-            const status = document.getElementById('setup-status');
-            const selectedSilos = Array.from(document.querySelectorAll('.silo-checkbox:checked')).map(cb => cb.value);
-
-            const payload = {
-                email: document.getElementById('email').value,
-                lib_root: document.getElementById('lib_root').value,
-                acoustid: document.getElementById('acoustid').value,
-                gemini: document.getElementById('gemini').value,
-                discogs: document.getElementById('discogs').value,
-                policy: discoveredData ? discoveredData.policy_suggestion : "STANDARD",
-                silos: selectedSilos
-            };
-
-            try {
-                const res = await fetch('/complete_setup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await res.json();
-                if (result.status === 'success') {
-                    status.innerHTML = "Configuration Completed. Rebooting MetaForge now...";
-                    setTimeout(() => { location.reload(); }, 2000);
-                } else {
-                    status.innerHTML = `<span style="color:var(--status-error)">ERROR: ${result.message}</span>`;
-                }
-            } catch (e) {
-                status.innerHTML = '<span style="color:var(--status-error)">CRITICAL BOOTSTRAP FAILURE.</span>';
-            }
+            return;
         }
-    </script>
+        if (data.status === 'keys') {
+            KEYS.forEach((k) => {
+                const c = data.checks[k];
+                flag($(`su-${k}`), `su-${k}-err`, c.ok ? '' : `Error: ${c.message}`);
+                $(`su-${k}-ok`).textContent = c.ok ? `✓ ${c.message}` : '';
+            });
+            const bad = KEYS.filter((k) => !data.checks[k].ok).length;
+            $('su-status-2').textContent = `${bad} of 3 keys didn’t work. Nothing was saved.`;
+            if (first) first.focus();
+            return;
+        }
+        if (data.status === 'invalid') {
+            // The server found something the page didn't (it checks again).
+            const map = { email: ['su-email', 'su-email-err'], gemini: ['su-gemini', 'su-gemini-err'],
+                          discogs: ['su-discogs', 'su-discogs-err'], acoustid: ['su-acoustid', 'su-acoustid-err'] };
+            Object.entries(data.problems).forEach(([k, msg]) => { if (map[k]) flag($(map[k][0]), map[k][1], `Error: ${msg}`); });
+            if (first) { $('su-status-2').textContent = 'Nothing was saved.'; first.focus(); return; }
+            $('su-status-2').textContent = `Error: ${Object.values(data.problems)[0]} Go back to step 1 to fix it.`;
+            return;
+        }
+        $('su-status-2').textContent = `Error: ${data.message || 'something went wrong.'} Nothing was saved.`;
+    });
+
+    // ================= STEP 3 =================
+    $('su-form-3').addEventListener('submit', (e) => {
+        e.preventDefault();
+        location.replace('/');      // the settings file now exists, so this opens MetaForge
+    });
+
+    lib.focus();
+})();
+</script>
 </body>
 </html>

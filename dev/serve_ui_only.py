@@ -13,7 +13,7 @@ the desktop bridge (folder pickers etc.) won't work in a plain browser;
 everything else does. It uses the same live database as the real app, so
 avoid pressing buttons that run jobs or write data while reviewing.
 
-Usage (from the project root):  venv python dev\\serve_ui_only.py [port]
+Usage (from the project root):  venv python dev\\serve_ui_only.py [port] [sandbox folder] [fresh]
 """
 import os
 import sys
@@ -36,8 +36,23 @@ if len(sys.argv) > 2:
     config_handler.DB_PATH = box / "appdata" / "metaforge.db"
     config_handler.DATA_DIR = box / "data"
     print(f"[dev] SANDBOX: database {config_handler.DB_PATH}, data {config_handler.DATA_DIR}")
+    # "fresh" as a third argument: a brand-new install in that folder
+    # (its own settings file and logs, defaults installed, database
+    # created), so first-run setup can be tested without touching the real
+    # settings. Used for the setup.html rebuild, 2026-11-17.
+    FRESH = len(sys.argv) > 3 and sys.argv[3] == "fresh"
+    if FRESH:
+        config_handler.ENV_PATH = box / "appdata" / ".env"
+        config_handler.LOGS_DIR = box / "appdata" / "logs"
+        print(f"[dev] FRESH INSTALL: settings file {config_handler.ENV_PATH}")
+else:
+    FRESH = False
 
 import app as mf  # noqa: E402  (importing does not start the window; only __main__ does)
+
+if FRESH:
+    mf.install_defaults()
+    mf.initialize_database()
 
 port = int(sys.argv[1]) if len(sys.argv) > 1 else 5050
 print(f"[dev] MetaForge UI-only server for {ROOT} on http://127.0.0.1:{port}")
