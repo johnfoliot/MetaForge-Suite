@@ -23,6 +23,7 @@
         </li>
         <li>Choose <span class="ui-button">Search MusicBrainz</span> (or press Enter). The matching releases appear below.
             <p class="note">If MusicBrainz doesn't have your album, you can add it at <a href="https://musicbrainz.org/release/add">musicbrainz.org</a>.</p>
+            <p class="note">MetaForge shows up to 50 releases, best matches first. Releases with the same number of tracks as your folder go to the top. A release that isn't an official one says so under its format, for example <em>Bootleg</em> or <em>Promotion</em>.</p>
         </li>
         <li>Choose the row that best matches your album. Its details appear on the right, with <strong>Your files</strong> beside the <strong>MusicBrainz tracks</strong>.</li>
         <li>Check the two lists line up. If a file is in the wrong place, type its new position in <strong>Order</strong> and choose <span class="ui-button">Apply order</span>.</li>
