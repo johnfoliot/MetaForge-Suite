@@ -125,11 +125,22 @@
             const cards = shown.map(t => {
                 const radio = el('input', { type: 'radio', name: 'set-theme', value: t.id, checked: t.id === checkedId });
                 radio.dataset.name = t.name;
+                // "In the style of …" sits under the name, inside the label so it
+                // can be clicked too. aria-hidden keeps it out of the radio's
+                // name; aria-describedby reads it as the description instead.
+                const described = [];
+                let style = null;
+                if (t.style_of) {
+                    style = el('span', { className: 'set-theme-style', id: `set-style-${t.id}`, textContent: `In the style of ${t.style_of}` });
+                    style.setAttribute('aria-hidden', 'true');
+                    described.push(style.id);
+                }
                 let advisory = null;
                 if (t.below_contrast) {
                     advisory = el('p', { className: 'set-hint set-theme-adv', id: `set-adv-${t.id}`, textContent: shortText(t) });
-                    radio.setAttribute('aria-describedby', advisory.id);
+                    described.push(advisory.id);
                 }
+                if (described.length) radio.setAttribute('aria-describedby', described.join(' '));
                 const list = el('ul', { className: 'set-palette' });
                 list.setAttribute('aria-hidden', 'true');   // decorative sample; the name is the choice
                 for (const [v, label] of Object.entries(LABELS)) {
@@ -141,7 +152,7 @@
                 // the card (except Edit/Delete) chooses it; aria-hidden keeps the
                 // sample out of the radio's name.
                 const pick = el('label', { className: 'set-theme-pick' },
-                    el('span', { className: 'set-theme-name' }, radio, t.name), list);
+                    el('span', { className: 'set-theme-name' }, radio, t.name), ...(style ? [style] : []), list);
                 const card = el('div', { className: 'set-theme-card' }, pick);
                 if (advisory) card.append(advisory);
                 if (t.custom) {

@@ -166,6 +166,9 @@
     .set-theme-card .set-row button { padding: 0.25rem 0.75rem; }
     .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
     .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
+    /* "In the style of …": lined up with the name text (past the radio), and
+       closer to the name than to the sample, so the two read as one unit. */
+    .set-theme-style { margin: -0.35rem 0 0 1.6rem; color: var(--text-secondary); font-size: 0.875rem; }
     .set-theme-adv { color: var(--status-warning); }
     .set-theme-rejected { margin: 1rem 0 0; color: var(--text-secondary); }
     .set-theme-rejected summary { cursor: pointer; color: var(--text-primary); font-weight: 600; width: fit-content; }

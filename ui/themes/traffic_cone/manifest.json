@@ -2,6 +2,7 @@
   "name": "Traffic Cone",
   "id": "traffic_cone",
   "version": "1.0.0",
+  "style_of": "VLC media player",
   "description": "Light grey with traffic-cone orange controls, in the style of a popular media player.",
   "logo_colour": "#ff7f00"
 }

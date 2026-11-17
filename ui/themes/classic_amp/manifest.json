@@ -2,6 +2,7 @@
   "name": "Classic Amp",
   "id": "classic_amp",
   "version": "1.0.0",
+  "style_of": "Winamp",
   "description": "Dark slate with lime readouts and orange controls, in the style of a classic desktop music player.",
   "logo_colour": "#00ff00"
 }

@@ -10,6 +10,9 @@
 #                                 picture in the folder behind the top bar.
 #                                 MetaForge adds that rule itself, so a
 #                                 theme's own CSS stays colours only.
+#   manifest "style_of"           optional (John, 2026-11-17): what the theme
+#                                 imitates, e.g. "Winamp"; the card shows
+#                                 "In the style of Winamp" under the name.
 # Built-in themes: ui/themes/. Themes you make (Create a theme): AppData\
 # MetaForge\themes\ (they survive updates; one can be shared by copying its
 # folder). A built-in id always wins over one of yours.
@@ -67,6 +70,9 @@ def check(folder, custom):
         return None, f"Its manifest id must match its folder name ({folder.name})."
     if not T.HEX.match(colour):
         return None, "Its manifest needs a logo_colour like #1a2fb5."
+    style_of = man.get("style_of")
+    if style_of is not None and not (isinstance(style_of, str) and 0 < len(style_of.strip()) <= 40):
+        return None, "Its manifest's style_of must be a name of 40 characters or fewer."
     header = man.get("header_image")
     if header is not None:
         pic = folder / str(header)
@@ -93,6 +99,7 @@ def check(folder, custom):
     # "Also show themes that don't meet contrast guidelines" is on.
     short = T.hard_to_see(values)
     return {"id": folder.name, "name": name, "description": str(man.get("description") or ""),
+            "style_of": style_of.strip() if style_of else "",
             "logo_colour": colour, "custom": custom, "folder": folder, "header_image": header,
             "below_contrast": bool(short), "hard_to_see": short,
             "palette": {f"--{k}": v for k, v in values.items()}}, None

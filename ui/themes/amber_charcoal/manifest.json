@@ -2,6 +2,7 @@
   "name": "Amber Charcoal",
   "id": "amber_charcoal",
   "version": "1.0.0",
+  "style_of": "AIMP",
   "description": "Dark charcoal with warm amber controls, in the style of a modern desktop music player.",
   "logo_colour": "#e58e26"
 }

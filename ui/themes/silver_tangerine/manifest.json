@@ -2,6 +2,7 @@
   "name": "Silver Tangerine",
   "id": "silver_tangerine",
   "version": "1.0.0",
+  "style_of": "MediaMonkey",
   "description": "Light silver-grey with tangerine controls, in the style of a music library manager.",
   "logo_colour": "#ff6600"
 }
