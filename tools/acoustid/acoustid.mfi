@@ -55,6 +55,15 @@
         color: var(--text-muted);
     }
     .aid-note code { font-family: var(--font-mono); font-size: 0.8125rem; overflow-wrap: anywhere; }
+    /* Files set aside: the note, "Show the files" (<details>), "Clear this list" */
+    .aid-notfound { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+    .aid-notfound p { margin: 0; }
+    .aid-notfound summary { cursor: pointer; color: var(--mf-gold); text-decoration: underline; text-underline-offset: 0.15em; }
+    .aid-notfound ul { margin: 0.4rem 0 0; padding-inline-start: 1.25rem; }
+    .aid-notfound li { overflow-wrap: anywhere; }
+    .aid-notfound li + li { margin-top: 0.25rem; }
+    /* A quiet outlined button (the global gold button look uses !important) */
+    .aid-btn-quiet { background: transparent !important; color: var(--mf-gold) !important; border: 1px solid var(--mf-gold) !important; }
     .aid-warn { color: var(--status-warning); }
 
     /* --- RIGHT: PROGRESS, STOP, ACTIVITY LOG --- */
@@ -147,7 +156,18 @@
             </section>
         </fieldset>
 
-        <p class="aid-note" id="aid-notfound-note" hidden></p>
+        <!-- Files set aside (moved or renamed). "Show the files" is a native
+             <details>; "Clear this list" moves them to not_found_cleared.txt
+             (John, 2026-11-17). -->
+        <div class="aid-note aid-notfound" id="aid-notfound-note" hidden>
+            <p id="aid-notfound-text"></p>
+            <details id="aid-notfound-details">
+                <summary>Show the files</summary>
+                <ul id="aid-notfound-list"></ul>
+            </details>
+            <button type="button" class="mf-button-gold-fixed aid-btn-quiet" id="aid-notfound-clear">Clear this list</button>
+            <p class="aid-warn" id="aid-notfound-error" hidden></p>
+        </div>
     </div>
 
     <section class="aid-output" aria-label="Progress and results">

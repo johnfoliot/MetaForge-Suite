@@ -32,5 +32,7 @@
     <li><code>submission_history.txt</code>: waiting for an AcoustID;</li>
     <li><code>submission_ids.json</code>: AcoustID's number for each submission;</li>
     <li><code>not_found.txt</code>: files that were moved or renamed before they could be handled.</li>
+    <li><code>not_found_cleared.txt</code>: files you cleared from that list.</li>
 </ul>
+<p>When files are set aside, a note under the steps says how many. <strong>Show the files</strong> lists them. <span class="ui-button">Clear this list</span> removes the note; the files are kept in <code>not_found_cleared.txt</code>, with the date.</p>
 <!-- --- END OF FILE help.mfi --- -->

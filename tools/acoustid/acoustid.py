@@ -26,6 +26,7 @@ import re
 import subprocess
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -56,6 +57,7 @@ def _file(name):
         "history": "submission_history.txt",
         "ids": "submission_ids.json",
         "not_found": "not_found.txt",
+        "not_found_cleared": "not_found_cleared.txt",
     }[name]
 
 
@@ -135,6 +137,10 @@ def run_logic(action, tools_dir, env_path):
     if action == "stop":
         _run_state()["stop"].set()
         return jsonify({"status": "ok"})
+    if action == "clear_not_found":
+        if _run_state()["lock"].locked():
+            return jsonify({"status": "error", "message": "Wait for the run to finish, then clear the list."}), 409
+        return jsonify(clear_not_found())
     if action in ("submit", "resolve"):
         state = _run_state()
         if not state["lock"].acquire(blocking=False):
@@ -160,9 +166,28 @@ def status():
         "pending": len(read_list("pending")),
         "submitted": len(read_list("history")),
         "not_found": len(read_list("not_found")),
+        "not_found_paths": read_list("not_found")[:500],
         "has_app_key": bool(config_handler.ACOUSTID_APPLICATION_KEY()),
         "has_user_key": bool(config_handler.ACOUSTID_USER_KEY()),
     }
+
+
+def clear_not_found():
+    """Clear this list (John, 2026-11-17): the set-aside files are a record,
+    not work to do, and the note about them never went away. Nothing is
+    thrown away: the cleared paths are added, with the date, to
+    not_found_cleared.txt. Only the paths read here are removed, so one
+    set aside meanwhile stays on the list."""
+    paths = read_list("not_found")
+    if paths:
+        f = _file("not_found_cleared")
+        f.parent.mkdir(parents=True, exist_ok=True)
+        with open(f, "a", encoding="utf-8") as fh:
+            fh.write(f"# Cleared {datetime.now().isoformat(timespec='seconds')}\n")
+            fh.writelines(p + "\n" for p in paths)
+        gone = {os.path.normcase(p) for p in paths}
+        write_list("not_found", [p for p in read_list("not_found") if os.path.normcase(p) not in gone])
+    return {"status": "ok", "cleared": len(paths)}
 
 
 # --- [ HELPERS ] ------------------------------------------------------------

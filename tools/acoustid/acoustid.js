@@ -15,6 +15,7 @@ window.metaforge.acoustid = {
         $('aid-submit-btn').addEventListener('click', () => this.run('submit'));
         $('aid-resolve-btn').addEventListener('click', () => this.run('resolve'));
         $('aid-stop').addEventListener('click', () => this.stop());
+        $('aid-notfound-clear').addEventListener('click', () => this.clearNotFound());
         // Left mid-run and came back: the old run is still winding down.
         if (this.running) {
             $('aid-fieldset').disabled = true;
@@ -39,13 +40,52 @@ window.metaforge.acoustid = {
             ? `Submitting needs your AcoustID ${missing.join(' and ')}. Add ${missing.length === 1 ? 'it' : 'them'} in Settings > Configuration & keys.`
             : '';
 
+        // Files set aside: the note, its list (inside "Show the files") and
+        // "Clear this list" (John, 2026-11-17: the note never went away).
         const nf = $('aid-notfound-note');
+        const text = $('aid-notfound-text');
+        const list = $('aid-notfound-list');
         nf.hidden = !s.not_found;
-        nf.replaceChildren();
+        text.replaceChildren();
+        list.replaceChildren();
         if (s.not_found) {
             const code = document.createElement('code');
             code.textContent = 'data\\acoustid\\not_found.txt';
-            nf.append(`${s.not_found} file${s.not_found === 1 ? '' : 's'} couldn't be found (moved or renamed) and ${s.not_found === 1 ? 'was' : 'were'} set aside in `, code, '.');
+            text.append(`${s.not_found} file${s.not_found === 1 ? '' : 's'} couldn't be found (moved or renamed) and ${s.not_found === 1 ? 'was' : 'were'} set aside in `, code, '.');
+            (s.not_found_paths || []).forEach((p) => {
+                const li = document.createElement('li');
+                li.textContent = p;
+                list.append(li);
+            });
+            if (s.not_found > (s.not_found_paths || []).length) {
+                const li = document.createElement('li');
+                li.textContent = `…and ${s.not_found - s.not_found_paths.length} more (see the file).`;
+                list.append(li);
+            }
+        }
+    },
+
+    clearNotFound: async function () {
+        const $ = (id) => document.getElementById(id);
+        const btn = $('aid-notfound-clear');
+        const errEl = $('aid-notfound-error');
+        errEl.hidden = true;
+        btn.disabled = true;
+        try {
+            const res = await fetch('/run_tool_logic/acoustid/clear_not_found', { method: 'POST' });
+            const d = await res.json();
+            if (!res.ok || d.status !== 'ok') throw new Error(d.message || `HTTP ${res.status}`);
+            await this.refresh();
+            $('aid-notfound-details').open = false;
+            // The note has gone, and the button with it: put focus somewhere useful.
+            $('aid-resolve-btn').focus();
+            window.MFAnnounce?.(`List cleared. ${d.cleared} file${d.cleared === 1 ? ' was' : 's were'} moved to not_found_cleared.txt.`);
+        } catch (err) {
+            errEl.textContent = `Error: the list wasn't cleared. ${err.message}`;
+            errEl.hidden = false;
+            window.MFAnnounce?.(errEl.textContent, { urgent: true });
+        } finally {
+            btn.disabled = false;
         }
     },
 
