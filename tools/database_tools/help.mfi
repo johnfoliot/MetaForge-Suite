@@ -6,7 +6,7 @@
 <p>Over time the MetaForge database collects small mistakes: an artist spelled two ways, a wrong year, a record that shouldn't be there. Database Tools is where you put them right.</p>
 
 <h3>What it does:</h3>
-<p>Database Tools lets you correct what the MetaForge database knows about your artists and albums, and remove records that shouldn't be there. It has three tabs: <strong>Artists</strong>, <strong>Albums</strong> and <strong>Remove records</strong>. Before any rename, merge or removal, MetaForge backs up the database.</p>
+<p>Database Tools lets you correct what MetaForge knows about your artists and albums. You can also remove records that shouldn't be there. It has three tabs: <strong>Artists</strong>, <strong>Albums</strong> and <strong>Remove records</strong>. Before any rename, merge or removal, MetaForge backs up the database.</p>
 
 <section class="steps">
     <h3>How to use this tool:</h3>
@@ -15,7 +15,7 @@
         <li>Find what you want to change: type part of a name in <strong>Find an artist</strong> or <strong>Find an album</strong> and press Enter. If several match, choose one from the list.</li>
         <li>Make your changes, then choose <span class="ui-button">Save changes</span>. "Unsaved changes" shows until you do, and MetaForge asks before you leave the tool.</li>
     </ol>
-    <p class="note">Anything that changes more than one record (a new name, a merge, a removal) shows you exactly what will change, with counts, and asks you to confirm first.</p>
+    <p class="note">Some changes affect more than one record: a new name, a merge or a removal. For those, MetaForge shows exactly what will change, with counts, and asks you to confirm first.</p>
 </section>
 
 <h3>Artists</h3>
@@ -44,5 +44,5 @@
 </ul>
 
 <h3>Backups</h3>
-<p>Before any rename, merge or removal, MetaForge copies the database (and any MusicBrainz log it will update) into <code>%APPDATA%\MetaForge\backups\database_tools</code>, in a folder named with the date, time and what was done. The five most recent are kept.</p>
+<p>Before any rename, merge or removal, MetaForge backs up the database, plus any MusicBrainz log it will change. The backup goes in <code>%APPDATA%\MetaForge\backups\database_tools</code>, in a folder named with the date, time and what was done. The five most recent are kept.</p>
 <!-- --- END OF FILE help.mfi --- -->

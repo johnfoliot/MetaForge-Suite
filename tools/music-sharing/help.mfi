@@ -9,7 +9,7 @@
 <section class="steps">
     <h3>How to use this tool:</h3>
     <ol>
-        <li>Choose <span class="ui-button">Choose a track…</span> and pick an MP3 from your library. Its title, artist, album and length appear, with a <strong>Preview</strong> of the video beside them.</li>
+        <li>Choose <span class="ui-button">Choose a track…</span>, then find the MP3 in your library. Its title, artist, album and length appear, with a <strong>Preview</strong> of the video beside them.</li>
         <li>Choose <span class="ui-button">Make the video</span> (or press Enter). The bar shows how far along it is. <span class="ui-button">Stop</span> ends it and saves nothing.</li>
         <li>When it's finished, <span class="ui-button">Show the video</span> opens your Videos folder with the new file selected, ready to share.</li>
     </ol>

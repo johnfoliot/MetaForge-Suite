@@ -4,15 +4,15 @@
 <p>AcoustID is a free, shared database that recognises a recording by how it sounds (its "fingerprint"). When AcoustID doesn't know one of your tracks yet, you can add it here. Submitting is optional, and it helps everyone who uses AcoustID.</p>
 
 <h3>What it does:</h3>
-<p>The <strong class="tool">Intelli-Tagger</strong> looks up every track on AcoustID. A track AcoustID doesn't know is added to a waiting list here. This tool sends those fingerprints to AcoustID, then later collects the AcoustID each one is given and writes it to the file and the database.</p>
+<p>The <strong class="tool">Intelli-Tagger</strong> looks up every track on AcoustID. A track AcoustID doesn't know is added to a waiting list here. This tool sends those fingerprints to AcoustID. Later, it collects the AcoustID each one is given, and writes it to the file and the database.</p>
 
 <section class="steps">
     <h3>How to use this tool:</h3>
-    <ol>
-        <li><strong>1. Submit new fingerprints:</strong> choose <span class="ui-button">Submit fingerprints</span>. Each waiting track's fingerprint is sent with its title, artist, album, release year and MusicBrainz recording ID when MetaForge has them. A track that can't be sent stays in the list for next time.</li>
+    <ul>
+        <li><strong>1. Submit new fingerprints:</strong> choose <span class="ui-button">Submit fingerprints</span>. Each waiting track's fingerprint is sent. MetaForge also sends its title, artist, album, release year and MusicBrainz recording ID, if it has them. A track that can't be sent stays in the list for next time.</li>
         <li>Wait. AcoustID adds submissions in the background, which can take a while.</li>
         <li><strong>2. Collect AcoustIDs:</strong> choose <span class="ui-button">Check for AcoustIDs</span>. MetaForge asks AcoustID which of your submissions are done and collects their AcoustIDs. Tracks still being processed stay in the list; check again later.</li>
-    </ol>
+    </ul>
     <p class="note"><span class="ui-button">Stop</span> ends a run after the current track. Everything done so far is kept, and the rest stays in the list. If you switch tools during a run, MetaForge asks first.</p>
 </section>
 

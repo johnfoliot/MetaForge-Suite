@@ -6,23 +6,23 @@
 <p>Albums arrive in all sorts of packaging: CUE sheets, ZIP and RAR archives, disc images, lossless files. Unpack &amp; Convert is the first step for every album: it unboxes them, converts the audio to one high-quality standard, and leaves the folder tidy and ready for tagging.</p>
 
 <h3>What it does:</h3>
-<p>Unpack &amp; Convert unboxes .cue, .wv, .zip, .rar and .iso (SACD or raw Audio-CD image) files, and converts them to the high-quality MP3 VBR (V0) format. It then applies an intelligent clean-up, leaving your album folders in pristine shape and ready for <strong class="tool">MusicBrainz IDs</strong>.</p>
+<p>Unpack &amp; Convert unboxes .cue, .wv, .zip, .rar and .iso (SACD or raw Audio-CD image) files, and converts them to the high-quality MP3 VBR (V0) format. Then it cleans up, leaving each album folder tidy and ready for <strong class="tool">MusicBrainz IDs</strong>.</p>
 
 <section class="steps">
     <h3>How to use this tool:</h3>
     <ol>
-        <li><strong>Source Directory:</strong> choose <span class="ui-button">Browse</span> and pick the folder that holds the album. The tool works on the album folder, not on a single ZIP file.
+        <li><strong>Source Directory:</strong> choose <span class="ui-button">Browse</span> and choose the folder that holds the album. The tool works on the album folder, not on a single ZIP file.
             <p class="note">An archive (.zip, .rar) must be inside its own album folder, for example <code>\Album Name\album.zip</code>.</p>
         </li>
         <li>Fill in <strong>Album Title</strong> and <strong>Filing Artist</strong>. If your library is Enhanced (see Questions below), also choose the <strong>Filing Category</strong>. These apply to every file, so the whole album is consistent.
-            <p class="note">The lock button beside Filing Artist or Filing Category keeps it set for the next album, which saves typing when you're working through one artist or one category.</p>
+            <p class="note">The lock button beside Filing Artist or Filing Category keeps it set for the next album. That saves typing when you're working through one artist or one category.</p>
         </li>
-        <li><strong>Processing Details:</strong> tick <strong>Apply Loudness Normalization</strong> if you want it (see How it works). It makes conversion take longer.</li>
-        <li><strong>Consent:</strong> because this tool deletes things (junk files and the original FLAC, APE and archive files), you must tick the consent box before it runs. Tick <strong>Remember this decision</strong> to skip this step next time.
-            <p class="note">To be asked again, turn off <strong>Unpack &amp; Convert may delete original archives and old metadata</strong> in <strong>Settings › Configuration &amp; keys</strong>.</p>
+        <li><strong>Processing Details:</strong> select <strong>Apply Loudness Normalization</strong> if you want it (see How it works). It makes conversion take longer.</li>
+        <li><strong>Consent:</strong> because this tool deletes things (junk files and the original FLAC, APE and archive files), you must select the consent box before it runs. Select <strong>Remember this decision</strong> to skip this step next time.
+            <p class="note">To be asked again, go to <strong>Settings › Configuration &amp; keys</strong> and turn off <strong>Unpack &amp; Convert may delete original archives and old metadata</strong>.</p>
         </li>
         <li>Choose <span class="ui-button">Unpack / Convert</span> and follow along in the activity log.</li>
-        <li>When asked, pick the front cover and choose <span class="ui-button">Confirm cover</span>.</li>
+        <li>When asked, choose the front cover and choose <span class="ui-button">Confirm cover</span>.</li>
         <li>When it's done, choose <span class="ui-button">Continue to MusicBrainz IDs</span>. The album folder carries over, so its fields fill in for you.</li>
     </ol>
 </section>
@@ -31,10 +31,10 @@
 <p>The tool runs a series of steps to keep your library consistent and free of data errors:</p>
 <ol>
     <li><strong>Extraction:</strong> CUE, ZIP, RAR (including multi-part sets) and ISO sources are first extracted to the album folder. Supported ISO types are SACD (through the <code>sacd_extract</code> tool, downsampled to FLAC) and raw Audio-CD images with a CUE sheet; a data-disc ISO holding a folder of files isn't supported yet. Audio files are moved out of unnecessary sub-folders into the main album folder.</li>
-    <li><strong>Conversion:</strong> all incoming audio is converted to high-quality <strong>MP3 VBR (V0)</strong>, so every track in your collection follows one high-fidelity standard that works on any device or software. If you ticked Apply Loudness Normalization, EBU R128 loudness normalization gives the whole library a consistent volume.</li>
+    <li><strong>Conversion:</strong> all audio is converted to high-quality <strong>MP3 VBR (V0)</strong>. So every track in your collection meets one high-quality standard, and plays on any device or program. If you selected Apply Loudness Normalization, every track is set to the same loudness (the EBU R128 standard).</li>
     <li><strong>Sanitation:</strong> file names are standardized (<code>Track - Artist - Title.mp3</code>), and "metadata junk", such as old comments, ad links and encoder notes, is removed.</li>
-    <li><strong>Album art:</strong> all pictures found are gathered into an <code>art</code> folder, and covers stored inside the original files (for example a FLAC's own cover) are rescued too. You pick the front cover from the choices; it is saved as <code>folder.jpg</code> at 500 × 500 and added to every track.
-        <p class="note">Pick the largest version of the cover when there's a choice: shrinking a large picture to 500 × 500 looks much better than stretching a small one.</p>
+    <li><strong>Album art:</strong> all pictures are gathered into an <code>art</code> folder. Covers stored inside the original files (such as a FLAC's own cover) are saved too. You choose the front cover; it is saved as <code>folder.jpg</code> at 500 × 500 and added to every track.
+        <p class="note">Choose the largest version of the cover when there's a choice: shrinking a large picture to 500 × 500 looks much better than stretching a small one.</p>
         <aside class="tip"><strong>Bonus:</strong> no pictures came with the album? The tool looks for the best cover available on Discogs. Not every album has one there; it can only find what's publicly available.</aside>
     </li>
 </ol>
@@ -43,21 +43,21 @@
 <p>Unpack &amp; Convert handles a single album or a multi-disc box set in one pass. If the album folder has a sub-folder for each disc, the disc structure is kept: the files are numbered 101, 102, 103… for disc 1, 201, 202, 203… for disc 2, and so on, so they sort correctly on disk. The track numbers in the tags run straight through the whole set (for example, if disc 1 has 26 tracks, file 201 is track 27).</p>
 
 <h3>The audit trail</h3>
-<p>Because the clean-up deletes original archives and junk files to save space, Unpack &amp; Convert keeps a permanent record of every file it creates, converts or deletes, in the album folder: <code>MetaForge.log</code>.</p>
+<p>The clean-up deletes original archives and junk files to save space. So Unpack &amp; Convert keeps a permanent record of every file it creates, converts or deletes. It's in the album folder: <code>MetaForge.log</code>.</p>
 
 <section class="faq" aria-labelledby="upk-faq">
     <h3 id="upk-faq">Questions</h3>
 
     <details>
         <summary>Why convert to MP3 VBR (V0)?</summary>
-        <p>MetaForge uses MP3 VBR (V0) as its library standard to balance <strong>high-quality sound</strong> with efficiency and storage space.</p>
-        <p>Many people believe lossless files (.flac) are better, but several studies (<a href="https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/content/103446-Audibility-of-a-CD-Standard-v-High-Resolution.pdf">1 (PDF)</a>, <a href="https://qmro.qmul.ac.uk/xmlui/bitstream/handle/123456789/13493/Reiss%20A%20Meta-Analysis%20of%20High%20Resolution%202016%20Published.pdf">2 (PDF)</a>, <a href="https://blog.codinghorror.com/concluding-the-great-mp3-bitrate-experiment/">3 (Blog)</a>) confirm that the human ear can't tell a V0 file from the original source. As Jeff Atwood put it, <em>"even dogs won’t be able to hear the difference."</em></p>
-        <p>This format gives excellent sound while saving a great deal of storage, and it plays on every device and in every program, old or new. The goal is a library that focuses on <strong>how the music actually sounds</strong>, rather than keeping data no one can hear.</p>
+        <p>MetaForge uses MP3 VBR (V0) as its standard. It balances <strong>high-quality sound</strong> with saving space.</p>
+        <p>Many people believe lossless files (.flac) are better. But several studies (<a href="https://www.image-line.com/fl-studio-learning/fl-studio-online-manual/html/content/103446-Audibility-of-a-CD-Standard-v-High-Resolution.pdf">1 (PDF)</a>, <a href="https://qmro.qmul.ac.uk/xmlui/bitstream/handle/123456789/13493/Reiss%20A%20Meta-Analysis%20of%20High%20Resolution%202016%20Published.pdf">2 (PDF)</a>, <a href="https://blog.codinghorror.com/concluding-the-great-mp3-bitrate-experiment/">3 (Blog)</a>) show that the human ear can't tell a V0 file from the original. As Jeff Atwood put it, <em>"even dogs won’t be able to hear the difference."</em></p>
+        <p>This format sounds excellent and saves a lot of space. It plays on every device and in every program, old or new. The goal is a library that focuses on <strong>how the music actually sounds</strong>, rather than keeping data no one can hear.</p>
     </details>
 
     <details>
         <summary>What is an Enhanced library?</summary>
-        <p>MetaForge is aimed at serious music collectors and supports three ways of organising a library:</p>
+        <p>MetaForge is made for serious music collectors. It supports three ways to organise a library:</p>
         <dl>
             <dt>Basic</dt>
             <dd><img src="/ui/images/basic_library.png" class="figure-right" width="100" alt="Basic structure: album folders side by side in one Music folder">A flat structure: all the albums sit in one folder, often Windows' own Music folder (for example <code>C:\Music\Dark Side of The Moon</code>, <code>C:\Music\The Wall</code>). It works, but finding one album in File Explorer gets messy.</dd>

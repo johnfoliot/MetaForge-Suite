@@ -6,10 +6,10 @@
 <h3>What it does:</h3>
 <p>Each tile answers one question: how much is tagged, what's waiting in other tools, which artists still need a biography, and what looks wrong in the data.</p>
 <ul>
-    <li><strong>How much is tagged?</strong> Tracks MetaForge has processed, by category folder (the top folders of your library, such as Blues or Pop, Rock), against the files on disk.</li>
+    <li><strong>How much is tagged?</strong> How many tracks MetaForge has processed, against the files on disk. It's counted by category folder: the top folders of your library, such as Blues or Pop, Rock.</li>
     <li><strong>What's waiting?</strong> Work queued for other tools: AcoustIDs to submit, tracks without an AcoustID or a MusicBrainz ID, files waiting for repair, and credits to give MusicBrainz.</li>
     <li><strong>Who needs a bio?</strong> Main artists with 10 or more tracks and no biography, and session players credited on many different artists' albums.</li>
-    <li><strong>What looks wrong?</strong> Track years that can't be right (before 1900 or in the future), album years later than every track on the album, credits for albums no longer in the library, tracks with no AI mood, and tracks whose file is missing.</li>
+    <li><strong>What looks wrong?</strong> Data that needs checking: track years before 1900 or in the future; album years later than every track on the album; credits for albums no longer in the library; tracks with no AI mood; and tracks whose file is missing.</li>
 </ul>
 
 <section class="steps">
@@ -35,7 +35,7 @@
 <h3>Changing the layout</h3>
 <p>Which tiles show, how wide they are and their order are set in <strong>Settings › Dashboard</strong>:</p>
 <ol>
-    <li>Tick the tiles to show, and choose how many columns wide each one is.</li>
+    <li>Select the tiles to show, and choose how many columns wide each one is.</li>
     <li>Change the order with <span class="ui-button">Move up</span> and <span class="ui-button">Move down</span>, or drag a tile by its handle (<span aria-hidden="true">⠿</span> on the left). Press Escape while dragging to cancel.</li>
     <li>Choose <span class="ui-button">Save dashboard</span>. <span class="ui-button">Reset to default</span> puts the original layout back in the list (choose Save dashboard to keep it).</li>
 </ol>

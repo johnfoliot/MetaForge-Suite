@@ -28,6 +28,8 @@
 <p>Re-encoding can't add back quality that was never there: a 128 kbps file stays a 128 kbps recording, even at V0.</p>
 
 <h3>Your originals</h3>
-<p>Before a file is replaced, the original is copied to <code>%APPDATA%\MetaForge\backups\repair</code>, in a folder named with the date and time of the run, then the album. Nothing there is deleted automatically: remove the folder when you're happy with the repairs.</p>
+<p>Before a file is replaced, the original is copied to <code>%APPDATA%\MetaForge\backups\repair</code>. Each run gets its own folder, named with the date and time, then the album. Nothing there is deleted automatically: remove the folder when you're happy with the repairs.</p>
 <p>Each repair is also written to the album's <code>MetaForge.log</code>.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="unpack_convert" data-mf-help-name="Unpack &amp; Convert">Unpack &amp; Convert</button>.</p>
 <!-- --- END OF FILE help.mfi --- -->

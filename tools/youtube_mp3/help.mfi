@@ -19,10 +19,10 @@
         <li>Check the details: <strong>Artist</strong>, <strong>Album</strong>, and the <strong>Album folder</strong> (<span class="ui-button">Choose…</span>).
             <ul>
                 <li>For a single video, <strong>This video is</strong> lets you say whether it's <strong>One song</strong> or <strong>A whole album</strong>.</li>
-                <li>For a playlist, untick any <strong>Songs</strong> that don't belong.</li>
+                <li>For a playlist, deselect any <strong>Songs</strong> that don't belong.</li>
             </ul>
         </li>
-        <li>Choose <span class="ui-button">Make the MP3</span> (for a playlist, <span class="ui-button">Make 12 MP3s</span> or however many are ticked).</li>
+        <li>Choose <span class="ui-button">Make the MP3</span> (for a playlist, <span class="ui-button">Make 12 MP3s</span>, or however many are selected).</li>
         <li>When it's done, <span class="ui-button">Continue to Unpack &amp; Convert</span> carries the folder, artist and album over.</li>
     </ol>
     <p class="note">If the album folder already has MP3s in it, nothing is made, so two albums never mix.</p>
@@ -31,14 +31,16 @@
 <h3>A whole album in one video</h3>
 <ol>
     <li>Choose <strong>A whole album: make one MP3 per song</strong>, check the <strong>Track titles, one per line</strong>, in order, then choose <span class="ui-button">Find the tracks</span>.</li>
-    <li>MetaForge downloads the audio and works out where each song starts: from the video's chapters or the times in its description if it has them, otherwise from the quiet gaps between songs, placed using the track lengths MusicBrainz has for the album.</li>
+    <li>MetaForge downloads the audio and works out where each song starts. It uses the video's chapters, or the times in its description, if it has them. If not, it listens for the quiet gaps between songs, guided by the track lengths MusicBrainz has for the album.</li>
     <li><strong>Check the cuts:</strong> every start time can be played (a few seconds either side) and corrected before anything is made. Cuts marked <em>Check</em> are the ones to listen to. <span class="ui-button">Change the track list</span> goes back a step.</li>
     <li>Choose <span class="ui-button">Make 10 MP3s</span> (the number of tracks).</li>
 </ol>
 
 <h3>Sound quality</h3>
 <p>YouTube's best audio (about 130 kbps) is converted once to MP3 V0, the same as the rest of MetaForge. It can't be better than YouTube's copy.</p>
-<p>Unpack &amp; Convert then adds cover art, sets the filing category and writes the album details that <strong class="tool">MusicBrainz IDs</strong> needs. It only renames these MP3s, so there's no further loss of quality, unless you tick <strong>Apply Loudness Normalization</strong>, which re-encodes them.</p>
+<p>Unpack &amp; Convert then adds cover art, sets the filing category and writes the album details that <strong class="tool">MusicBrainz IDs</strong> needs. It only renames these MP3s, so there's no further loss of quality. The one exception: <strong>Apply Loudness Normalization</strong> re-encodes them.</p>
 
 <p class="note">YouTube changes often. If links stop working, yt-dlp (in the <code>bin</code> folder) needs updating.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="unpack_convert" data-mf-help-name="Unpack &amp; Convert">Unpack &amp; Convert</button>, the next step.</p>
 <!-- --- END OF FILE help.mfi --- -->

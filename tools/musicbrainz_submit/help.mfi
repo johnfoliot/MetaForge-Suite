@@ -4,7 +4,7 @@
 <p>MusicBrainz gives MetaForge a great deal. This tool is how you give something back.</p>
 
 <h3>What it does:</h3>
-<p>While processing albums, MetaForge finds credits (producers, players, writers) that Discogs, AllMusic or Wikipedia list but MusicBrainz doesn't have. MusicBrainz Submit sends them to MusicBrainz an album at a time.</p>
+<p>MetaForge finds credits while it processes albums: producers, players and writers. Some are listed by Discogs, AllMusic or Wikipedia, but not by MusicBrainz. MusicBrainz Submit sends them to MusicBrainz an album at a time.</p>
 <p>MetaForge never submits anything itself: you check the edit on MusicBrainz's own page and enter it.</p>
 
 <section class="steps">
@@ -13,7 +13,7 @@
         <li>Choose an album from the list. <strong>Find an album or artist</strong> narrows the list; <strong>Order</strong> sorts it by most credits, artist, or newest first.</li>
         <li>MetaForge checks MusicBrainz first. Credits it already has are set aside, and each person is matched to their MusicBrainz artist.</li>
         <li>The rest are listed by role, selected. Deselect anything you don't want to send; MetaForge remembers. <span class="ui-button">Select all</span> and <span class="ui-button">Deselect all</span> under each heading do a whole role at once.</li>
-        <li>Choose <span class="ui-button">Open in MusicBrainz</span> (or press Enter). The release's relationship editor opens in a second window, and MetaForge adds the selected credits there (up to 25 at a time) with one edit note saying where each came from.</li>
+        <li>Choose <span class="ui-button">Open in MusicBrainz</span> (or press Enter). MusicBrainz's relationship editor opens in a second window. MetaForge adds the selected credits there, up to 25 at a time. It also adds one edit note saying where each credit came from.</li>
         <li>Check them on that page and choose <strong>Enter edit</strong>. Then close the window. MetaForge asks whether you entered the edit; if you did, it lists those credits as waiting.</li>
     </ol>
     <p class="note">The MusicBrainz window keeps you logged in, so you only log in once.</p>
@@ -21,7 +21,7 @@
 
 <h3>What's sent</h3>
 <ul>
-    <li><strong>Sources:</strong> credits from Discogs, AllMusic and Wikipedia, your own entries, and AI web search credits you checked in the verify window and rated Explicit or Inferred. AI credits that are unchecked, rated Anecdotal, or only switched to Confirmed in Album Personnel are never sent.</li>
+    <li><strong>Sources:</strong> credits from Discogs, AllMusic and Wikipedia, and your own entries. Also AI web search credits, but only ones you checked in the verify window and rated Explicit or Inferred. AI credits that are unchecked, rated Anecdotal, or only switched to Confirmed in Album Personnel are never sent.</li>
     <li><strong>Roles:</strong> producer, arranger, composer, writer, lyricist, vocals, backing vocals, and named instruments. Instruments are matched to MusicBrainz's own instrument list ("Sax (Tenor)" becomes "tenor saxophone"); a role with no exact match isn't sent.</li>
     <li><strong>Artists:</strong> a credit goes out only when the person is matched for certain: by their MusicBrainz ID, or because exactly one MusicBrainz artist has that name. Otherwise MetaForge shows the likely artists and you choose (or choose "None of these").</li>
 </ul>
@@ -36,7 +36,7 @@
 </ul>
 
 <h3>Waiting for MusicBrainz</h3>
-<p>Edits by newer MusicBrainz editors are voted on for up to a week before they show. MetaForge checks again each time you open the album (or choose <span class="ui-button">Check MusicBrainz again</span>), and moves a credit to "added by you" once it's there.</p>
+<p>Edits by newer MusicBrainz editors are voted on for up to a week before they show. MetaForge checks again each time you open the album, or when you choose <span class="ui-button">Check MusicBrainz again</span>. Once a credit is there, it moves to "added by you".</p>
 
 <h3>Skipping an album</h3>
 <p><span class="ui-button">Skip this album</span> hides it from the list. Select <strong>Show skipped albums</strong> to see it again, and choose <span class="ui-button">Stop skipping this album</span> to bring it back.</p>
