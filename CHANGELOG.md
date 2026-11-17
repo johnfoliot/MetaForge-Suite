@@ -2,7 +2,7 @@
 
 ## 2.0.0 — in development (13–16 November 2026)
 
-MetaForge Studio 2 is a rebuild of every screen to the WCAG 2.2 AA accessibility standard, with plain-language wording, and with layouts that still work when Windows text is enlarged to 150% or 200%. MetaForge 1.x is retired; its last version is kept as the tag `v1-final`.
+MetaForge Studio 2 is a complete overhaul of every screen in the application, with a focus on meeting the WCAG 2.2 AA accessibility standard, including plain-language wording, and with layouts that still work when Windows text is enlarged to 150% or 200%. MetaForge 1.x is retired; its last version is kept as the tag `v1-final`.
 
 ### Across the whole app
 - **New look:** the Atkinson Hyperlegible Next font is now included with the app, and themes get a consistent set of colours. Focus outlines are clearly visible on every surface, and scrollbars use the brand colour.
