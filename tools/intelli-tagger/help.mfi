@@ -1,9 +1,42 @@
-<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. In 1.x this text was commented out of the screen (hidden), but it is kept here so nothing is lost. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">The flagship tool of the MetaForge Suite, Intelli-Tagger ensures that the metadata for your MP3s is robust and useful.<br> AI assisted logic enforces a clear genre and sub-genre system. It also calculates qualitative acoustic data like Mood, Intensity, and BPM to support the Intelligent Playlist Maker.</p>
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v3 (2026-11-17, help overhaul step 4): written from the v2 screen and
+     code, John's structure and the shared blocks in ui/css/help.css. -->
+<p>The Intelli-Tagger is MetaForge's flagship tool. It gives every track on an album the rich, consistent tags the rest of the suite depends on.</p>
 
-<h3 class="white">Intelli-Tagger</h3>
-<p>Intelli-Tagger help content</p>
+<h3>What it does:</h3>
+<p>The Intelli-Tagger works through an album one track at a time. For each track it:</p>
+<ul>
+    <li><strong>listens</strong> to the audio, to measure its BPM, key and intensity;</li>
+    <li><strong>fingerprints</strong> it and looks it up on AcoustID;</li>
+    <li><strong>identifies</strong> the recording on MusicBrainz;</li>
+    <li><strong>asks the AI</strong> for its genre and sub-genre (from your genre list), its mood and its sound;</li>
+    <li><strong>finds the original year</strong>, the year the recording first came out. It checks MusicBrainz, Discogs and Wikipedia, with an AI web search as a last resort.</li>
+</ul>
+<p>Then it clears out old, messy tags and writes the new ones into every file. It can also write them into the MetaForge database, which Album Personnel, Bio Builder and the Dashboard read.</p>
 
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Choose <span class="ui-button">Browse</span> and choose the album folder in <strong>Source Directory</strong>.
+            <p class="note">If you came from MusicBrainz IDs, the folder and the fields below are filled in for you.</p>
+        </li>
+        <li>Check <strong>Filing Artist</strong> and <strong>Album Title</strong>. Both are required.</li>
+        <li>Check <strong>Artist Native Country</strong>: where the artist comes from (for example US or GB), not where the album was released.</li>
+        <li>Open <strong>MusicBrainz IDs</strong> to check the three IDs. If they're empty, <span class="ui-button">Find them in MusicBrainz IDs (step 2)</span> takes you back a step.</li>
+        <li>Leave <strong>Also write to the MetaForge database</strong> on, unless you only want the files tagged.</li>
+        <li>Choose <span class="ui-button">Begin Tagging</span> (or press Enter). Follow along in the activity log. The first track takes a little longer while the album is identified.</li>
+        <li>When it's done, you can choose <span class="ui-button">Add Album Personnel</span> or <span class="ui-button">Build Artist Bio</span>. Both are optional.</li>
+    </ol>
+</section>
 
-<p class="tool_notes">Note: Intelli-Tagger notes</p>
+<h3>Albums by various artists</h3>
+<p>When the filing artist is "Various Artists", the AI's genre guess can drift from track to track. So MetaForge asks first: choose a <strong>Parent genre</strong> and <span class="ui-button">Confirm</span> to give every track the same genre, or <span class="ui-button">Skip: let the AI decide</span>.</p>
+
+<h3>If a track isn't fully tagged</h3>
+<p>The log lists it in red, with the reason. Fix the problem, then run the Intelli-Tagger on the album again. The next steps are only offered after a clean run.</p>
+
+<h3>Where the details go</h3>
+<p>Each run is added to the album's <code>MetaForge.log</code>, with a summary at the end. A track AcoustID doesn't know yet goes on <strong class="tool">AcoustID Manager</strong>'s list, so you can submit it.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="musicbrainz_id" data-mf-help-name="MusicBrainz IDs">MusicBrainz IDs</button>, the step before; <button type="button" class="see-also" data-mf-help="settings" data-mf-help-name="Settings">Settings</button>, for the genre list the AI chooses from.</p>
+<!-- --- END OF FILE help.mfi --- -->

@@ -43,4 +43,6 @@
 
 <h3>Adding and removing tiles</h3>
 <p>Each tile is its own small plug-in, in a folder of its own under <code>tools\dashboard\tiles\</code>, just as each tool has its own folder under <code>tools\</code>. A new tile's folder is found by itself and shows up at the end of the Dashboard and in Settings. Deleting a tile's folder removes it.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="settings" data-mf-help-name="Settings">Settings</button>, for the Dashboard's layout.</p>
 <!-- --- END OF FILE help.mfi --- -->

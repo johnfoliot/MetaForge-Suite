@@ -1,14 +1,34 @@
-<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">Manage, update, and commit artist profiles directly to the MetaForge database ecosystem.</p>
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v3 (2026-11-17, help overhaul step 4): written from the v2 screen and
+     code, John's structure and the shared blocks in ui/css/help.css. -->
+<p>Every artist has a story. Bio Builder writes a short biography for each artist in your library and finds their portrait, for the Library Viewer to show.</p>
 
-<h3>Bio Builder Help</h3>
-<p>This tool coordinates local file extraction, AI-driven narrative synthesis, and automated portrait normalization for your centralized MetaForge library archive.</p>
+<h3>What it does:</h3>
+<p>Bio Builder searches the web and has the AI write a biography from what it finds. It also looks for the artist's photo on Discogs. You read it, edit it and save it.</p>
 
-<ul>
-    <li><strong>Local Source Integration:</strong> Pointing to a local directory or audio track allows the metadata engine to extract text context fields automatically if they are currently blank.</li>
-    <li><strong>Standard Biographies:</strong> Formatted strictly to an target window (~270 words) for direct reading flow compatibility. It filters out preambles, introductory filler text, and conversational pleasantries entirely.</li>
-    <li><strong>Long Biographies:</strong> Intended for deeper profiles covering extended chronological histories, structural label switches, or comprehensive career context.</li>
-    <li><strong>Portrait Assets:</strong> Images imported or recovered automatically via Discogs are routed through the graphics processing layer. They are converted, resized to a strict 500x500 square grid, and written down as physical assets inside the central <code>{root}\MetaForge Suite\photos</code> repository under normalized filenames.</li>
-    <li><strong>Database Serialization:</strong> Pressing "Save Biography" updates your core SQLite database records, appending both the visual path signature and raw rich-text copy directly to the active tables.</li>
-</ul>
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Type the artist's name in <strong>Artist</strong> and choose <span class="ui-button">Search</span> (or press Enter). If more than one artist matches, choose the right one.
+            <p class="note">Coming from the Dashboard, Database Tools or Album Personnel, the artist is already chosen.</p>
+        </li>
+        <li>Choose the length: leave <strong>Enhanced bio</strong> off for about 250 to 300 words in three paragraphs, or turn it on for about 450 to 500 words in five.</li>
+        <li>Choose <span class="ui-button">Get Biography</span>. The text appears in <strong>Biography</strong>, with a portrait if Discogs has one.</li>
+        <li>Read it and edit anything that's wrong. <strong>Sources</strong> lists the web pages it was written from.</li>
+        <li>Don't like the portrait? Choose <span class="ui-button">Browse</span> under <strong>Use a portrait from a file</strong> to use your own.</li>
+        <li>Choose <span class="ui-button">Save Biography</span>.</li>
+    </ol>
+    <p class="note">Nothing is saved until you choose Save Biography: not the text, and not the portrait.</p>
+</section>
+
+<h3>When there are no sources</h3>
+<p>If the web search finds nothing, the AI writes from its own knowledge, and a warning says so. Check the facts carefully before you save.</p>
+
+<h3>Getting a new biography</h3>
+<p>Choosing <span class="ui-button">Get Biography</span> again replaces what's in the editor. If there's text in it already, MetaForge asks first: <span class="ui-button">Replace</span> or <span class="ui-button">Keep my text</span>. The saved biography doesn't change until you save.</p>
+
+<h3>Portraits</h3>
+<p>Portraits are saved as 500 × 500 pictures in the <code>photos</code> folder inside MetaForge's own folder. A photo that isn't square gets black bands to fill the square, so nothing is cut off.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="personnel" data-mf-help-name="Album Personnel">Album Personnel</button>; <button type="button" class="see-also" data-mf-help="database_tools" data-mf-help-name="Database Tools">Database Tools</button>.</p>
+<!-- --- END OF FILE help.mfi --- -->

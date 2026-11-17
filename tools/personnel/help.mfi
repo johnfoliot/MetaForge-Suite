@@ -1,9 +1,42 @@
-<!-- v2-moved-header-prose: moved word for word from this tool's screen header on 2026-11-13 (v2 headers show only the title and Help). Prose review pending. In 1.x this text was commented out of the screen (hidden), but it is kept here so nothing is lost. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">Automatically resolves album/track credits from <span style="font-weight:bold; color:var(--mf-gold);">MusicBrainz + Discogs</span>, falling back to AI Web Search when thin (its own grounded search already sweeps up Wikipedia/AllMusic/independent sources), with manual Wikipedia search and AllMusic paste both always available for your own follow-up. Review and edit the staged mapping before committing to the MetaForge relationship graph.</p>
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v3 (2026-11-17, help overhaul step 4): written from the v2 screen and
+     code, John's structure and the shared blocks in ui/css/help.css. -->
+<p>Who played on this album? Who produced it, wrote it, arranged it? Album Personnel finds out, so the Intelligent Playlist Maker can link your music through the people who made it.</p>
 
-<h3 class="white">Biography Builder</h3>
-<p>Biography Builder help content</p>
+<h3>What it does:</h3>
+<p>Album Personnel collects an album's credits from several sources, in this order:</p>
+<ol>
+    <li><strong>MusicBrainz and Discogs</strong>, together.</li>
+    <li><strong>An AI web search</strong>, if those two come up thin.</li>
+    <li><strong>Wikipedia</strong>, which you search yourself.</li>
+    <li><strong>AllMusic</strong>, as a last resort: you copy its credits table and paste it in.</li>
+</ol>
+<p>You check the list, fix or remove anything that's wrong, and save it to the MetaForge database.</p>
 
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Choose <span class="ui-button">Browse</span> and choose the album folder in <strong>Source Directory</strong>. <strong>Artist</strong>, <strong>Album</strong> and <strong>Year</strong> fill in from the folder.
+            <p class="note">If you came from the Intelli-Tagger, this is done for you.</p>
+        </li>
+        <li>Choose <span class="ui-button">Find credits</span> (or press Enter). MetaForge checks MusicBrainz and Discogs, then searches the web if needed. Under <strong>Sources</strong>, each source shows what it found.</li>
+        <li>Still missing credits? Choose <span class="ui-button">Search Wikipedia</span> and choose the right page from the results (<span class="ui-button">Use</span>). Or choose <span class="ui-button">Search AllMusic</span>, copy the credits table from the AllMusic window, and paste it in.</li>
+        <li>Check the credits on the right. Edit a <strong>Name</strong> or <strong>Role</strong> by typing over it; choose ✕ to remove a credit. <span class="ui-button">Add a credit by hand</span> adds one of your own.</li>
+        <li>Choose <span class="ui-button">Save to Database</span>.</li>
+        <li>If the artist has no biography yet, <span class="ui-button">Build Artist Bio</span> takes you to Bio Builder. This is optional.</li>
+    </ol>
+</section>
 
-<p class="tool_notes">Note: Biography Builder notes</p>
+<h3>Credits from the AI web search</h3>
+<p>These come with a choice: <strong>Confirmed</strong> or <strong>Inferred</strong>.</p>
+<ul>
+    <li><strong>Confirmed:</strong> a source names this person on this album.</li>
+    <li><strong>Inferred:</strong> the AI worked it out, for example from who usually played in that band at the time. It's useful, but less certain.</li>
+</ul>
+<p><span class="ui-button">Verify source</span> opens the page the AI used, in a second window, so you can check it yourself and rate it. A credit you've checked carries more weight.</p>
+
+<h3>Under each credit</h3>
+<p>A short line says where it came from and how sure MetaForge is (the confidence). It also says whether it's for the whole album ("Album-wide") or only some tracks ("Track 3").</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="musicbrainz_submit" data-mf-help-name="MusicBrainz Submit">MusicBrainz Submit</button>, for giving these credits back to MusicBrainz; <button type="button" class="see-also" data-mf-help="biography" data-mf-help-name="Bio Builder">Bio Builder</button>, the optional next step.</p>
+<!-- --- END OF FILE help.mfi --- -->

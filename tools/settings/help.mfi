@@ -1,5 +1,86 @@
-<h3 class="white">Settings</h3>
-<p>Settings help content</p>
+<!-- --- START OF FILE help.mfi --- -->
+<!-- v3 (2026-11-17, help overhaul step 4): written from the v2 screen and
+     code, John's structure and the shared blocks in ui/css/help.css. The
+     theme maker is a FAQ (John). -->
+<p>Settings is where you make MetaForge your own: how it looks, which tools it shows, and the keys it needs to reach online services.</p>
 
+<h3>What it does:</h3>
+<p>Settings has seven tabs, down the left side. Each tab with settings in it has its own save button, so saving one tab never changes another.</p>
 
-<p class="tool_notes">Note: Settings notes</p>
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Choose a tab: <strong>Theme</strong>, <strong>Toolbar</strong>, <strong>Dashboard</strong>, <strong>Genre list</strong>, <strong>Configuration &amp; keys</strong>, <strong>Updates</strong> or <strong>Help files</strong>. The arrow keys move between tabs.</li>
+        <li>Make your changes.</li>
+        <li>Choose that tab's save button, for example <span class="ui-button">Save theme</span>. Updates and Help files have nothing to save.</li>
+    </ol>
+</section>
+
+<h3>Theme</h3>
+<p>Choose a theme to see it straight away, then <span class="ui-button">Save theme</span> to keep it. Some themes are in the style of a classic music player; a line under the name says which one.</p>
+<p>A theme that doesn't meet the contrast guidelines is hidden. To see those too, turn on <strong>Also show themes that don't meet contrast guidelines</strong>. <strong>Themes that aren't offered</strong> lists any theme that can't be used, and why.</p>
+<p><span class="ui-button">Create a theme</span> lets you make your own (see Questions below).</p>
+
+<h3>Toolbar</h3>
+<ul>
+    <li><strong>Show tool names in the toolbar</strong> puts each tool's name beside its icon. <kbd>Ctrl+B</kbd> switches this from anywhere.</li>
+    <li>Select or deselect a tool to show or hide it, and change its order number to move it.</li>
+    <li><span class="ui-button">Add separator</span> draws a line between tools.</li>
+</ul>
+<p>Choose <span class="ui-button">Update toolbar</span> to save. Dashboard always stays at the top and Settings at the bottom.</p>
+
+<h3>Dashboard</h3>
+<p>Select the tiles to show, and choose how many columns wide each one is. Change the order with <span class="ui-button">Move up</span> and <span class="ui-button">Move down</span>, or drag a tile by its handle. Choose <span class="ui-button">Save dashboard</span>.</p>
+
+<h3>Genre list</h3>
+<p>The genres and sub-genres the Intelli-Tagger may choose from. Choose a genre to see and edit its sub-genres. Add with care: too many choices make the list less useful. Changes don't retag any tracks. Choose <span class="ui-button">Save genre list</span>.</p>
+
+<h3>Configuration &amp; keys</h3>
+<ul>
+    <li><strong>Your library:</strong> your music folder, how its folders are organised, and the email address MusicBrainz asks for.</li>
+    <li><strong>Unpack &amp; Convert:</strong> the delete permission and the locked filing artist and category.</li>
+    <li><strong>Service keys:</strong> for AcoustID, Google Gemini and Discogs. Each one has a link to where you get it.</li>
+</ul>
+<p>Choose <span class="ui-button">Save configuration</span>.</p>
+
+<h3>Updates</h3>
+<p><span class="ui-button">Check for updates</span> asks GitHub for a newer version. If there is one, you download and install it yourself; MetaForge never changes anything on its own.</p>
+
+<h3>Help files</h3>
+<p>Every tool's help, in one place.</p>
+
+<section class="faq" aria-labelledby="set-faq">
+    <h3 id="set-faq">Questions</h3>
+
+    <details>
+        <summary>How do I make my own theme?</summary>
+        <ol>
+            <li>On the Theme tab, choose <span class="ui-button">Create a theme</span>.</li>
+            <li>Give it a <strong>Theme name</strong> (up to 40 characters).</li>
+            <li>Choose a starting point. <strong>Start from</strong> copies an existing theme's colours (<span class="ui-button">Use these colours</span>). <strong>Suggest colours from one colour</strong> builds a whole theme around a colour you choose. <strong>Use colours you paste</strong> takes 2 to 10 colour codes, or a palette link from a site such as Coolors.</li>
+            <li>Choose a colour from the <strong>Colours</strong> list, and change it with its <strong>Colour code</strong>, the colour picker, or the <strong>Hue</strong>, <strong>Saturation</strong> and <strong>Lightness</strong> sliders. The <strong>Preview</strong> shows the result as you go.</li>
+            <li>Choose <span class="ui-button">Save this theme</span>. It then appears with the other themes.</li>
+        </ol>
+        <p><span class="ui-button">Back to themes</span> leaves without saving.</p>
+    </details>
+
+    <details>
+        <summary>What do the contrast checks do?</summary>
+        <p>Every colour is checked against the colours it sits next to, so text stays readable for everyone. <strong>Contrast checks</strong> lists each pair and whether it passes.</p>
+        <p>If one fails, <span class="ui-button">Fix: adjust the lightness</span> fixes it for you. <span class="ui-button">Go to the next problem</span> takes you to the next colour that needs work. <span class="ui-button">Save this theme</span> works once every check passes.</p>
+        <p>If <strong>Also show themes that don't meet contrast guidelines</strong> is on, you can save a theme that falls short, after a warning.</p>
+    </details>
+
+    <details>
+        <summary>Why can't I use a different gold?</summary>
+        <p>MetaForge has one gold, #CC9900. If a colour you choose reads as gold, the theme maker says so and offers <span class="ui-button">Use #CC9900</span>. A theme with another gold can't be saved.</p>
+    </details>
+
+    <details>
+        <summary>Where are my themes kept?</summary>
+        <p>In <code>%APPDATA%\MetaForge\themes</code>, one folder per theme. To remove one, delete its folder.</p>
+    </details>
+</section>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="dashboard" data-mf-help-name="Dashboard">Dashboard</button>.</p>
+<!-- --- END OF FILE help.mfi --- -->

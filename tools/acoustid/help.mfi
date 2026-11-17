@@ -35,4 +35,6 @@
     <li><code>not_found_cleared.txt</code>: files you cleared from that list.</li>
 </ul>
 <p>When files are set aside, a note under the steps says how many. <strong>Show the files</strong> lists them. <span class="ui-button">Clear this list</span> removes the note; the files are kept in <code>not_found_cleared.txt</code>, with the date.</p>
+
+<p>See also: <button type="button" class="see-also" data-mf-help="intelli-tagger" data-mf-help-name="Intelli-Tagger">Intelli-Tagger</button>, which adds tracks to the list.</p>
 <!-- --- END OF FILE help.mfi --- -->

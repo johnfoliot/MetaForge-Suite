@@ -31,5 +31,5 @@
 <p>Before a file is replaced, the original is copied to <code>%APPDATA%\MetaForge\backups\repair</code>. Each run gets its own folder, named with the date and time, then the album. Nothing there is deleted automatically: remove the folder when you're happy with the repairs.</p>
 <p>Each repair is also written to the album's <code>MetaForge.log</code>.</p>
 
-<p>See also: <button type="button" class="see-also" data-mf-help="unpack_convert" data-mf-help-name="Unpack &amp; Convert">Unpack &amp; Convert</button>.</p>
+<p>See also: <button type="button" class="see-also" data-mf-help="unpack_convert" data-mf-help-name="Unpack &amp; Convert">Unpack &amp; Convert</button>; <button type="button" class="see-also" data-mf-help="intelli-tagger" data-mf-help-name="Intelli-Tagger">Intelli-Tagger</button>.</p>
 <!-- --- END OF FILE help.mfi --- -->

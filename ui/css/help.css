@@ -242,9 +242,4 @@
 .mf-help-doc .faq summary:focus-visible { outline-offset: -3px; }
 .mf-help-doc .faq details > :not(summary) { margin: 0 0.75rem 0.6rem 1.85rem; }
 
-/* LEGACY: classes in help files not yet converted to the blocks above.
-   Remove once every help.mfi is converted (help overhaul, 2026-11-17). */
-.mf-help-doc :is(h3.help, h3.white) { color: var(--mf-gold); }
-.mf-help-doc .tool_notes { background: transparent; }
-
 /* --- END OF FILE help.css --- */
