@@ -38,5 +38,21 @@
 <h3>Where the details go</h3>
 <p>Each run is added to the album's <code>MetaForge.log</code>, with a summary at the end. A track AcoustID doesn't know yet goes on <strong class="tool">AcoustID Manager</strong>'s list, so you can submit it.</p>
 
+<section class="faq" aria-labelledby="it-faq">
+    <h3 id="it-faq">Questions</h3>
+
+    <details>
+        <summary>What's the difference between the release year and the original year?</summary>
+        <p>The release year is when the version you have came out, for example a 2006 reissue. The original year is when the recording first came out, for example 1978.</p>
+        <p>MetaForge writes both. The <strong class="tool">Intelligent Playlist Maker</strong> uses the original year, so a reissue isn't mistaken for new music.</p>
+    </details>
+
+    <details>
+        <summary>Can I run an album through it again?</summary>
+        <p>Yes. The tags are written again, and the album's tracks in the database are replaced.</p>
+        <p>Credits you saved in <strong class="tool">Album Personnel</strong> are kept, and so is the artist's biography.</p>
+    </details>
+</section>
+
 <p>See also: <button type="button" class="see-also" data-mf-help="musicbrainz_id" data-mf-help-name="MusicBrainz IDs">MusicBrainz IDs</button>, the step before; <button type="button" class="see-also" data-mf-help="settings" data-mf-help-name="Settings">Settings</button>, for the genre list the AI chooses from.</p>
 <!-- --- END OF FILE help.mfi --- -->

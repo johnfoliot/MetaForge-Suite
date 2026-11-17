@@ -38,5 +38,14 @@
 <h3>Under each credit</h3>
 <p>A short line says where it came from and how sure MetaForge is (the confidence). It also says whether it's for the whole album ("Album-wide") or only some tracks ("Track 3").</p>
 
+<section class="faq" aria-labelledby="per-faq">
+    <h3 id="per-faq">Questions</h3>
+
+    <details>
+        <summary>Do my changes go back to MusicBrainz?</summary>
+        <p>No. <span class="ui-button">Save to Database</span> saves them in MetaForge only. To give credits back to MusicBrainz, use <strong class="tool">MusicBrainz Submit</strong>.</p>
+    </details>
+</section>
+
 <p>See also: <button type="button" class="see-also" data-mf-help="musicbrainz_submit" data-mf-help-name="MusicBrainz Submit">MusicBrainz Submit</button>, for giving these credits back to MusicBrainz; <button type="button" class="see-also" data-mf-help="biography" data-mf-help-name="Bio Builder">Bio Builder</button>, the optional next step.</p>
 <!-- --- END OF FILE help.mfi --- -->

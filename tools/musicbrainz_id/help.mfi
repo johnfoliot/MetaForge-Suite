@@ -39,5 +39,21 @@
 <h3>A note about accuracy</h3>
 <p>MusicBrainz is built by music fans around the world. Because it's <em>crowdsourced</em>, how accurate and detailed it is varies from album to album. MetaForge works hard to keep your tags accurate, but it can only use what MusicBrainz has.</p>
 
+<section class="faq" aria-labelledby="mbid-faq">
+    <h3 id="mbid-faq">Questions</h3>
+
+    <details>
+        <summary>What if none of the releases match my files?</summary>
+        <p>First check the <strong>Album</strong> and <strong>Artist</strong> fields. The search uses exactly what's typed there, so try fewer words or a different spelling, then search again.</p>
+        <p>If MusicBrainz still doesn't have your version, you can add it at <a href="https://musicbrainz.org/release/add">musicbrainz.org</a>, then search again here.</p>
+    </details>
+
+    <details>
+        <summary>Is it OK to choose a bootleg?</summary>
+        <p>Yes, if that's the version you have. Choose the release that matches your files: the number of tracks and their order matter most.</p>
+        <p>The release's own year is written as the album's release year. The <strong class="tool">Intelli-Tagger</strong> finds each track's original year separately. So a 2006 bootleg of a 1978 album still gets 1978 as the original year.</p>
+    </details>
+</section>
+
 <p>See also: <button type="button" class="see-also" data-mf-help="musicbrainz_submit" data-mf-help-name="MusicBrainz Submit">MusicBrainz Submit</button>, for giving credits back to MusicBrainz.</p>
 <!-- --- END OF FILE help.mfi --- -->
