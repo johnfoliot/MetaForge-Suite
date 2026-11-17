@@ -74,6 +74,16 @@
     .db-list-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); column-gap: 1.5rem; }
     .db-list-2 li:last-child { border-bottom: 1px solid var(--border-subtle); }
     .db-list a { color: var(--mf-gold); }
+    /* A line that opens a list (a dialog, not another tool) is a real
+       button that looks like its neighbouring links. The global button look
+       in layout.css uses !important, so this does too. */
+    .db-list .db-link {
+        padding: 0 !important; border: 0 !important; background: none !important;
+        min-block-size: 0 !important; color: var(--mf-gold) !important;
+        font: inherit !important; text-align: start;
+        text-decoration: underline; cursor: pointer;
+    }
+    .db-list .db-link:hover { filter: none; text-decoration-thickness: 2px; }
     .db-list .db-n { font-weight: 700; white-space: nowrap; }
     .db-warn { color: var(--status-warning); }
     .db-pair { display: flex; align-items: baseline; gap: 0.6rem; }

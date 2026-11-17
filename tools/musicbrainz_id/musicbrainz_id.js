@@ -496,7 +496,9 @@ window.metaforge.musicbrainz_id = {
             const remote = this.state.remoteTracks[index];
             return {
                 current_filename: file.filename,
-                target_title: remote ? remote.title : "Unknown Title",
+                // No MusicBrainz track (a bonus file): the server keeps the
+                // file's own title (it used to become "Unknown Title").
+                target_title: remote ? remote.title : "",
                 track_id: remote ? remote.track_id : "",
                 recording_id: remote ? remote.recording_id : "",
                 work_id: remote ? remote.work_id : "",

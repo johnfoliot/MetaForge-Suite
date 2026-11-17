@@ -37,6 +37,23 @@ def sanitize_filename(name):
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
 
+def _own_title(path):
+    """The title a file already has: its title tag, else the title part of
+    its "Track - Artist - Title" file name, else the whole name.
+    For a file with no matching MusicBrainz track (a bonus track that isn't
+    on the chosen release). Until 2026-11-17 such files were renamed and
+    tagged "Unknown Title", losing their real title (17 tracks, John)."""
+    try:
+        tit = ID3(str(path)).get("TIT2")
+        text = (tit.text[0] if tit and tit.text else "").strip()
+        if text and text != "Unknown Title":
+            return text
+    except Exception:
+        pass
+    parts = path.stem.split(" - ", 2)
+    return parts[2].strip() if len(parts) == 3 and parts[2].strip() else path.stem
+
+
 def get_mb_headers(env_path):
     email = "anonymous@metaforge.studio"
 
@@ -437,6 +454,10 @@ def commit_ids_to_files(data):
             yield event("error", "File not found, so it was skipped", file=shown_name)
             yield signal("progress", current=idx, total=total)
             continue
+
+        # No MusicBrainz track for this file: it keeps its own title.
+        if not (item.get("target_title") or "").strip():
+            item["target_title"] = _own_title(old_path)
 
         # 1. TAGS
         try:
