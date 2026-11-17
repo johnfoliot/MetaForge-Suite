@@ -252,10 +252,6 @@ def home():
 def favicon():
     return send_from_directory(str(UI_ROOT / "images"), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
-@app.route('/common/<path:filename>')
-def serve_common(filename):
-    return send_from_directory(str(PROJECT_ROOT / "common"), filename)
-
 @app.route('/tool_asset/<tool_id>/<path:filename>')
 def serve_tool_asset(tool_id, filename):
     return send_from_directory(str(TOOLS_DIR / tool_id), filename)

@@ -323,12 +323,6 @@ window.loadTool = async function(toolId) {
         }
     }
     
-    // Bridge Lifecycle: Abort previous event listeners
-    if (window.metaforge.bridge) {
-        window.metaforge.bridge.teardown();
-        window.metaforge.bridge.init();
-    }
-
     try {
         const response = await fetch(`/get_tool/${toolId}?v=${new Date().getTime()}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
