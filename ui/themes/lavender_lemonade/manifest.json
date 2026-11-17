@@ -3,5 +3,6 @@
   "id": "lavender_lemonade",
   "version": "1.0.0",
   "description": "Lemon panels with deep purple.",
-  "logo_colour": "#542b7e"
+  "logo_colour": "#542b7e",
+  "header_image": "lavender_lemon.png"
 }
