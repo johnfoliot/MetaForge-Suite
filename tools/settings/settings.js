@@ -79,7 +79,31 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
             if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', 'until-found');
         }
         document.getElementById('set-panels').scrollTop = 0;
+        fitActionsPadding();
     };
+
+    // --- PINNED ACTION BARS (2026-11-17) ---
+    // Each panel's buttons sit in a bar pinned to the bottom of the scrolling
+    // area. The area's scroll-padding-bottom must be at least the bar's height
+    // so the browser scrolls a focused field clear of it (WCAG 2.4.11). The
+    // bar grows when a status message wraps or text is enlarged (240px at
+    // 200% text vs the old fixed 5rem), so the visible bar is measured and its
+    // height kept in --set-actions-h (used by .set-panels in settings.mfi).
+    function fitActionsPadding() {
+        const panels = document.getElementById('set-panels');
+        if (!panels) return;
+        const shown = [...panels.querySelectorAll('.set-actions')].filter(b => !b.closest('[hidden]') && b.getClientRects().length);
+        const h = Math.max(0, ...shown.map(b => b.getBoundingClientRect().height));
+        panels.style.setProperty('--set-actions-h', `${Math.ceil(h)}px`);
+    }
+
+    function watchActionBars() {
+        const panels = document.getElementById('set-panels');
+        if (!panels || panels.dataset.barsWatched) return;
+        panels.dataset.barsWatched = 'true';
+        const ro = new ResizeObserver(fitActionsPadding);
+        panels.querySelectorAll('.set-actions').forEach(b => ro.observe(b));
+    }
 
     function wireTabs() {
         const list = document.getElementById('set-tabs');
@@ -97,6 +121,7 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
     S.init = async function () {
         await S.boot();
         wireTabs();
+        watchActionBars();
         S.themes && S.themes.load();
         S.toolbar && S.toolbar.load();
         S.dashboard && S.dashboard.load();

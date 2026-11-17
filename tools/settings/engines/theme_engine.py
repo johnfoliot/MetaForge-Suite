@@ -2,17 +2,21 @@
 # ======================================================================
 # MetaForge Mini-Engine: Themes
 # Physical Location: \tools\settings\engines\theme_engine.py
-# v2 (2026-11-15):
-#  - Built-in themes: ui/css/*_theme.css (read-only).
-#  - Your own themes (Create a theme): AppData\MetaForge\themes\
-#    <slug>_theme.css + logo_<slug>.svg. AppData so they survive updates
-#    and a future installer (John). Only the v2 build lists them.
-#  - Each theme names its logo in its header comment (mf-logo: ...), so
-#    the app no longer needs a hard-coded theme -> logo list.
-#  - save_custom() refuses anything the theme template says fails
-#    (contrast pairs, the one-gold brand rule).
+# v2 (2026-11-17, John): a theme is a FOLDER, found the way tools are:
+#   <themes>/<id>/manifest.json   name, id, version, description, logo_colour
+#   <themes>/<id>/theme.css       the 17 colours, one :root block, nothing else
+#   <themes>/<id>/logo.png        optional: a hand-made logo always wins
+# Built-in themes: ui/themes/. Themes you make (Create a theme): AppData\
+# MetaForge\themes\ (they survive updates; one can be shared by copying its
+# folder). A built-in id always wins over one of yours.
+# Every theme is checked before it's offered (manifest, the 17 colours,
+# colours only - no @import / url() / other rules - and the theme
+# template's contrast and one-gold checks). One that fails isn't offered;
+# Settings lists it with the reason, so whoever made it knows what to fix.
 # ======================================================================
+import json
 import re
+import shutil
 import time
 
 from flask import jsonify, request, Response
@@ -21,58 +25,111 @@ from common import config_handler
 import theme_template as T
 import logo_engine
 
-BUILTIN_DIR = config_handler.PROJECT_ROOT / "ui" / "css"
-IMAGES_DIR = config_handler.PROJECT_ROOT / "ui" / "images"
-CUSTOM_DIR = config_handler.APPDATA_MF / "themes"
-THEME_FILE = re.compile(r"^[a-z0-9_]+_theme\.css$")
+BUILTIN_DIR = config_handler.PROJECT_ROOT / "ui" / "themes"
+DEFAULT_ID = "default"
+THEME_ID = re.compile(r"^[a-z0-9_]{1,60}$")
+# Colours only: inside :root, each declaration is color-scheme or a custom
+# property set to a colour code or another custom property.
+DECL = re.compile(r"^(color-scheme\s*:\s*(light|dark)|--[a-z0-9-]+\s*:\s*(#[0-9a-f]{6}|var\(--[a-z0-9-]+\)))$")
 
 
-def _palette(text):
-    vals = T.read_values(text)
-    return {f"--{k}": v for k, v in vals.items()}
+def custom_dir():
+    return config_handler.APPDATA_MF / "themes"          # read at call time (sandbox-safe)
 
 
-def _label(path, meta):
-    return meta.get("name") or path.name.replace("_theme.css", "").replace("_", " ").title()
+def _first(problems):
+    more = len(problems) - 1
+    return problems[0] + (f" (and {more} more)" if more else "")
 
 
-def find_theme(file_name):
-    """(path, is_custom) for a theme file name, or (None, None)."""
-    if not THEME_FILE.match(file_name or ""):
-        return None, None
-    for folder, custom in ((BUILTIN_DIR, False), (CUSTOM_DIR, True)):
-        p = folder / file_name
-        if p.is_file():
-            return p, custom
-    return None, None
+def check(folder, custom):
+    """(theme, None) if the folder is a usable theme, else (None, reason)."""
+    try:
+        man = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None, "It has no manifest.json."
+    except (ValueError, OSError):
+        return None, "Its manifest.json can't be read."
+    name = str(man.get("name") or "").strip()
+    colour = str(man.get("logo_colour") or "").lower()
+    if not name or len(name) > 40:
+        return None, "Its manifest needs a name of 40 characters or fewer."
+    if man.get("id") != folder.name:
+        return None, f"Its manifest id must match its folder name ({folder.name})."
+    if not T.HEX.match(colour):
+        return None, "Its manifest needs a logo_colour like #1a2fb5."
+    try:
+        css = (folder / "theme.css").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None, "It has no readable theme.css."
+    bare = re.sub(r"/\*.*?\*/", "", css, flags=re.S).strip().lower()
+    block = re.fullmatch(r":root\s*\{([^{}]*)\}", bare)
+    decls = [d.strip() for d in block.group(1).split(";") if d.strip()] if block else []
+    if not block or not all(DECL.match(re.sub(r"\s+", " ", d)) for d in decls):
+        return None, "Its theme.css may only set colours in one :root block (no other rules, @import or url())."
+    values = T.read_values(css)
+    missing = [k for k in T.KEYS if k not in values]
+    if missing:
+        return None, f"Its theme.css is missing {len(missing)} of the 17 colours (for example --{missing[0]})."
+    problems = T.problems(values, colour)
+    if problems:
+        return None, "Its colours don't pass the contrast check: " + _first(problems)
+    return {"id": folder.name, "name": name, "description": str(man.get("description") or ""),
+            "logo_colour": colour, "custom": custom, "folder": folder,
+            "palette": {f"--{k}": v for k, v in values.items()}}, None
 
 
-def logo_path_for(file_name):
-    """The logo a theme names (mf-logo), falling back to the gold logo."""
-    p, custom = find_theme(file_name)
-    if p:
-        logo = T.read_meta(p.read_text(encoding="utf-8")).get("logo", "")
-        if re.match(r"^[\w-]+\.svg$", logo):
-            for folder in ((CUSTOM_DIR, IMAGES_DIR) if custom else (IMAGES_DIR,)):
-                if (folder / logo).is_file():
-                    return folder / logo
-    return IMAGES_DIR / "logo.svg"
+def _scan():
+    themes, rejected, seen = [], [], set()
+    for base, custom in ((BUILTIN_DIR, False), (custom_dir(), True)):
+        if not base.is_dir():
+            continue
+        for folder in sorted(p for p in base.iterdir() if p.is_dir()):
+            if not THEME_ID.match(folder.name):
+                continue
+            if folder.name in seen:
+                continue                        # a built-in id always wins
+            theme, reason = check(folder, custom)
+            if theme:
+                seen.add(folder.name)
+                themes.append(theme)
+            else:
+                rejected.append({"folder": folder.name, "custom": custom, "reason": reason})
+    themes.sort(key=lambda t: (t["custom"], t["id"] != DEFAULT_ID, t["name"].lower()))
+    return themes, rejected
+
+
+def find_theme(theme_id):
+    """The checked theme with this id, or None."""
+    if not THEME_ID.match(theme_id or ""):
+        return None
+    for base, custom in ((BUILTIN_DIR, False), (custom_dir(), True)):
+        folder = base / theme_id
+        if folder.is_dir():
+            return check(folder, custom)[0]
+    return None
+
+
+def css_path(theme_id):
+    t = find_theme(theme_id)
+    return t["folder"] / "theme.css" if t else None
+
+
+def logo_path(theme_id):
+    """The theme's own logo.png, else its generated logo; the default theme's
+    if the theme isn't found."""
+    t = find_theme(theme_id) or find_theme(DEFAULT_ID)
+    if not t:
+        return logo_engine.cached(T.BRAND_GOLD)
+    own = t["folder"] / "logo.png"
+    return own if own.is_file() else logo_engine.cached(t["logo_colour"])
 
 
 def discover(base_dir=None):
-    themes = []
     try:
-        for folder, custom in ((BUILTIN_DIR, False), (CUSTOM_DIR, True)):
-            if not folder.is_dir():
-                continue
-            for f in sorted(folder.glob("*_theme.css")):
-                if custom and (BUILTIN_DIR / f.name).exists():
-                    continue          # a built-in name always wins
-                text = f.read_text(encoding="utf-8")
-                meta = T.read_meta(text)
-                themes.append({"file": f.name, "name": _label(f, meta), "palette": _palette(text), "custom": custom})
-        themes.sort(key=lambda t: (t["custom"], t["name"].lower()))
-        return jsonify(themes)
+        themes, rejected = _scan()
+        public = [{k: v for k, v in t.items() if k != "folder"} for t in themes]
+        return jsonify({"themes": public, "rejected": rejected})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -82,15 +139,12 @@ def template():
 
 
 def values():
-    """The 17 colours (+ logo settings) of an existing theme, to start from."""
-    p, custom = find_theme(request.args.get("file", ""))
-    if not p:
+    """The 17 colours and logo colour of an existing theme, to start from."""
+    t = find_theme(request.args.get("id", ""))
+    if not t:
         return jsonify({"status": "error", "message": "That theme wasn't found."}), 404
-    text = p.read_text(encoding="utf-8")
-    meta = T.read_meta(text)
-    vals = T.read_values(text)
-    return jsonify({"status": "success", "values": vals, "name": _label(p, meta), "custom": custom,
-                    "logo_colour": meta.get("logo-colour") or vals.get("mf-gold", T.BRAND_GOLD)})
+    return jsonify({"status": "success", "values": {k[2:]: v for k, v in t["palette"].items()},
+                    "name": t["name"], "custom": t["custom"], "logo_colour": t["logo_colour"]})
 
 
 def _logo_colour(src):
@@ -102,12 +156,20 @@ def logo_preview():
     colour = _logo_colour(request.args)
     if not colour:
         return jsonify({"status": "error", "message": "Logo colour not understood."}), 400
-    return Response(logo_engine.make(colour), mimetype="image/svg+xml",
-                    headers={"Cache-Control": "no-store"})
+    return Response(logo_engine.make(colour), mimetype="image/png", headers={"Cache-Control": "no-store"})
 
 
 def _slug(name):
-    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:60]
+
+
+def _write(path, data):
+    tmp = path.with_name(path.name + ".tmp")
+    if isinstance(data, bytes):
+        tmp.write_bytes(data)
+    else:
+        tmp.write_text(data, encoding="utf-8")
+    tmp.replace(path)
 
 
 def save_custom():
@@ -122,37 +184,31 @@ def save_custom():
         return jsonify({"status": "error", "message": "Keep the name to 40 characters or fewer."}), 400
     if not colour:
         return jsonify({"status": "error", "message": "Choose a logo colour."}), 400
-    file_name = f"{slug}_theme.css"
-    if (BUILTIN_DIR / file_name).exists():
+    if (BUILTIN_DIR / slug).exists():
         return jsonify({"status": "error", "message": f"“{name}” is the name of a built-in theme. Choose another name."}), 400
     issues = T.problems(vals, colour)
     if issues:
         return jsonify({"status": "error", "message": "The theme wasn't saved: " + " ".join(issues[:3])
                         + (f" (and {len(issues) - 3} more)" if len(issues) > 3 else ""), "problems": issues}), 400
-    css_path = CUSTOM_DIR / file_name
-    if css_path.exists() and not body.get("overwrite"):
+    folder = custom_dir() / slug
+    if folder.exists() and not body.get("overwrite"):
         return jsonify({"status": "exists", "message": f"You already have a theme called “{name}”."}), 409
-    CUSTOM_DIR.mkdir(parents=True, exist_ok=True)
-    logo_file = f"logo_{slug}.svg"
+    folder.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y-%m-%d %H:%M")
-    for path, text in ((CUSTOM_DIR / logo_file, logo_engine.make(colour)),
-                       (css_path, T.render_css(name, vals, logo_file, colour, stamp))):
-        tmp = path.with_name(path.name + ".tmp")
-        tmp.write_text(text, encoding="utf-8")
-        tmp.replace(path)
-    return jsonify({"status": "success", "file": file_name, "name": name})
+    manifest = {"name": name, "id": slug, "version": "1.0.0",
+                "description": f"Made with Settings > Theme > Create a theme ({stamp}).", "logo_colour": colour}
+    _write(folder / "logo.png", logo_engine.make(colour))
+    _write(folder / "theme.css", T.render_css(name, vals, stamp))
+    _write(folder / "manifest.json", json.dumps(manifest, indent=2) + "\n")
+    return jsonify({"status": "success", "id": slug, "name": name})
 
 
 def delete_custom():
-    file_name = (request.json or {}).get("file", "")
-    p, custom = find_theme(file_name)
-    if not p or not custom:
+    theme_id = (request.json or {}).get("id", "")
+    folder = custom_dir() / theme_id
+    if not THEME_ID.match(theme_id or "") or not folder.is_dir():
         return jsonify({"status": "error", "message": "Only themes you made can be deleted."}), 400
-    meta = T.read_meta(p.read_text(encoding="utf-8"))
-    p.unlink()
-    logo = meta.get("logo", "")
-    if re.match(r"^[\w-]+\.svg$", logo):
-        (CUSTOM_DIR / logo).unlink(missing_ok=True)
+    shutil.rmtree(folder)
     return jsonify({"status": "success"})
 
 # --- END OF FILE theme_engine.py ---

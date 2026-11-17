@@ -30,23 +30,24 @@ window.metaforge.openExternalLink = function(url) {
     }
 };
 
-// v2 (2026-11-15): every theme, built-in or made with Settings > Theme >
-// Create a theme, loads through /theme_css/, and its logo through
-// /theme_logo/ (each theme names its own logo, so there's no theme -> logo
-// list to maintain here). If a theme file is missing (e.g. one you made was
-// deleted), the default theme is used instead of an unstyled page.
-window.applyThemeFile = function(themeFileName) {
+// v2 (theme folders, 2026-11-17): a theme is picked by its id (its folder
+// name). Every theme, built-in or made with Settings > Theme > Create a
+// theme, loads through /theme_css/<id> and its PNG logo through
+// /theme_logo/<id>. If a theme is missing or no longer passes its checks
+// (e.g. one you made was deleted), the default theme is used instead of an
+// unstyled page.
+window.applyTheme = function(themeId) {
     const themeLink = document.getElementById('mf-theme-stylesheet');
-    if (!themeLink || !themeFileName) return;
+    if (!themeLink || !themeId) return;
     const stamp = Date.now();
     themeLink.onerror = () => {
         themeLink.onerror = null;
-        if (themeFileName !== 'default_theme.css') window.applyThemeFile('default_theme.css');
+        if (themeId !== 'default') window.applyTheme('default');
     };
-    themeLink.href = `/theme_css/${encodeURIComponent(themeFileName)}?v=${stamp}`;
-    document.documentElement.setAttribute('data-theme', themeFileName.replace('_theme.css', ''));
+    themeLink.href = `/theme_css/${encodeURIComponent(themeId)}?v=${stamp}`;
+    document.documentElement.setAttribute('data-theme', themeId);
     const logo = document.getElementById('mf-main-logo');
-    if (logo) logo.src = `/theme_logo/${encodeURIComponent(themeFileName)}?v=${stamp}`;
+    if (logo) logo.src = `/theme_logo/${encodeURIComponent(themeId)}?v=${stamp}`;
 };
 
 window.initializeMetaForgeBranding = async function() {
@@ -54,9 +55,7 @@ window.initializeMetaForgeBranding = async function() {
         const response = await fetch('/run_tool_logic/settings/get_prefs');
         if (response.ok) {
             const prefs = await response.json();
-            // theme_file_v2: v2's own choice (it can be a theme you made,
-            // which the 1.x build can't load). theme_file: the shared one.
-            window.applyThemeFile(prefs.theme_file_v2 || prefs.theme_file || 'default_theme.css');
+            window.applyTheme(prefs.theme_id || 'default');
             window.mfApplyToolbarLabels(prefs.toolbar_labels === true);
         }
     } catch (e) { console.warn("Branding Boot Error"); }

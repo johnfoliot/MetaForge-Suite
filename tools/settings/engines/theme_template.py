@@ -114,15 +114,13 @@ def as_json():
     }
 
 
-def render_css(name, values, logo_file, logo_colour, stamp):
+def render_css(name, values, stamp):
+    """A theme folder's theme.css (its name and logo colour live in manifest.json)."""
     scheme = "light" if luminance(values["bg-main"]) > 0.4 else "dark"
     labels = {t[0]: t[1] for t in TOKENS}
     lines = [
-        f"/* --- METAFORGE SKIN: {name.upper()} --- */",
+        f"/* --- METAFORGE THEME: {name.upper()} --- */",
         "/* Made with Settings > Theme > Create a theme (" + stamp + ").",
-        f"   mf-name: {name}",
-        f"   mf-logo: {logo_file}",
-        f"   mf-logo-colour: {logo_colour}",
         "   Every contrast pair in the theme template passed when it was saved",
         "   (text 4.5:1, control borders and focus ring 3:1). */",
         ":root {",
@@ -136,11 +134,6 @@ def render_css(name, values, logo_file, logo_colour, stamp):
         lines.append(f"    --{alias}: var(--{src});")
     lines.append("}")
     return "\n".join(lines) + "\n"
-
-
-def read_meta(css_text):
-    """mf-name / mf-logo / mf-logo-colour from a theme's header comment."""
-    return {k: v.strip() for k, v in re.findall(r"mf-(name|logo|logo-colour):\s*([^\n*]+)", css_text)}
 
 
 def read_values(css_text):

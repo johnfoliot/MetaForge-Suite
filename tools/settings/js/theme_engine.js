@@ -1,11 +1,12 @@
 // --- START OF FILE theme_engine.js ---
 /**
- * Settings > Theme (the list). v2 (2026-11-15): a native radio group of
- * cards. Choosing a card previews the theme (its own logo comes with it via
- * applyThemeFile); Save theme keeps it. Themes you made (Create a theme,
+ * Settings > Theme (the list). v2: a native radio group of cards. Choosing
+ * a card previews the theme (its own logo comes with it via applyTheme);
+ * Save theme keeps it, as theme_id. Themes you made (Create a theme,
  * js/theme_maker.js) are listed after the built-in ones with Edit and
- * Delete. v2 saves its choice as theme_file_v2; the shared theme_file (read
- * by the 1.x build) is only updated for built-in themes, which 1.x has too.
+ * Delete. Theme folders (2026-11-17): themes are picked by id (folder
+ * name); a folder that fails its checks isn't offered, and is listed in a
+ * closed "isn't offered" disclosure with the reason.
  */
 (function () {
     const S = window.metaforge.settings;
@@ -24,16 +25,16 @@
     };
     let themes = [];
 
-    function currentFile() {
+    function currentId() {
         const link = $('mf-theme-stylesheet');
-        return link ? decodeURIComponent(link.href.split('/').pop().split('?')[0]) : 'default_theme.css';
+        return link ? decodeURIComponent(new URL(link.href).pathname.split('/').pop()) : 'default';
     }
 
     S.themes = {
         list: () => themes,
-        currentFile,
+        currentId,
 
-        load: async function (selectFile) {
+        load: async function (selectId) {
             const grid = $('theme-selector-grid');
             const form = $('set-theme-form');
             if (!grid || !form) return;
@@ -42,32 +43,47 @@
                 form.addEventListener('submit', (e) => { e.preventDefault(); this.save(); });
                 grid.addEventListener('change', (e) => {
                     if (!e.target.matches('input[type="radio"]')) return;
-                    window.applyThemeFile(e.target.value);
+                    window.applyTheme(e.target.value);
                     S.say('set-theme-status', `Showing ${e.target.dataset.name}. Choose Save theme to keep it.`);
                 });
                 grid.addEventListener('click', (e) => {
                     const b = e.target.closest('button[data-act]');
                     if (!b) return;
-                    const t = themes.find(x => x.file === b.dataset.file);
-                    if (b.dataset.act === 'edit') S.maker && S.maker.open({ file: t.file, name: t.name, edit: true });
+                    const t = themes.find(x => x.id === b.dataset.id);
+                    if (b.dataset.act === 'edit') S.maker && S.maker.open({ id: t.id, name: t.name, edit: true });
                     if (b.dataset.act === 'delete') this.remove(t);
                 });
-                $('set-theme-create').addEventListener('click', () => S.maker && S.maker.open({ file: currentFile() }));
+                $('set-theme-create').addEventListener('click', () => S.maker && S.maker.open({ id: currentId() }));
             }
             try {
-                themes = await (await fetch('/run_tool_logic/settings/get_themes')).json();
-                if (!Array.isArray(themes) || !themes.length) throw new Error('no themes were found');
-                this.render(selectFile || currentFile());
+                const r = await (await fetch('/run_tool_logic/settings/get_themes')).json();
+                themes = r.themes;
+                if (!Array.isArray(themes) || !themes.length) throw new Error(r.message || 'no themes were found');
+                this.render(selectId || currentId());
+                this.renderRejected(r.rejected || []);
             } catch (e) {
                 S.say('set-theme-status', `The themes couldn't be loaded: ${e.message}`, 'error');
             }
         },
 
-        render: function (checkedFile) {
+        // Theme folders that failed their checks: one closed line ("1 theme
+        // isn't offered") that opens to each folder and the reason.
+        renderRejected: function (rejected) {
+            const box = $('set-theme-rejected');
+            if (!box) return;
+            box.hidden = !rejected.length;
+            if (!rejected.length) return;
+            const n = rejected.length;
+            $('set-theme-rejected-sum').textContent = `${n} ${n === 1 ? 'theme isn’t' : 'themes aren’t'} offered`;
+            $('set-theme-rejected-list').replaceChildren(...rejected.map(x =>
+                el('li', {}, el('strong', { textContent: x.folder }), ` (${x.custom ? 'your themes' : 'built-in'}): ${x.reason}`)));
+        },
+
+        render: function (checkedId) {
             const grid = $('theme-selector-grid');
             const legend = grid.querySelector('legend');
             const cards = themes.map(t => {
-                const radio = el('input', { type: 'radio', name: 'set-theme', value: t.file, checked: t.file === checkedFile });
+                const radio = el('input', { type: 'radio', name: 'set-theme', value: t.id, checked: t.id === checkedId });
                 radio.dataset.name = t.name;
                 const list = el('ul', { className: 'set-palette' });
                 list.setAttribute('aria-hidden', 'true');   // decorative sample; the name is the choice
@@ -85,8 +101,8 @@
                 if (t.custom) {
                     const edit = el('button', { type: 'button', className: 'set-secondary' }, 'Edit', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));
                     const del = el('button', { type: 'button', className: 'set-del-btn' }, 'Delete', el('span', { className: 'mf-visually-hidden', textContent: ` ${t.name}` }));
-                    edit.dataset.act = 'edit'; edit.dataset.file = t.file;
-                    del.dataset.act = 'delete'; del.dataset.file = t.file;
+                    edit.dataset.act = 'edit'; edit.dataset.id = t.id;
+                    del.dataset.act = 'delete'; del.dataset.id = t.id;
                     card.append(el('p', { className: 'set-hint', textContent: 'A theme you made.' }), el('div', { className: 'set-row' }, edit, del));
                 }
                 return card;
@@ -97,9 +113,7 @@
         save: async function () {
             const chosen = document.querySelector('#theme-selector-grid input:checked');
             if (!chosen) { S.say('set-theme-status', 'Choose a theme first.', 'error'); return; }
-            const t = themes.find(x => x.file === chosen.value);
-            const prefs = { theme_file_v2: chosen.value };
-            if (t && !t.custom) prefs.theme_file = chosen.value;
+            const prefs = { theme_id: chosen.value };
             try {
                 const r = await (await fetch('/run_tool_logic/settings/save_prefs', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prefs)
@@ -120,15 +134,15 @@
             if (!yes) return;
             try {
                 const r = await (await fetch('/run_tool_logic/settings/delete_custom_theme', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ file: t.file })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: t.id })
                 })).json();
                 if (r.status !== 'success') throw new Error(r.message || 'unknown error');
                 let note = '';
                 const prefs = await (await fetch('/run_tool_logic/settings/get_prefs')).json();
-                if (prefs.theme_file_v2 === t.file || currentFile() === t.file) {
-                    window.applyThemeFile('default_theme.css');
+                if (prefs.theme_id === t.id || currentId() === t.id) {
+                    window.applyTheme('default');
                     await fetch('/run_tool_logic/settings/save_prefs', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme_file_v2: 'default_theme.css' })
+                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ theme_id: 'default' })
                     });
                     note = ' MetaForge is back on the Default theme.';
                 }

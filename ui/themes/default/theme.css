@@ -1,10 +1,9 @@
-/* --- METAFORGE SKIN: INDUSTRIAL DARK (v2) --- */
-/* mf-logo: logo.svg */
+/* --- METAFORGE THEME: INDUSTRIAL DARK (v2) --- */
 /* v2 palette (2026-11-13). Every text colour below passes WCAG 2.2 AA
    (4.5:1) on every surface in this theme; borders and the focus ring pass
    3:1. #CC9900 is the ONLY gold (brand rule, see CLAUDE.md).
    The first block keeps the 1.x variable NAMES so existing tool styles and
-   the Settings theme preview (theme_engine.py reads these) keep working;
+   the Settings theme preview keep working;
    the second block adds the v2 names. */
 :root {
     color-scheme: dark;

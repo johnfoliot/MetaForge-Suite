@@ -9,8 +9,10 @@
  *    pair it takes part in, with Fix (moves only its lightness).
  *  - A live preview that uses the new colours (on the preview only; the
  *    rest of Settings keeps the app's theme so it stays readable).
- *  - The 3-D logo (faces, edges and "Studio" in one colour) is drawn by the server
- *    (engines/logo_engine.py) so preview and saved file are identical.
+ *  - The 3-D logo (faces, edges and "Studio" in one colour) is made by the server
+ *    as a PNG (engines/logo_engine.py) so preview and saved file are identical.
+ *  - Saving writes a theme folder (manifest.json, theme.css, logo.png) in
+ *    AppData\MetaForge\themes (theme folders, 2026-11-17).
  *  - Save is refused while anything fails (John: block + Fix); the server
  *    checks again.
  *  - Starting points that aren't blank (John, 2026-11-15): "Suggest colours"
@@ -367,11 +369,11 @@
     const modeOf = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || 'dark';
 
     // --- start points ---
-    function fillStartSelect(currentFile) {
+    function fillStartSelect(currentId) {
         const sel = $('tm-start');
         const opts = [el('option', { value: 'tpl:dark', textContent: 'Dark template' }), el('option', { value: 'tpl:light', textContent: 'Light template' })];
         const og = el('optgroup', { label: 'Colours from a theme' });
-        for (const t of S.themes.list()) og.append(el('option', { value: t.file, textContent: t.name, selected: t.file === currentFile }));
+        for (const t of S.themes.list()) og.append(el('option', { value: t.id, textContent: t.name, selected: t.id === currentId }));
         sel.replaceChildren(...opts, og);
     }
 
@@ -382,7 +384,7 @@
             logo = { colour: values['mf-gold'] };
             return `the ${which} template`;
         }
-        const r = await (await fetch(`/run_tool_logic/settings/theme_values?file=${encodeURIComponent(choice)}`)).json();
+        const r = await (await fetch(`/run_tool_logic/settings/theme_values?id=${encodeURIComponent(choice)}`)).json();
         if (r.status !== 'success') throw new Error(r.message || 'not found');
         values = Object.fromEntries(tpl.tokens.map(t => [t.key, r.values[t.key] || t.dark]));
         logo = { colour: isHex(r.logo_colour) ? r.logo_colour.toLowerCase() : values['mf-gold'] };
@@ -478,7 +480,7 @@
     }
 
     S.maker = {
-        open: async function ({ file, name, edit } = {}) {
+        open: async function ({ id, name, edit } = {}) {
             try {
                 if (!tpl) {
                     tpl = await (await fetch('/run_tool_logic/settings/theme_template')).json();
@@ -486,13 +488,13 @@
                     labels[LOGO] = 'Logo colour';
                 }
                 wire();
-                fillStartSelect(file);
-                await loadStart(file || 'tpl:dark');
+                fillStartSelect(id);
+                await loadStart(id || 'tpl:dark');
             } catch (e) {
                 S.say('set-theme-status', `Create a theme couldn't start: ${e.message}`, 'error');
                 return;
             }
-            editing = edit ? file : null;
+            editing = edit ? id : null;
             $('tm-title').textContent = edit ? `Edit ${name}` : 'Create a theme';
             $('tm-name').value = edit ? name : '';
             selected = 'bg-main';
@@ -540,8 +542,8 @@
             })).json();
             try {
                 S.say('tm-status', 'Saving the theme…');
-                const slugFile = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_theme.css';
-                let r = await send(editing === slugFile);
+                const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 60);
+                let r = await send(editing === slug);
                 if (r.status === 'exists') {
                     const yes = await S.confirm({ title: `Replace ${name}?`, body: `${r.message} Saving replaces it and its logo.`, ok: 'Replace it', cancel: 'Go back' });
                     if (!yes) { S.say('tm-status', 'Not saved. Choose another name to keep both.'); nameBox.focus(); return; }
@@ -551,9 +553,9 @@
                 setDirty(false);
                 $('tm-form').hidden = true;
                 $('set-theme-form').hidden = false;
-                await S.themes.load(r.file);
-                window.applyThemeFile(r.file);
-                const radio = document.querySelector(`#theme-selector-grid input[value="${r.file}"]`);
+                await S.themes.load(r.id);
+                window.applyTheme(r.id);
+                const radio = document.querySelector(`#theme-selector-grid input[value="${r.id}"]`);
                 if (radio) radio.focus();
                 S.say('set-theme-status', `Saved ${r.name}. It's showing now; choose Save theme to start MetaForge with it.`, 'ok');
             } catch (e) {

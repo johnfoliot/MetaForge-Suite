@@ -56,9 +56,10 @@ dashboard_alerts = []
 # and it called update_engine functions that the v2 rewrite removed. Checking
 # is now Settings > Updates only (update_engine.check_for_updates).
 
-# --- [ SECTION 3b: THEMES (v2, 2026-11-15) ] ---
-# One URL for every theme, built-in (ui/css) or made with Create a theme
-# (AppData\MetaForge\themes), and one for the logo each theme names.
+# --- [ SECTION 3b: THEMES (v2, theme folders 2026-11-17) ] ---
+# One URL for every theme's CSS and one for its logo, by theme id (the
+# folder name), built-in (ui/themes) or made with Create a theme
+# (AppData\MetaForge\themes). Only themes that pass the checks are served.
 def _theme_engine():
     eng = str(TOOLS_DIR / "settings" / "engines")
     if eng not in sys.path:
@@ -67,17 +68,17 @@ def _theme_engine():
     return theme_engine
 
 
-@app.route('/theme_css/<file_name>')
-def serve_theme_css(file_name):
-    path, _ = _theme_engine().find_theme(file_name)
+@app.route('/theme_css/<theme_id>')
+def serve_theme_css(theme_id):
+    path = _theme_engine().css_path(theme_id)
     if not path:
         return "Theme not found", 404
     return send_file(str(path), mimetype="text/css", max_age=0)
 
 
-@app.route('/theme_logo/<file_name>')
-def serve_theme_logo(file_name):
-    return send_file(str(_theme_engine().logo_path_for(file_name)), mimetype="image/svg+xml", max_age=0)
+@app.route('/theme_logo/<theme_id>')
+def serve_theme_logo(theme_id):
+    return send_file(str(_theme_engine().logo_path(theme_id)), mimetype="image/png", max_age=0)
 
 # --- [ SECTION 4: UTILITY FUNCTIONS ] ---
 DEFAULTS_DIR = PROJECT_ROOT / "defaults"

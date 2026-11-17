@@ -73,7 +73,9 @@
         position: relative;
         min-height: 0;
         overflow-y: auto;
-        scroll-padding-bottom: 5rem;
+        /* At least the pinned action bar's height (measured in settings.js,
+           2026-11-17), so a focused field is never hidden behind it. */
+        scroll-padding-bottom: calc(var(--set-actions-h, 5rem) + 0.5rem);
     }
     .set-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
     /* hidden="until-found" keeps an (invisible) box so find-in-page can reach
@@ -164,6 +166,10 @@
     .set-theme-card .set-row button { padding: 0.25rem 0.75rem; }
     .set-theme-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text-primary); font-size: 1rem; }
     .set-theme-name input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--mf-gold); }
+    .set-theme-rejected { margin: 1rem 0 0; color: var(--text-secondary); }
+    .set-theme-rejected summary { cursor: pointer; color: var(--text-primary); font-weight: 600; width: fit-content; }
+    .set-theme-rejected ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+    .set-theme-rejected li + li { margin-top: 0.25rem; }
     .set-palette { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.2rem; }
     .set-palette li { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; font-size: 0.8125rem; color: var(--text-secondary); }
     .set-swatch { width: 1rem; height: 1rem; flex: none; border: 1px solid var(--border-ui); border-radius: 2px; }
@@ -475,6 +481,13 @@
                     <legend class="mf-visually-hidden">Theme</legend>
                     <p class="set-hint">Loading the themes…</p>
                 </fieldset>
+                <!-- Theme folders that failed their checks (2026-11-17): closed
+                     by default, opens to each folder and the reason. -->
+                <details class="set-theme-rejected" id="set-theme-rejected" hidden>
+                    <summary id="set-theme-rejected-sum">Themes that aren’t offered</summary>
+                    <p class="set-hint">These theme folders were found but didn’t pass MetaForge’s checks, so they can’t be chosen. Whoever made a theme can fix it and it will appear here.</p>
+                    <ul id="set-theme-rejected-list"></ul>
+                </details>
                 <div class="set-actions">
                     <button type="submit" class="mf-button-gold-fixed">Save theme</button>
                     <button type="button" class="set-secondary" id="set-theme-create">Create a theme</button>

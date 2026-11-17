@@ -1,8 +1,6 @@
-/* --- METAFORGE SKIN: LIGHT (v2) --- */
-/* mf-logo: logo_blue.svg */
-/* mf-logo-colour: #1a2fb5 */
+/* --- METAFORGE THEME: LIGHT (v2) --- */
 /* v2 palette (2026-11-13). Real off-white surfaces with the light theme's
-   blue brand pivot (#1a2fb5, paired with ui/images/logo_blue.svg): gold
+   blue brand pivot (#1a2fb5, the logo colour too): gold
    text fails contrast on light surfaces and no alternative gold is allowed
    (brand rule, see CLAUDE.md). Every text colour passes WCAG 2.2 AA (4.5:1)
    on every surface in this theme; borders and the focus ring pass 3:1.
