@@ -153,7 +153,11 @@ def search_musicbrainz():
     try:
         res = mb_client.get(
             "release",
-            params={"query": clean_query, "limit": 25},
+            # 50, not 25 (John, 2026-11-17): a much-pressed album can have
+            # 30+ releases scoring 100% (Prince "For You": 31 of 172), and
+            # MusicBrainz orders equal scores arbitrarily, so 25 could cut
+            # off the one release that matches the folder.
+            params={"query": clean_query, "limit": 50},
             headers=_mb_headers,
         )
         result = res.json()
@@ -180,10 +184,15 @@ def search_musicbrainz():
                 "format": "+".join(formats) if formats else "Unknown",
                 "track_count": r.get("track-count", "0"),
                 "year": r.get("date", "Unknown")[:4],
-                "country_code": r.get("country", "??").lower()
+                "country_code": r.get("country", "??").lower(),
+                # Official, Promotion, Bootleg, Pseudo-Release... (or none)
+                "release_status": r.get("status") or "",
             })
 
-        return jsonify({"status": "success", "results": releases})
+        # "total" = every match on MusicBrainz, so the screen can say
+        # "the best 50 of 172" rather than implying 50 is all there is.
+        return jsonify({"status": "success", "results": releases,
+                        "total": result.get("count", len(releases))})
 
     except mb_client.MusicBrainzUnavailable as e:
         # Distinct from "no matches": the UI must never show a failed

@@ -145,9 +145,27 @@ window.metaforge.musicbrainz_id = {
             // "no results" (John, 2026-11-13: a busy MusicBrainz used to look
             // exactly like "nothing exists").
             if (data.status === "success") {
-                this.renderResults(data.results);
-                const n = (data.results || []).length;
-                this.setStatus(n === 0 ? "No matches found." : `${n} matching release${n === 1 ? "" : "s"} found.`, "ok", true);
+                // Releases with the folder's track count go first; the rest
+                // keep MusicBrainz's score order (John, 2026-11-17: the one
+                // 15-track release of Prince "For You" was cut off below
+                // thirty 9-track ones). sort() is stable, so ties keep order.
+                const local = Number(this.state.localTrackCount) || 0;
+                const results = (data.results || []).slice();
+                const same = local ? results.filter(r => Number(r.track_count) === local).length : 0;
+                if (same) results.sort((a, b) => (Number(b.track_count) === local) - (Number(a.track_count) === local));
+                this.renderResults(results);
+
+                const n = results.length;
+                const total = Math.max(Number(data.total) || 0, n);
+                let msg = n === 0 ? "No matches found."
+                    : total > n ? `Showing the best ${n} of ${total} releases.`
+                    : `${n} matching release${n === 1 ? "" : "s"} found.`;
+                if (same && same < n) {
+                    msg += same === 1
+                        ? ` The one with ${local} tracks, like your folder, is listed first.`
+                        : ` The ${same} with ${local} tracks, like your folder, are listed first.`;
+                }
+                this.setStatus(msg, "ok", true);
             } else {
                 this.renderSearchError(data.message || "MusicBrainz search failed.", data.reason);
             }
@@ -253,6 +271,19 @@ window.metaforge.musicbrainz_id = {
             title.append(artist, gap, document.createTextNode(r.title));
 
             const format = td(); format.textContent = r.format;
+            // Not an official release (Bootleg, Promotion...): say so under
+            // the format, so it's known before its IDs are written.
+            const kind = (r.release_status || '').trim();
+            const unofficial = kind && kind !== 'Official' ? kind : '';
+            if (unofficial) {
+                const tag = document.createElement('span');
+                tag.className = 'mb-release-kind';
+                tag.textContent = unofficial;
+                const sep = document.createElement('span');
+                sep.className = 'mf-visually-hidden';
+                sep.textContent = ', ';
+                format.append(sep, tag);
+            }
             const tracks = td('mb-num'); tracks.textContent = r.track_count;
             // No date on MusicBrainz arrives as "Unkn" ("Unknown" cut to 4).
             const hasYear = /^\d{4}$/.test(String(r.year || ''));
@@ -264,7 +295,7 @@ window.metaforge.musicbrainz_id = {
             facts.id = `${titleId}-facts`;
             facts.hidden = true;   // description only: not read again when browsing the table
             const countryName = country.querySelector('img')?.alt || country.querySelector('.mf-visually-hidden')?.textContent || '';
-            facts.textContent = [r.format, `${r.track_count} tracks`, hasYear ? r.year : 'year unknown', countryName, `score ${r.score}%`].filter(Boolean).join(', ');
+            facts.textContent = [r.format, unofficial, `${r.track_count} tracks`, hasYear ? r.year : 'year unknown', countryName, `score ${r.score}%`].filter(Boolean).join(', ');
             pick.append(facts);
 
             tr.append(pick, score, title, format, tracks, year, country);

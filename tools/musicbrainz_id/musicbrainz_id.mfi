@@ -120,6 +120,8 @@
     .mb-col-country { width: 4.5rem; }
     .mb-table .mb-num { font-variant-numeric: tabular-nums; }
     .mb-release-artist { display: block; font-weight: 700; }
+    /* "Bootleg", "Promotion"...: its own line under the format, same size */
+    .mb-release-kind { display: block; font-style: italic; }
     .mb-results-note { padding: 1rem 0.75rem; color: var(--text-muted); }
     .mb-results-note.is-error { color: var(--status-error); font-weight: 700; }
 
