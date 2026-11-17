@@ -238,6 +238,10 @@ button:disabled, .mf-button-gold-fixed:disabled {
 }
 
 header { background-color: var(--bg-main); border-bottom: 1px solid var(--border-subtle); padding: 4px 12px; }
+/* A theme's optional header picture (manifest "header_image", e.g. Festive;
+   2026-11-17): fills the top bar edge to edge, centred, over the page colour.
+   Most themes have none, so --theme-header-image is unset there. */
+header[role="banner"] { background-image: var(--theme-header-image, none); background-size: cover; background-position: center; }
 .global-nav { display: flex; align-items: center; min-height: 44px; }
 .mf-logo { height: 32px; width: auto; display: block; }
 

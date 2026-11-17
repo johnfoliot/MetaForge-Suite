@@ -14,7 +14,7 @@ import webbrowser
 import webview
 import requests
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, send_from_directory, jsonify, send_file
+from flask import Flask, render_template, request, redirect, send_from_directory, jsonify, send_file, Response
 from dotenv import load_dotenv
 
 # --- [ SECTION 1: THE PATH FIXER ] ---
@@ -70,10 +70,20 @@ def _theme_engine():
 
 @app.route('/theme_css/<theme_id>')
 def serve_theme_css(theme_id):
-    path = _theme_engine().css_path(theme_id)
-    if not path:
+    css = _theme_engine().css_text(theme_id)
+    if css is None:
         return "Theme not found", 404
-    return send_file(str(path), mimetype="text/css", max_age=0)
+    return Response(css, mimetype="text/css", headers={"Cache-Control": "no-store"})
+
+
+# A theme's optional header picture (manifest "header_image"; Festive only
+# so far, 2026-11-17).
+@app.route('/theme_header/<theme_id>')
+def serve_theme_header(theme_id):
+    path, mime = _theme_engine().header_image(theme_id)
+    if not path:
+        return "No header picture", 404
+    return send_file(str(path), mimetype=mime, max_age=0)
 
 
 @app.route('/theme_logo/<theme_id>')

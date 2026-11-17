@@ -38,12 +38,6 @@
     --status-warning: #ff9a3c;     /* Orange, so a warning never reads as gold */
 }
 
-/* Kept for John's Festive tweaking (2026-11-17), not active: themes are
-   colours only for now, and src() isn't valid CSS, so this never applied.
-   The pictures (ui/images/christmas.png, festive_bough_detail.png) stay.
-.global-nav {background:src('./images/christmas.png');
-	margin-left:-10px;
-	padding-left:10px;
-	margin-right:-10px;
-}
-*/
+/* The top bar's baubles picture (christmas.png in this folder) is named in
+   manifest.json as header_image; MetaForge adds that background itself, so
+   this file stays colours only (2026-11-17). */

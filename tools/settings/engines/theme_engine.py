@@ -6,6 +6,10 @@
 #   <themes>/<id>/manifest.json   name, id, version, description, logo_colour
 #   <themes>/<id>/theme.css       the 17 colours, one :root block, nothing else
 #   <themes>/<id>/logo.png        optional: a hand-made logo always wins
+#   manifest "header_image"       optional, rare (Festive, 2026-11-17): a
+#                                 picture in the folder behind the top bar.
+#                                 MetaForge adds that rule itself, so a
+#                                 theme's own CSS stays colours only.
 # Built-in themes: ui/themes/. Themes you make (Create a theme): AppData\
 # MetaForge\themes\ (they survive updates; one can be shared by copying its
 # folder). A built-in id always wins over one of yours.
@@ -31,6 +35,9 @@ THEME_ID = re.compile(r"^[a-z0-9_]{1,60}$")
 # Colours only: inside :root, each declaration is color-scheme or a custom
 # property set to a colour code or another custom property.
 DECL = re.compile(r"^(color-scheme\s*:\s*(light|dark)|--[a-z0-9-]+\s*:\s*(#[0-9a-f]{6}|var\(--[a-z0-9-]+\)))$")
+HEADER_IMAGE = re.compile(r"^[\w-]+\.(png|jpe?g|webp)$", re.I)
+HEADER_MAX = 5 * 1024 * 1024
+IMAGE_TYPES = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}
 
 
 def custom_dir():
@@ -58,6 +65,11 @@ def check(folder, custom):
         return None, f"Its manifest id must match its folder name ({folder.name})."
     if not T.HEX.match(colour):
         return None, "Its manifest needs a logo_colour like #1a2fb5."
+    header = man.get("header_image")
+    if header is not None:
+        pic = folder / str(header)
+        if not (HEADER_IMAGE.match(str(header)) and pic.is_file() and pic.stat().st_size <= HEADER_MAX):
+            return None, "Its header_image must be a .png, .jpg or .webp file of 5 MB or less in its own folder."
     try:
         css = (folder / "theme.css").read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
@@ -75,7 +87,7 @@ def check(folder, custom):
     if problems:
         return None, "Its colours don't pass the contrast check: " + _first(problems)
     return {"id": folder.name, "name": name, "description": str(man.get("description") or ""),
-            "logo_colour": colour, "custom": custom, "folder": folder,
+            "logo_colour": colour, "custom": custom, "folder": folder, "header_image": header,
             "palette": {f"--{k}": v for k, v in values.items()}}, None
 
 
@@ -110,9 +122,25 @@ def find_theme(theme_id):
     return None
 
 
-def css_path(theme_id):
+def css_text(theme_id):
+    """The theme's CSS as served, or None. A header picture named in the
+    manifest is added here as one custom property (layout.css uses it)."""
     t = find_theme(theme_id)
-    return t["folder"] / "theme.css" if t else None
+    if not t:
+        return None
+    css = (t["folder"] / "theme.css").read_text(encoding="utf-8")
+    if t["header_image"]:
+        css += (f"\n/* Added by MetaForge: header_image from manifest.json */\n"
+                f":root {{ --theme-header-image: url(\"/theme_header/{t['id']}\"); }}\n")
+    return css
+
+
+def header_image(theme_id):
+    """(path, mimetype) of the theme's header picture, or (None, None)."""
+    t = find_theme(theme_id)
+    if not t or not t["header_image"]:
+        return None, None
+    return t["folder"] / t["header_image"], IMAGE_TYPES[t["header_image"].rsplit(".", 1)[1].lower()]
 
 
 def logo_path(theme_id):
@@ -128,7 +156,7 @@ def logo_path(theme_id):
 def discover(base_dir=None):
     try:
         themes, rejected = _scan()
-        public = [{k: v for k, v in t.items() if k != "folder"} for t in themes]
+        public = [{k: v for k, v in t.items() if k not in ("folder", "header_image")} for t in themes]
         return jsonify({"themes": public, "rejected": rejected})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
