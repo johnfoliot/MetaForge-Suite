@@ -28,12 +28,9 @@ MetaForge Studio 2 is a rebuild of every screen to the WCAG 2.2 AA accessibility
 - **YouTube to MP3:** new. It handles single songs, playlists and whole-album videos, and can split an album video into tracks; you review each cut, with a Play button, before the files are made. Files are saved into the album folder you choose.
 - **Settings:** a new tab layout, a Genre list that shows how many tracks use each genre, plain-language configuration labels, and a clearer update check.
   - **Create a theme:** new. Build your own theme from scratch, from one colour, or from a pasted palette. Every colour is checked for contrast, and a matching 3-D logo is made for you.
-  - Two new themes: Lavender Lemonade and Festive Folk Christmas.
 - **Dashboard:** new. Tiles answer four questions: how much is tagged (by category folder or by genre), what's waiting in other tools, who needs a biography, and what looks wrong in the data. Each tile is a self-contained plug-in. You choose which tiles show, their width and their order in Settings › Dashboard.
 
 ### Behind the scenes
 - **Faster artist lookups:** new database indexes make the "Who needs a bio?" count take about 2 seconds instead of over 2 minutes.
 - **Retired:** old one-off scripts moved out of the app.
 
-### Still to come
-More Dashboard tiles (Recently Added, Spin the Wheel) and the Intelligent Playlist Maker.
