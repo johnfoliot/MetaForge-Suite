@@ -1,14 +1,18 @@
 /* --- START OF FILE help.css --- */
 /* ======================================================================
-   MetaForge Studio: Shared Help dialog (v2)
+   MetaForge Studio: Help (v2)
    Location: \ui\css\help.css
    v2 (2026-11-13): ONE native <dialog> in the app shell (ui/html/index.html)
    replaces the 8 per-tool help panels. It is opened by MFHelp.open() in
    metaforge_core.js from any tool's standard header Help button. The
    browser provides the modal behaviour: Esc and click-outside close it,
    focus stays inside while open and returns to the Help button on close.
-   Colours come from the theme tokens, so it follows dark and light themes
-   (the 1.x panel was a fixed white box with black text).
+   v3 (2026-11-17, help overhaul, John): ALL help styling lives here. A
+   help.mfi is plain content (no style="" and no class on every element),
+   built from the small set of blocks in section 4. Both places that show
+   help (the Help dialog and Settings > Help files) put the file in an
+   element with class "mf-help-doc", so a file looks the same in both.
+   Colours come from the theme tokens, so help follows every theme.
    ====================================================================== */
 
 /* 1. THE DIALOG */
@@ -64,24 +68,184 @@
     border-radius: 5px;
 }
 
-/* 3. BODY: the tool's help.mfi content */
+/* 3. THE DIALOG'S SCROLLING BODY */
 .mf-help-body {
     flex: 1;
     overflow-y: auto;
     padding: 0.75rem 1.5rem 1.5rem;
-    text-align: left;
 }
-.mf-help-body p, .mf-help-body ul, .mf-help-body ol { max-width: 70ch; margin: 0 0 0.6rem; }
-.mf-help-body ul, .mf-help-body ol { padding-inline-start: 1.25rem; }
-.mf-help-body h3 { margin: 1rem 0 0.35rem; font-size: 1.0625rem; line-height: 1.3; }
 
-/* Content classes already used inside the help.mfi files */
-h3.help, .mf-help-body h3.white {
-    color: var(--mf-gold);
-    font-family: var(--font-main);
+/* 4. A HELP FILE (help.mfi), wherever it is shown
+   ----------------------------------------------------------------------
+   The building blocks a help file uses:
+     intro .................. the first <p>
+     section heading ........ <h3>What it does:</h3>
+     "How to use" box ....... <section class="steps"> <h3>…</h3> <ol>…</ol> </section>
+     a button's name ........ <span class="ui-button">Search MusicBrainz</span>
+     a field/tab/panel name . <strong>Local Source</strong>
+     a tool's name .......... <strong class="tool">Intelli-Tagger</strong>
+     a note ................. <p class="note">…</p>
+     a tip / bonus box ...... <aside class="tip">…</aside>
+     a file name or path .... <code>MetaForge.log</code>
+     an outside link ........ <a href="https://…">…</a> (opens in the browser;
+                              MFHelp adds the icon and "opens in your browser")
+     another tool's help .... <button type="button" class="see-also"
+                                data-mf-help="tool_id" data-mf-help-name="Tool Name">Tool Name</button>
+     questions (FAQ) ........ <section class="faq" aria-labelledby="…-faq">
+                                <h3 id="…-faq">Questions</h3>
+                                <details><summary>Question?</summary> <p>Answer.</p></details>
+                              </section>
+   ---------------------------------------------------------------------- */
+.mf-help-doc {
+    text-align: left;
+    color: var(--text-message);
+    font-size: 1rem;
+    line-height: 1.5;
 }
-h3.help.first { margin-top: 0.25rem; }
-p.help, li.help { color: var(--text-message); }
-.mf-help-body .tool_notes { background: transparent; }
+.mf-help-doc :is(p, ul, ol, dl, aside, .faq) { max-width: 70ch; margin: 0 0 0.75rem; }
+.mf-help-doc :is(ul, ol) { padding-inline-start: 1.5rem; }
+.mf-help-doc li + li { margin-top: 0.35rem; }
+.mf-help-doc :is(ul, ol) :is(ul, ol) { margin: 0.35rem 0 0; }
+
+.mf-help-doc h3 {
+    margin: 1.25rem 0 0.4rem;
+    font-size: 1.0625rem;
+    line-height: 1.3;
+    color: var(--mf-gold);
+}
+.mf-help-doc > h3:first-child, .mf-help-doc > p:first-child + h3 { margin-top: 0.5rem; }
+.mf-help-doc h4 {
+    margin: 1rem 0 0.35rem;
+    font-size: 1rem;
+    color: var(--text-output);
+}
+.mf-help-doc strong { color: var(--text-output); }
+
+/* "How to use this tool:" - the gold bar down its left side */
+.mf-help-doc .steps {
+    margin: 1.25rem 0 0.75rem;
+    padding-inline-start: 0.9rem;
+    border-inline-start: 4px solid var(--mf-gold);
+}
+.mf-help-doc .steps > h3 { margin-top: 0; }
+
+/* A button's name, drawn like the button itself (the theme's button colours) */
+.mf-help-doc .ui-button {
+    display: inline-block;
+    padding: 0 0.4em;
+    border-radius: 3px;
+    background: var(--input-background);
+    color: var(--input-foreground);
+    font-weight: 600;
+    white-space: nowrap;
+}
+/* A tool's name */
+.mf-help-doc .tool { color: var(--mf-gold); }
+
+/* A note: italic and set apart, at full size (never smaller text) */
+.mf-help-doc .note {
+    font-style: italic;
+    padding-inline-start: 0.75rem;
+    border-inline-start: 2px solid var(--border-ui);
+}
+.mf-help-doc li .note { margin: 0.35rem 0 0; }
+
+/* A tip or bonus box */
+.mf-help-doc .tip {
+    padding: 0.6rem 0.8rem;
+    border: 1px dashed var(--mf-gold);
+    border-radius: 4px;
+    background: var(--bg-accent);
+}
+.mf-help-doc li .tip { margin: 0.5rem 0 0; }
+
+/* File names and paths */
+.mf-help-doc code {
+    font-family: var(--font-mono);
+    font-size: 0.9375em;
+    padding: 0 0.3em;
+    border: 1px solid var(--border-subtle);
+    border-radius: 3px;
+    background: var(--bg-accent);
+    color: var(--text-output);
+    overflow-wrap: anywhere;
+}
+
+/* A picture beside a definition (Unpack & Convert's library types) */
+.mf-help-doc .figure-right { float: inline-end; margin: 0 0 0.5rem 1rem; height: auto; }
+.mf-help-doc dl { display: flow-root; }
+.mf-help-doc dt { margin-top: 0.6rem; font-weight: 700; color: var(--mf-gold); }
+.mf-help-doc dd { margin: 0.2rem 0 0; display: flow-root; }
+
+/* Links: outside links open in the browser (MFHelp); "see also" buttons
+   open another tool's help in this dialog. Both look like links. The
+   global `button` look in layout.css uses !important, so this does too. */
+.mf-help-doc a, .mf-help-doc .see-also {
+    color: var(--mf-gold);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+.mf-help-doc .see-also {
+    display: inline;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    color: var(--mf-gold) !important;
+    font: inherit !important;
+    font-weight: 600 !important;
+    cursor: pointer;
+}
+.mf-help-doc .see-also:hover { filter: none; text-decoration-thickness: 2px; }
+.mf-help-doc .mf-ext-icon {
+    display: inline-block;
+    inline-size: 0.9em;
+    block-size: 0.9em;
+    margin-inline-start: 0.2em;
+    vertical-align: -0.05em;
+    background-color: currentColor;
+    mask: url("/ui/images/external_link.svg") no-repeat center / contain;
+}
+
+/* Questions (FAQ): each one closed until opened (John, 2026-11-17: COGA
+   chunking - scan the questions, open only what you need). */
+.mf-help-doc .faq details {
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background: var(--bg-main);
+}
+.mf-help-doc .faq details + details { margin-top: 0.4rem; }
+.mf-help-doc .faq summary {
+    list-style: none;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    color: var(--text-output);
+    font-weight: 600;
+    cursor: pointer;
+}
+.mf-help-doc .faq summary::-webkit-details-marker { display: none; }
+/* The marker sits right before the question; it points right when closed,
+   down when open (a shape change, not colour alone). */
+.mf-help-doc .faq summary::before {
+    content: "";
+    flex-shrink: 0;
+    inline-size: 0.6em;
+    block-size: 0.6em;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+    rotate: 0deg;
+}
+.mf-help-doc .faq details[open] > summary::before { rotate: 90deg; }
+@media (prefers-reduced-motion: no-preference) {
+    .mf-help-doc .faq summary::before { transition: rotate 0.15s; }
+}
+.mf-help-doc .faq summary:focus-visible { outline-offset: -3px; }
+.mf-help-doc .faq details > :not(summary) { margin: 0 0.75rem 0.6rem 1.85rem; }
+
+/* LEGACY: classes in help files not yet converted to the blocks above.
+   Remove once every help.mfi is converted (help overhaul, 2026-11-17). */
+.mf-help-doc :is(h3.help, h3.white) { color: var(--mf-gold); }
+.mf-help-doc .tool_notes { background: transparent; }
 
 /* --- END OF FILE help.css --- */

@@ -1,15 +1,21 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- v2 (2026-11-16): rewritten for the rebuilt tool. The opening paragraph
-     is the prose moved word for word from the 1.x screen header. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">The Audio Repair tool fixes .mp3 audio files that have been corrupted - often during download. Corrupted MP3 files identified by the Intelli-Tagger tool are re-built from RAW data using FFMPEG to ensure "Good In, Good Out" integrity.</p>
+<!-- v3 (2026-11-17, help overhaul): John's structure (intro, What it does,
+     How to use this tool, then more) and the shared blocks in ui/css/help.css. -->
+<p>Now and then an MP3 arrives damaged, often from a download that didn't finish cleanly. Audio Repair fixes the files MetaForge couldn't fix on its own, without ever putting the original at risk.</p>
 
-<h3>Where the list comes from</h3>
-<ul>
-    <li><strong>Unpack &amp; Convert</strong> and the <strong>Intelli-Tagger</strong> check every MP3 and fix small faults themselves. A file they can't fix is added here, with the reason.</li>
-    <li>Unpack &amp; Convert also adds a lossless file (FLAC, WAV and so on) when converting it to MP3 failed.</li>
-    <li>Each entry shows the file, its album and why it was added. <strong>Remove</strong> takes a file off the list without touching it, for example if you've replaced it yourself.</li>
-</ul>
+<h3>What it does:</h3>
+<p><strong class="tool">Unpack &amp; Convert</strong> and the <strong class="tool">Intelli-Tagger</strong> check every MP3 and fix small faults themselves. A file they can't fix is added to the list here, with the reason. Unpack &amp; Convert also adds a lossless file (FLAC, WAV and so on) when converting it to MP3 failed.</p>
+<p>Audio Repair works on a copy of each file, checks the copy, and only then replaces the original.</p>
+
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Look over <strong>Files waiting for repair</strong>. Each entry shows the file, its album and why it was added. <span class="ui-button">Remove</span> takes a file off the list without touching it, for example if you've replaced it yourself.</li>
+        <li>Choose <span class="ui-button">Repair the files</span>, then <span class="ui-button">Repair</span> to confirm.</li>
+        <li>Each file is repaired in turn. <span class="ui-button">Stop</span> ends the run after the current file; everything repaired so far is kept, and the rest stays on the list.</li>
+    </ol>
+    <p class="note">If you switch tools during a run, MetaForge asks first.</p>
+</section>
 
 <h3>How a file is repaired</h3>
 <ol>
@@ -23,11 +29,5 @@
 
 <h3>Your originals</h3>
 <p>Before a file is replaced, the original is copied to <code>%APPDATA%\MetaForge\backups\repair</code>, in a folder named with the date and time of the run, then the album. Nothing there is deleted automatically: remove the folder when you're happy with the repairs.</p>
-
-<h3>Stopping and leaving</h3>
-<ul>
-    <li><strong>Stop</strong> ends the run after the current file. Everything repaired so far is kept, and the rest stays on the list.</li>
-    <li>If you switch tools during a run, MetaForge asks first.</li>
-    <li>Each repair is also written to the album's <code>MetaForge.log</code>.</li>
-</ul>
+<p>Each repair is also written to the album's <code>MetaForge.log</code>.</p>
 <!-- --- END OF FILE help.mfi --- -->

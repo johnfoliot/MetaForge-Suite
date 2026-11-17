@@ -1,33 +1,44 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- v2 (2026-11-15): rewritten for the rebuilt tool. The 1.x text described
-     features that never existed (Identity Radar phases, a Wikipedia scraper,
-     a VACUUM button). -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">Database Tools lets you correct what the MetaForge database knows about your artists and albums, and remove records that shouldn't be there. It has three tabs.</p>
+<!-- v3 (2026-11-17, help overhaul): John's structure (intro, What it does,
+     How to use this tool, then more) and the shared blocks in ui/css/help.css.
+     (v2, 2026-11-15: rewritten for the rebuilt tool; the 1.x text described
+     features that never existed.) -->
+<p>Over time the MetaForge database collects small mistakes: an artist spelled two ways, a wrong year, a record that shouldn't be there. Database Tools is where you put them right.</p>
+
+<h3>What it does:</h3>
+<p>Database Tools lets you correct what the MetaForge database knows about your artists and albums, and remove records that shouldn't be there. It has three tabs: <strong>Artists</strong>, <strong>Albums</strong> and <strong>Remove records</strong>. Before any rename, merge or removal, MetaForge backs up the database.</p>
+
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Choose a tab.</li>
+        <li>Find what you want to change: type part of a name in <strong>Find an artist</strong> or <strong>Find an album</strong> and press Enter. If several match, choose one from the list.</li>
+        <li>Make your changes, then choose <span class="ui-button">Save changes</span>. "Unsaved changes" shows until you do, and MetaForge asks before you leave the tool.</li>
+    </ol>
+    <p class="note">Anything that changes more than one record (a new name, a merge, a removal) shows you exactly what will change, with counts, and asks you to confirm first.</p>
+</section>
 
 <h3>Artists</h3>
 <ul>
-    <li><strong>Find an artist</strong> by typing part of the name and pressing Enter. If several match, choose one from the list.</li>
-    <li><strong>Edit</strong> the name, country, biography and photo, then choose <strong>Save changes</strong>.</li>
-    <li><strong>A new name</strong> is carried through everywhere: the artist's albums, tracks and credits, and the artist tag in the music files. Before anything changes, MetaForge shows you how many albums, tracks, credits and files are affected and asks you to confirm. If another artist already has that name, the two are merged.</li>
-    <li><strong>Merge with another artist</strong> when the same artist is in the database twice under two spellings (for example "The MG's" and "the M.G.'s"). Find the other record, choose which name to keep, check what changes, and confirm.</li>
+    <li><strong>Edit</strong> the name, country, biography and photo (<span class="ui-button">Choose a photo…</span>).</li>
+    <li><strong>A new name</strong> is carried through everywhere: the artist's albums, tracks and credits, and the artist tag in the music files. If another artist already has that name, the two are merged.</li>
+    <li><span class="ui-button">Merge with another artist…</span> when the same artist is in the database twice under two spellings (for example "The MG's" and "the M.G.'s"). Find the other artist, choose the <strong>Name to keep</strong>, choose <span class="ui-button">Show what changes</span>, and confirm.</li>
     <li><strong>Albums</strong> lists every album the artist is on. Choose one to open it in the Albums tab.</li>
-    <li><strong>Write a biography in Bio Builder</strong> opens Bio Builder with this artist already chosen.</li>
+    <li><span class="ui-button">Write a biography in Bio Builder</span> opens <strong class="tool">Bio Builder</strong> with this artist already chosen.</li>
 </ul>
 
 <h3>Albums</h3>
 <ul>
-    <li><strong>Details:</strong> title, album artist, release year, record label, the artist's country, genre and cover image. Title, album artist, year and label are also written to the music files' tags.</li>
-    <li><strong>Genre:</strong> if the album's tracks have different genres, the list says "Tracks differ: leave them as they are" and saving leaves each track alone. Choose a genre only if every track should have it.</li>
-    <li><strong>Tracks:</strong> edit each track's title and original year. On a compilation, each track also has its own artist. <strong>More…</strong> opens the track's mood, BPM, key, intensity and identifiers; leaving BPM or intensity blank keeps them blank.</li>
-    <li><strong>Credits:</strong> the people who played on or made the album. Leave Tracks blank for the whole album, or list track numbers. <strong>Add credits from JSON</strong> adds a list of credits at once.</li>
-    <li>Changes are kept only when you choose <strong>Save changes</strong>. "Unsaved changes" appears until you do, and MetaForge asks before you leave the tool.</li>
+    <li><strong>Details:</strong> title, album artist, release year, record label, the artist's country, genre and cover (<span class="ui-button">Choose a new cover…</span>). Title, album artist, year and label are also written to the music files' tags.</li>
+    <li><strong>Genre:</strong> if the album's tracks have different genres, the list says "Tracks differ: leave them as they are", and saving leaves each track alone. Choose a genre only if every track should have it.</li>
+    <li><strong>Tracks:</strong> edit each track's title and original year. On a compilation, each track also has its own artist. <span class="ui-button">More…</span> opens the track's mood, BPM, key, intensity and identifiers; leaving BPM or intensity blank keeps them blank.</li>
+    <li><strong>Credits:</strong> the people who played on or made the album. Leave Tracks blank for the whole album, or list track numbers. <span class="ui-button">Add credits from JSON…</span> adds a list of credits at once.</li>
 </ul>
 
 <h3>Remove records</h3>
 <ul>
-    <li>Search for an artist, album, track or credit, choose one, and choose <strong>Remove the selected record</strong>.</li>
-    <li>MetaForge shows exactly what will be deleted (with counts), and you type the word <strong>remove</strong> to confirm.</li>
+    <li>Search for an artist, album, track or credit (<strong>Look in</strong> narrows the search), choose one from <strong>Results</strong>, and choose <span class="ui-button">Remove the selected record…</span>.</li>
+    <li>MetaForge shows exactly what will be deleted, and you type the word <strong>remove</strong> to confirm.</li>
     <li>Only database records are removed. <strong>Music files are never touched.</strong></li>
     <li>An artist who performs tracks on other artists' albums can't be removed; merge them into the right artist instead.</li>
 </ul>

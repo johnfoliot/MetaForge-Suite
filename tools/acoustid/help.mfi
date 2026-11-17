@@ -1,32 +1,36 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- v2 (2026-11-16): rewritten for the rebuilt tool. The opening paragraph
-     is the prose moved word for word from the 1.x screen header. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">Manage the AcoustID fingerprinting lifecycle. Submit unknown tracks to the global database, or check previously submitted tracks to resolve and finalize their identifiers.</p>
+<!-- v3 (2026-11-17, help overhaul): John's structure (intro, What it does,
+     How to use this tool, then more) and the shared blocks in ui/css/help.css. -->
+<p>AcoustID is a free, shared database that recognises a recording by how it sounds (its "fingerprint"). When AcoustID doesn't know one of your tracks yet, you can add it here. Submitting is optional, and it helps everyone who uses AcoustID.</p>
 
-<p class="help">AcoustID is a free, shared database that recognises a recording by how it sounds (its "fingerprint"). The Intelli-Tagger looks up every track. When AcoustID doesn't know a track yet, the track is added to a waiting list here. Submitting is optional, and it helps everyone who uses AcoustID.</p>
+<h3>What it does:</h3>
+<p>The <strong class="tool">Intelli-Tagger</strong> looks up every track on AcoustID. A track AcoustID doesn't know is added to a waiting list here. This tool sends those fingerprints to AcoustID, then later collects the AcoustID each one is given and writes it to the file and the database.</p>
 
-<h3>1. Submit new fingerprints</h3>
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li><strong>1. Submit new fingerprints:</strong> choose <span class="ui-button">Submit fingerprints</span>. Each waiting track's fingerprint is sent with its title, artist, album, release year and MusicBrainz recording ID when MetaForge has them. A track that can't be sent stays in the list for next time.</li>
+        <li>Wait. AcoustID adds submissions in the background, which can take a while.</li>
+        <li><strong>2. Collect AcoustIDs:</strong> choose <span class="ui-button">Check for AcoustIDs</span>. MetaForge asks AcoustID which of your submissions are done and collects their AcoustIDs. Tracks still being processed stay in the list; check again later.</li>
+    </ol>
+    <p class="note"><span class="ui-button">Stop</span> ends a run after the current track. Everything done so far is kept, and the rest stays in the list. If you switch tools during a run, MetaForge asks first.</p>
+</section>
+
+<h3>Before you start</h3>
+<p>Submitting needs two keys in <strong>Settings › Configuration &amp; keys</strong>: the AcoustID application key and your own AcoustID user key (shown at acoustid.org once you're signed in).</p>
+
+<h3>Where each AcoustID goes</h3>
 <ul>
-    <li>Sends each waiting track's fingerprint to AcoustID, with its title, artist, album, release year and MusicBrainz recording ID when MetaForge has them.</li>
-    <li>Needs two keys in <strong>Settings &gt; Configuration &amp; keys</strong>: the AcoustID application key and your own AcoustID user key (shown at acoustid.org once you're signed in).</li>
-    <li>A track that can't be sent stays in the list for next time.</li>
-</ul>
-
-<h3>2. Collect AcoustIDs</h3>
-<ul>
-    <li>AcoustID adds submissions in the background. This step asks AcoustID which of your submissions are done, and collects their AcoustIDs.</li>
     <li>A track MetaForge already knows gets its AcoustID in the file's tag and in the database.</li>
     <li>A file whose album hasn't been through the Intelli-Tagger yet is left alone. Its submission still counts: the Intelli-Tagger finds the AcoustID itself when you process that album.</li>
-    <li>Tracks still being processed stay in the list. Check again later.</li>
-</ul>
-
-<h3>Stopping and leaving</h3>
-<ul>
-    <li><strong>Stop</strong> ends the run after the current track. Everything done so far is kept, and the rest stays in the list.</li>
-    <li>If you switch tools during a run, MetaForge asks first.</li>
 </ul>
 
 <h3>Where the lists are kept</h3>
-<p>In the <code>data\acoustid</code> folder: <code>pending_acoustid.txt</code> (waiting to be submitted), <code>submission_history.txt</code> (waiting for an AcoustID), <code>submission_ids.json</code> (AcoustID's number for each submission) and <code>not_found.txt</code> (files that were moved or renamed before they could be handled).</p>
+<p>In the <code>data\acoustid</code> folder:</p>
+<ul>
+    <li><code>pending_acoustid.txt</code>: waiting to be submitted;</li>
+    <li><code>submission_history.txt</code>: waiting for an AcoustID;</li>
+    <li><code>submission_ids.json</code>: AcoustID's number for each submission;</li>
+    <li><code>not_found.txt</code>: files that were moved or renamed before they could be handled.</li>
+</ul>
 <!-- --- END OF FILE help.mfi --- -->

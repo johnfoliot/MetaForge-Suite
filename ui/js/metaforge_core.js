@@ -251,6 +251,10 @@ window.mfAdvanceWorkflow = function(targetToolId, contextPath = null) {
  * and the single click listener below opens that tool's help.mfi in the
  * native <dialog> in index.html. No per-tool help code is needed: the
  * browser handles Esc, click-outside, focus containment and focus return.
+ * Help overhaul (2026-11-17): a help file can link to another tool's help
+ * (a "see also" button with data-mf-help, handled by the same listener)
+ * and to outside pages (opened in the real browser; prepare() marks them).
+ * Settings > Help files calls prepare() on its copies too.
  */
 window.MFHelp = {
     open: async function(toolId, toolName) {
@@ -266,17 +270,40 @@ window.MFHelp = {
             // help.mfi is MetaForge's own local documentation file, not user or
             // remote data, so it is inserted as HTML.
             body.innerHTML = await response.text();
+            this.prepare(body);
         } catch (err) {
             body.textContent = "Help for this tool isn't available yet.";
         }
         body.scrollTop = 0;
         if (!dialog.open) dialog.showModal();
+        // Opened from a "see also" link inside the dialog: that link is gone
+        // with the old text, so focus moves to the new text (not the page).
+        else body.focus();
+    },
+
+    // Outside links get an "opens elsewhere" icon, and screen readers hear
+    // "opens in your browser". Safe to call twice on the same text.
+    prepare: function(root) {
+        root.querySelectorAll('a[href^="http"]:not([data-mf-ext])').forEach(a => {
+            a.dataset.mfExt = '';
+            const icon = document.createElement('span');
+            icon.className = 'mf-ext-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            const say = document.createElement('span');
+            say.className = 'mf-visually-hidden';
+            say.textContent = ' (opens in your browser)';
+            a.append(icon, say);
+        });
     }
 };
 
 document.addEventListener('click', function(e) {
     const trigger = e.target.closest('[data-mf-help]');
-    if (trigger) window.MFHelp.open(trigger.dataset.mfHelp, trigger.dataset.mfHelpName);
+    if (trigger) { window.MFHelp.open(trigger.dataset.mfHelp, trigger.dataset.mfHelpName); return; }
+    // An outside link in help text: inside the app window a plain link
+    // can't reach a real browser, so hand it to Python (openExternalLink).
+    const link = e.target.closest('.mf-help-doc a[href^="http"]');
+    if (link) { e.preventDefault(); window.metaforge.openExternalLink(link.href); }
 });
 
 // --- SHARED: TOOL ICON IN THE SCREEN HEADER (v2, John 2026-11-15) ---

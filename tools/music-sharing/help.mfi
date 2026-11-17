@@ -1,31 +1,33 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- v2 (2026-11-16): rewritten for the rebuilt tool. The opening paragraph
-     is the prose moved word for word from the 1.x screen header. -->
-<h3 class="help first">What this tool does</h3>
-<p class="help">What fun is a large music library, if you can't share tracks with friends?<br> Convert your MP3 audio with album artwork into a square-format MP4 video optimized for social media.</p>
+<!-- v3 (2026-11-17, help overhaul): John's structure (intro, What it does,
+     How to use this tool, then more) and the shared blocks in ui/css/help.css. -->
+<p>What fun is a large music library if you can't share tracks with friends?</p>
 
-<h3>How to make a video</h3>
-<ol>
-    <li>Choose <strong>Choose a track…</strong> and pick an MP3 from your library. Its title, artist, album and length appear, with a preview of the video on the right.</li>
-    <li>Choose <strong>Make the video</strong> (or press Enter). The bar shows how far along it is.</li>
-    <li>When it's finished, <strong>Show the video</strong> opens your Videos folder with the new file selected, ready to share.</li>
-</ol>
-<p>The music in your files usually still belongs to its publisher. Share on social media at your own risk.</p>
+<h3>What it does:</h3>
+<p>Music Sharing turns an MP3 and its album cover into a square MP4 video, the format social media sites accept.</p>
+
+<section class="steps">
+    <h3>How to use this tool:</h3>
+    <ol>
+        <li>Choose <span class="ui-button">Choose a track…</span> and pick an MP3 from your library. Its title, artist, album and length appear, with a <strong>Preview</strong> of the video beside them.</li>
+        <li>Choose <span class="ui-button">Make the video</span> (or press Enter). The bar shows how far along it is. <span class="ui-button">Stop</span> ends it and saves nothing.</li>
+        <li>When it's finished, <span class="ui-button">Show the video</span> opens your Videos folder with the new file selected, ready to share.</li>
+    </ol>
+    <p class="note">The music in your files usually still belongs to its publisher. Share on social media at your own risk.</p>
+</section>
 
 <h3>What's in the video</h3>
 <ul>
     <li><strong>Picture:</strong> the cover stored in the MP3. If there isn't one, <code>folder.jpg</code> from the album folder. If there's neither, a plain black square. The picture is cropped to fill a 1080 × 1080 square.</li>
     <li><strong>Caption:</strong> "Audio taken from my personal library", laid over the picture. The preview shows exactly how it will look.</li>
-    <li><strong>Sound:</strong> the whole track, as 192k AAC, with H.264 video, which social media sites accept.</li>
+    <li><strong>Sound:</strong> the whole track, as 192k AAC, with H.264 video.</li>
     <li><strong>Song details:</strong> the title, artist, album and year are copied into the MP4, so players show them. Nothing else from the MP3 is carried over.</li>
 </ul>
 
 <h3>Where videos are saved</h3>
-<p>In your Videos folder, under <code>MetaForge Studio</code>, named after the MP3. If a video with that name is already there, MetaForge asks whether to <strong>replace it</strong> or <strong>keep both</strong> (the new one gets a number, such as "(2)").</p>
+<p>In your Videos folder, under <code>MetaForge Studio</code>, named after the MP3. <span class="ui-button">Open the videos folder</span> takes you there at any time.</p>
+<p>If a video with that name is already there, MetaForge asks whether to <span class="ui-button">Replace it</span> or <span class="ui-button">Keep both</span> (the new one gets a number, such as "(2)").</p>
 
 <h3>If something goes wrong</h3>
-<ul>
-    <li>A video is only saved once it's complete and the same length as the track. A video that fails or comes out short is thrown away, never left half-made.</li>
-    <li><strong>Stop</strong> ends the video being made and saves nothing. If you switch tools while a video is being made, MetaForge asks first.</li>
-</ul>
+<p>A video is only saved once it's complete and the same length as the track. A video that fails or comes out short is thrown away, never left half-made. If you switch tools while a video is being made, MetaForge asks first.</p>
 <!-- --- END OF FILE help.mfi --- -->

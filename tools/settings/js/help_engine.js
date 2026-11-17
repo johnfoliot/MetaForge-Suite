@@ -21,8 +21,10 @@
                     const sum = document.createElement('summary');
                     sum.textContent = d.name;
                     const body = document.createElement('div');
-                    body.className = 'set-help-body';
+                    // mf-help-doc: the same styling as the Help dialog (ui/css/help.css)
+                    body.className = 'set-help-body mf-help-doc';
                     body.innerHTML = d.html;
+                    if (window.MFHelp) window.MFHelp.prepare(body);
                     det.append(sum, body);
                     return det;
                 }));
