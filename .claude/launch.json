@@ -14,6 +14,12 @@
       "port": 5050
     },
     {
+      "name": "axe-vendor",
+      "runtimeExecutable": "D:\\MetaForge Suite\\venv\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "8935", "--bind", "127.0.0.1", "--directory", "D:\\MetaForge Suite\\dev\\vendor"],
+      "port": 8935
+    },
+    {
       "name": "survey-tool",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8934", "--directory", "D:\\Survey Tool"],
