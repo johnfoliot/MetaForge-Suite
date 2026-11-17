@@ -254,9 +254,12 @@
     <form method="dialog">
         <h2 id="mbs-entered-h">Did you click "Enter edit"?</h2>
         <p id="mbs-entered-text">The MusicBrainz window is closed. MetaForge can't see whether the edit was entered there.</p>
+        <!-- Focus starts on "No" (2026-11-17): a stray Enter must not mark
+             credits as sent. A wrong "No" only leaves them in the list to
+             send again; a wrong "Yes" hides them as waiting. Esc = No too. -->
         <div class="mbs-dialog-actions">
-            <button type="submit" class="mf-button-gold-fixed" value="yes" autofocus>Yes, I entered the edit</button>
-            <button type="submit" class="mf-button-gold-fixed" value="no">No, nothing was sent</button>
+            <button type="submit" class="mf-button-gold-fixed" value="yes">Yes, I entered the edit</button>
+            <button type="submit" class="mf-button-gold-fixed" value="no" autofocus>No, nothing was sent</button>
         </div>
     </form>
 </dialog>
