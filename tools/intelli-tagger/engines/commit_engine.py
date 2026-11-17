@@ -99,8 +99,12 @@ def execute_commit(
             conn = sqlite3.connect(str(DB_PATH))
             cursor = conn.cursor()
 
+            # Only this album's TRACKS are replaced. Its credits (the
+            # `edges` table) belong to Album Personnel and are never touched
+            # here: the Intelli-Tagger writes no credits, and deleting them
+            # on a re-run silently threw away hand-edited and verified
+            # credits (found 2026-11-17, John approved the fix).
             cursor.execute("DELETE FROM tracks WHERE mf_id = ?", (mf_id,))
-            cursor.execute("DELETE FROM edges WHERE source_id = ?", (mf_id,))
 
         except Exception as e:
             yield event("error", f"The MetaForge database couldn't be opened ({e}). Tags are still written to the files, but nothing goes into the database")
