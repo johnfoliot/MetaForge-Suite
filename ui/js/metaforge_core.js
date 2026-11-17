@@ -430,6 +430,9 @@ window.MFScrollbar = {
             thumb.style.top = thumbTop + 'px';
         };
 
+        // A click must not move focus onto these hidden buttons (nothing
+        // that can hold focus may sit inside aria-hidden): focus stays put.
+        [upBtn, downBtn].forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
         upBtn.addEventListener('click', () => target.scrollBy({ top: -40, behavior: 'smooth' }));
         downBtn.addEventListener('click', () => target.scrollBy({ top: 40, behavior: 'smooth' }));
 
