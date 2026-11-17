@@ -3,7 +3,7 @@
      MetaForge Interface: MusicBrainz Submit
      v2 (2026-11-16): album pass. Left: albums with credits MusicBrainz
      doesn't have (search, order, skipped). Right: one album's credits as
-     ticked checkboxes grouped by relationship; "Open in MusicBrainz" sends
+     selected checkboxes grouped by relationship; "Open in MusicBrainz" sends
      up to 25 at a time to the release's own relationship editor.
      No inline styles, no HTML from the server, delegated listeners.
      ====================================================================== -->
@@ -130,6 +130,25 @@
         border: 1px solid var(--border-subtle);
     }
     .mbs-group legend { padding: 0 0.3rem; color: var(--mf-gold); font-weight: 700; font-size: 0.9375rem; }
+    /* Select all / Deselect all (John, 2026-11-17): a quiet outlined button,
+       so it doesn't compete with Open in MusicBrainz. Both labels share one
+       grid cell, so the button keeps its size when the label flips. */
+    .mbs-select-all {
+        display: inline-grid;
+        margin: 0.1rem 0 0.35rem;
+        min-block-size: 1.75rem;
+        padding: 0.1rem 0.7rem !important;
+        font-size: 0.875rem !important;
+        font-weight: 600;
+        color: var(--text-primary) !important;
+        background: transparent !important;
+        border: 1px solid var(--border-ui) !important;
+        border-radius: 4px;
+    }
+    .mbs-select-all:hover { filter: none; background: var(--surface-page) !important; }
+    .mbs-select-all > span:not(.mf-visually-hidden) { grid-area: 1 / 1; }
+    .mbs-select-all .mbs-sa-deselect, .mbs-select-all.is-all .mbs-sa-select { visibility: hidden; }
+    .mbs-select-all.is-all .mbs-sa-deselect { visibility: visible; }
     .mbs-credit {
         display: grid;
         grid-template-columns: auto 1fr;
@@ -237,7 +256,7 @@
 
             <div id="mbs-body" class="mbs-body">
                 <p class="mbs-intro">These albums have credits that Discogs, AllMusic or Wikipedia list (or that you added, or checked against a source) but MusicBrainz doesn't have yet.</p>
-                <p class="mbs-intro">Choose an album. MetaForge checks MusicBrainz first, so nothing it already has is sent again. Untick anything you don't want to send, then open MusicBrainz: MetaForge adds the ticked credits and the edit note there, and you click "Enter edit".</p>
+                <p class="mbs-intro">Choose an album. MetaForge checks MusicBrainz first, so nothing it already has is sent again. Deselect anything you don't want to send, then open MusicBrainz: MetaForge adds the selected credits and the edit note there, and you choose "Enter edit".</p>
             </div>
        </div>
             <div class="mbs-foot" id="mbs-foot" hidden>

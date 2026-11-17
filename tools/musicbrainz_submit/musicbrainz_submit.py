@@ -367,7 +367,22 @@ def _build_queue():
                 by_key[key] = c
     cands = list(by_key.values())
     _mark_discogs_track_credits(cands)
+    _mark_unmatched_track_credits(cands)
     return cands, albums
+
+
+def _mark_unmatched_track_credits(cands):
+    """A credit Album Personnel logged as track-only (evidence_scope "track")
+    but couldn't tie to a MusicBrainz recording is STILL track-only. Real bug
+    (John, 2026-11-17): Discogs numbers tracks its own way ("A1", "B6"),
+    which never matched MusicBrainz's positions ("1", "2"), so the recording
+    ID stayed empty and this tool offered 23,124 such credits on 591 albums
+    as credits for the whole release (e.g. 226 "Written-By" on one
+    compilation). Marking them here sends them to "Only on some tracks",
+    never to MusicBrainz as release-wide facts."""
+    for c in cands:
+        if c.get("evidence_scope") == "track" and not c.get("mb_recording_id") and not c.get("_tracks"):
+            c["_tracks"] = (c.get("evidence_detail") or "").strip() or "not listed"
 
 
 def _mark_discogs_track_credits(cands):
@@ -762,19 +777,24 @@ def _check_stream(mf_id):
 # --- [ USER CHOICES ] -------------------------------------------------------
 
 def _set_credit():
-    """Tick / untick ('dismissed' is remembered: don't send this credit)."""
+    """Select / clear one credit, or several at once ("keys": a heading's
+    Select all / Clear all, one save instead of one per credit).
+    'dismissed' is remembered: don't send this credit."""
     data = request.get_json(silent=True) or {}
-    key, send = data.get("key"), data.get("send")
-    if not key:
+    keys = data.get("keys") or ([data["key"]] if data.get("key") else [])
+    send = data.get("send")
+    if not keys or not all(isinstance(k, str) and k for k in keys):
         return jsonify({"status": "error", "message": "No credit given."}), 400
     state = _load_state()
-    entry = state.setdefault(key, {})
-    if send:
-        if entry.get("status") == "dismissed":
-            entry.pop("status", None)
-    else:
-        entry["status"] = "dismissed"
-    entry["timestamp"] = datetime.now().isoformat()
+    now = datetime.now().isoformat()
+    for key in keys:
+        entry = state.setdefault(key, {})
+        if send:
+            if entry.get("status") == "dismissed":
+                entry.pop("status", None)
+        else:
+            entry["status"] = "dismissed"
+        entry["timestamp"] = now
     _save_state(state)
     return jsonify({"status": "ok"})
 

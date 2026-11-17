@@ -12,8 +12,8 @@
     <ol>
         <li>Choose an album from the list. <strong>Find an album or artist</strong> narrows the list; <strong>Order</strong> sorts it by most credits, artist, or newest first.</li>
         <li>MetaForge checks MusicBrainz first. Credits it already has are set aside, and each person is matched to their MusicBrainz artist.</li>
-        <li>The rest are listed by role, ticked. Untick anything you don't want to send; MetaForge remembers.</li>
-        <li>Choose <span class="ui-button">Open in MusicBrainz</span> (or press Enter). The release's relationship editor opens in a second window, and MetaForge adds the ticked credits there (up to 25 at a time) with one edit note saying where each came from.</li>
+        <li>The rest are listed by role, selected. Deselect anything you don't want to send; MetaForge remembers. <span class="ui-button">Select all</span> and <span class="ui-button">Deselect all</span> under each heading do a whole role at once.</li>
+        <li>Choose <span class="ui-button">Open in MusicBrainz</span> (or press Enter). The release's relationship editor opens in a second window, and MetaForge adds the selected credits there (up to 25 at a time) with one edit note saying where each came from.</li>
         <li>Check them on that page and choose <strong>Enter edit</strong>. Then close the window. MetaForge asks whether you entered the edit; if you did, it lists those credits as waiting.</li>
     </ol>
     <p class="note">The MusicBrainz window keeps you logged in, so you only log in once.</p>
@@ -29,17 +29,17 @@
 <h3>What isn't sent, and why</h3>
 <ul>
     <li><strong>Already on MusicBrainz:</strong> found on the release, a track or a song.</li>
-    <li><strong>Similar credit already there:</strong> MusicBrainz has the same person credited differently (say, "bass" where the source says "double bass"). These start unticked; tick one only if it's a different credit.</li>
+    <li><strong>Similar credit already there:</strong> MusicBrainz has the same person credited differently (say, "bass" where the source says "double bass"). These start deselected; select one only if it's a different credit.</li>
     <li><strong>Only on some tracks:</strong> the source credits certain tracks only, so it isn't a credit for the whole release. MusicBrainz Submit can't send credits for single tracks yet.</li>
     <li><strong>Can't be sent:</strong> roles too general for MusicBrainz ("Featuring", "Musician") and kinds MetaForge can't send yet (engineering, mastering, artwork and so on).</li>
-    <li><strong>Confirmed against a different release:</strong> if the page you confirmed a credit with names a different album, the credit starts unticked, with the link, so you can check.</li>
+    <li><strong>Confirmed against a different release:</strong> if the page you confirmed a credit with names a different album, the credit starts deselected, with the link, so you can check.</li>
 </ul>
 
 <h3>Waiting for MusicBrainz</h3>
 <p>Edits by newer MusicBrainz editors are voted on for up to a week before they show. MetaForge checks again each time you open the album (or choose <span class="ui-button">Check MusicBrainz again</span>), and moves a credit to "added by you" once it's there.</p>
 
 <h3>Skipping an album</h3>
-<p><span class="ui-button">Skip this album</span> hides it from the list. Tick <strong>Show skipped albums</strong> to see it again, and choose <span class="ui-button">Stop skipping this album</span> to bring it back.</p>
+<p><span class="ui-button">Skip this album</span> hides it from the list. Select <strong>Show skipped albums</strong> to see it again, and choose <span class="ui-button">Stop skipping this album</span> to bring it back.</p>
 
 <p>See also: <button type="button" class="see-also" data-mf-help="personnel" data-mf-help-name="Album Personnel">Album Personnel</button>, where these credits are found.</p>
 <!-- --- END OF FILE help.mfi --- -->

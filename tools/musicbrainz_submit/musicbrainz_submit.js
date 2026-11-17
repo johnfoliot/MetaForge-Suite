@@ -3,7 +3,7 @@
  * MetaForge Studio: MusicBrainz Submit
  * v2 (2026-11-16): album pass. Choose an album; MetaForge checks
  * MusicBrainz (what's already there, which artist each name is, which
- * instrument names exist); the rest are ticked checkboxes grouped by
+ * instrument names exist); the rest are selected checkboxes grouped by
  * relationship; "Open in MusicBrainz" sends up to 25 to the release's
  * relationship editor, where the user clicks "Enter edit".
  * The tool's script loads once per page; init() runs on every visit.
@@ -50,6 +50,10 @@ window.metaforge.musicbrainz_submit = {
         });
         $('mbs-form').addEventListener('submit', (e) => { e.preventDefault(); this.openInMusicBrainz(); });
         $('mbs-form').addEventListener('change', (e) => this.onFormChange(e));
+        $('mbs-form').addEventListener('click', (e) => {
+            const b = e.target.closest('button[data-select-all]');
+            if (b) this.selectAll(b);
+        });
         $('mbs-check').addEventListener('click', () => this.runCheck());
         $('mbs-skip').addEventListener('click', () => this.toggleSkip());
         this.loadAlbums();
@@ -247,7 +251,8 @@ window.metaforge.musicbrainz_submit = {
             body.append(p);
         }
 
-        // Ticked checkboxes, grouped by relationship.
+        // Selected checkboxes, grouped by relationship. Each group with more
+        // than one credit gets Select all / Deselect all (John, 2026-11-17).
         const groups = new Map();
         g.send.forEach((c) => {
             const label = c.relationship.kind === 'instrument' ? 'Instruments' : c.relationship.label;
@@ -257,11 +262,14 @@ window.metaforge.musicbrainz_submit = {
         groups.forEach((list, label) => {
             const fs = document.createElement('fieldset');
             fs.className = 'mbs-group';
+            fs.dataset.group = label;
             const lg = document.createElement('legend');
             lg.textContent = `${label} (${list.length})`;
             fs.append(lg);
+            if (list.length > 1) fs.append(this.selectAllButton(label));
             list.forEach((c) => fs.append(this.creditRow(c, checked)));
             body.append(fs);
+            this.syncSelectAll(fs);
         });
         if (checked && !g.send.length) {
             const p = document.createElement('p');
@@ -316,14 +324,14 @@ window.metaforge.musicbrainz_submit = {
             a.textContent = c.verified_source_url;
             a.target = '_blank';
             a.rel = 'noreferrer';
-            n.append(a, '. Tick it only if this credit is right for this album too.');
+            n.append(a, '. Select it only if this credit is right for this album too.');
             row.append(n);
         }
 
         if (checked) {
             const m = c.artist_match;
             if (c.mb_check === 'similar') {
-                row.append(this.note(`MusicBrainz already credits this person on this release${c.mb_has ? ` (${c.mb_has})` : ''}. Tick it only if this is a different credit.`, descs));
+                row.append(this.note(`MusicBrainz already credits this person on this release${c.mb_has ? ` (${c.mb_has})` : ''}. Select it only if this is a different credit.`, descs));
             }
             if (c.relationship.kind === 'instrument' && !c.relationship.instrument_known) {
                 row.append(this.note('MusicBrainz\'s instrument list couldn\'t be checked for this one. Check MusicBrainz again.', descs));
@@ -347,6 +355,61 @@ window.metaforge.musicbrainz_submit = {
         descs.forEach((d, i) => { if (!d.id) d.id = `${id}-d${i}`; });
         box.setAttribute('aria-describedby', descs.map((d) => d.id).join(' '));
         return row;
+    },
+
+    /** One button per group. Both labels sit in the same grid cell (the
+     *  unused one invisible), so the button never changes size when its
+     *  label flips. The group's name is added for screen readers, so ten
+     *  "Select all" buttons are told apart. */
+    selectAllButton: function (label) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'mbs-select-all';
+        b.dataset.selectAll = '';
+        const on = document.createElement('span');
+        on.className = 'mbs-sa-select';
+        on.textContent = 'Select all';
+        const off = document.createElement('span');
+        off.className = 'mbs-sa-deselect';
+        off.textContent = 'Deselect all';
+        const who = document.createElement('span');
+        who.className = 'mf-visually-hidden';
+        who.textContent = ` ${label} credits`;
+        b.append(on, off, who);
+        return b;
+    },
+
+    /** Shows "Deselect all" when every credit in the group is selected. */
+    syncSelectAll: function (fs) {
+        const b = fs.querySelector('button[data-select-all]');
+        if (!b) return;
+        const boxes = [...fs.querySelectorAll('input[type="checkbox"][data-key]')];
+        const all = boxes.length > 0 && boxes.every((x) => x.checked);
+        b.classList.toggle('is-all', all);
+        b.querySelector('.mbs-sa-select').setAttribute('aria-hidden', String(all));
+        b.querySelector('.mbs-sa-deselect').setAttribute('aria-hidden', String(!all));
+    },
+
+    selectAll: async function (b) {
+        const fs = b.closest('fieldset.mbs-group');
+        const boxes = [...fs.querySelectorAll('input[type="checkbox"][data-key]')];
+        const send = !b.classList.contains('is-all');
+        const changed = boxes.filter((x) => x.checked !== send);
+        changed.forEach((x) => { x.checked = send; });
+        this.syncSelectAll(fs);
+        this.updateFoot();
+        const n = boxes.length;
+        window.MFAnnounce(`${send ? 'Selected' : 'Deselected'} all ${n} ${fs.dataset.group} credit${n === 1 ? '' : 's'}.`);
+        if (!changed.length) return;
+        try {
+            await this.post('set_credit', { keys: changed.map((x) => x.dataset.key), send });
+            const keys = new Set(changed.map((x) => x.dataset.key));
+            (this.current ? this.current.credits : []).forEach((c) => {
+                if (keys.has(c.key)) c.status = send ? 'pending' : 'dismissed';
+            });
+        } catch (err) {
+            window.MFAnnounce(`Error: that choice wasn't saved: ${err.message}`, { urgent: true });
+        }
     },
 
     note: function (text, descs) {
@@ -419,7 +482,7 @@ window.metaforge.musicbrainz_submit = {
         body.append(d);
     },
 
-    /** The ticked credits that can go now, in screen order. */
+    /** The selected credits that can go now, in screen order. */
     sendable: function () {
         if (!this.current || !this.current.album.checked_at) return [];
         const byKey = new Map(this.current.credits.map((c) => [c.key, c]));
@@ -433,18 +496,18 @@ window.metaforge.musicbrainz_submit = {
         const $ = (id) => document.getElementById(id);
         if (!$('mbs-open') || !this.current) return;
         const ready = this.sendable();
-        const ticked = document.querySelectorAll('#mbs-body input[type="checkbox"][data-key]:checked').length;
+        const selected = document.querySelectorAll('#mbs-body input[type="checkbox"][data-key]:checked').length;
         const n = Math.min(this.BATCH, ready.length);
         $('mbs-open').disabled = !n || this.checking || !!this.batch;
         $('mbs-open').textContent = ready.length > n ? `Open in MusicBrainz (${n} of ${ready.length})` : 'Open in MusicBrainz';
         let note;
         if (!this.current.album.checked_at) note = 'Checking MusicBrainz first.';
-        else if (!ready.length) note = ticked ? 'None of the ticked credits can be sent yet (see the notes beside them).' : 'Nothing is ticked.';
+        else if (!ready.length) note = selected ? 'None of the selected credits can be sent yet (see the notes beside them).' : 'Nothing is selected.';
         else {
             note = `${ready.length} credit${ready.length === 1 ? '' : 's'} ready to send`;
             if (ready.length > n) note += `; MusicBrainz gets ${n} at a time`;
-            const wait = ticked - ready.length;
-            if (wait > 0) note += `; ${wait} ticked can't be sent yet (see the note${wait === 1 ? '' : 's'} beside ${wait === 1 ? 'it' : 'them'})`;
+            const wait = selected - ready.length;
+            if (wait > 0) note += `; ${wait} selected can't be sent yet (see the note${wait === 1 ? '' : 's'} beside ${wait === 1 ? 'it' : 'them'})`;
             note += '.';
         }
         $('mbs-foot-note').textContent = note;
@@ -453,6 +516,8 @@ window.metaforge.musicbrainz_submit = {
     onFormChange: async function (e) {
         const t = e.target;
         if (t.matches('input[type="checkbox"][data-key]')) {
+            const fs = t.closest('fieldset.mbs-group');
+            if (fs) this.syncSelectAll(fs);
             this.updateFoot();
             try { await this.post('set_credit', { key: t.dataset.key, send: t.checked }); }
             catch (err) { window.MFAnnounce(`Error: that choice wasn't saved: ${err.message}`, { urgent: true }); }
@@ -470,6 +535,8 @@ window.metaforge.musicbrainz_submit = {
                     c.status = 'dismissed';
                     const box = t.closest('.mbs-credit').querySelector('input[type="checkbox"]');
                     box.checked = false;
+                    const fs = box.closest('fieldset.mbs-group');
+                    if (fs) this.syncSelectAll(fs);
                     window.MFAnnounce(`${c.name} won't be sent.`);
                 } else {
                     const name = t.selectedOptions[0].dataset.name || '';
@@ -556,7 +623,7 @@ window.metaforge.musicbrainz_submit = {
         const entry = this.albums.get(a.mf_id);
         if (entry) { entry.data.skipped = a.skipped; this.fillAlbumItem(entry.li, entry.data); }
         document.getElementById('mbs-skip').textContent = a.skipped ? 'Stop skipping this album' : 'Skip this album';
-        window.MFAnnounce(a.skipped ? `${a.album} skipped. It's hidden from the list unless "Show skipped albums" is ticked.` : `${a.album} is back in the list.`);
+        window.MFAnnounce(a.skipped ? `${a.album} skipped. It's hidden from the list unless "Show skipped albums" is selected.` : `${a.album} is back in the list.`);
         this.applyView();
     },
 
@@ -629,7 +696,7 @@ window.metaforge.musicbrainz_submit = {
         box.replaceChildren(h, p);
         if (bad.length) {
             const p2 = document.createElement('p');
-            p2.textContent = 'Couldn\'t be added (they stay here, ticked):';
+            p2.textContent = 'Couldn\'t be added (they stay here, selected):';
             const ul = document.createElement('ul');
             bad.forEach(([k, r]) => {
                 const li = document.createElement('li');
