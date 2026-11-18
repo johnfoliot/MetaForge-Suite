@@ -11,9 +11,14 @@
      has no bio yet.
      ====================================================================== -->
 <style>
+    /* Same workbench as Unpack & Convert (John, 2026-11-17): the full
+       width of the stage, form 35% on the left, results 65% on the right.
+       Without width: 100% the stage shrank to its content and left a wide
+       empty band on the right. */
     .p-stage {
         position: relative;          /* the busy overlay covers this */
         display: flex;
+        width: 100%;
         gap: 1rem;
         height: 100%;
         min-height: 0;
@@ -21,7 +26,7 @@
 
     /* --- LEFT: THE ALBUM AND THE SOURCES (scrolls on its own) --- */
     .p-left {
-        flex: 0 0 calc(42% - 0.5rem);
+        flex: 0 0 calc(35% - 0.5rem);
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
@@ -54,11 +59,16 @@
     .p-row { display: flex; gap: 0.5rem; align-items: flex-end; }
     .p-row > .p-field { flex: 1; min-width: 0; }
     .p-row > .p-field-year { flex: 0 0 6rem; }
-    .p-row button { flex: none; }
-    .p-form-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    /* Source Directory: the label above, then the path and Browse side by
+       side (as in Unpack & Convert). */
+    .p-path-row { display: flex; gap: 0.5rem; }
+    .p-path-row .p-input { flex: 1; min-width: 0; }
+    .p-path-row button { flex: none; }
+    /* Find credits sits at the right, like Unpack & Convert's action; the
+       status line gets its own full-width line under it. */
+    .p-form-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
     #p-status {
-        flex: 1;
-        min-width: 10rem;
+        align-self: stretch;
         margin: 0;
         font-size: 0.875rem;
         font-weight: 700;
@@ -67,33 +77,56 @@
     #p-status.is-ok { color: var(--status-success); }
     #p-status.is-error { color: var(--status-error); }
 
-    /* Source panel: one cell per source, with its logo, its own button
-       where it has one, and a found / nothing-found badge once checked. */
+    /* Sources: a real fieldset that LOOKS like Unpack & Convert's
+       "Processing Details" (John, 2026-11-17): the legend is an ordinary
+       label, the box has the inputs' background and border. Inside, a fixed
+       2 x 2 grid in search order: MusicBrainz | Discogs, then Wikipedia |
+       AllMusic. Each cell: the logo and its found / nothing-found badge,
+       then the source's own button where it has one. */
     .p-sources {
         margin: 0;
-        padding: 0.6rem 0.75rem 0.75rem;
-        border: 1px solid var(--border-subtle);
-        background: var(--surface-raised);
+        padding: 0;
+        border: 0;
         min-width: 0;
     }
     .p-sources legend {
-        padding: 0 0.25rem;
+        padding: 0;
+        margin-bottom: 0.25rem;
         color: var(--mf-gold);
         font-size: 0.875rem;
         font-weight: 700;
     }
     .p-source-grid {
         display: grid;
-        /* Two columns while they fit; one at large text sizes. */
-        grid-template-columns: repeat(auto-fit, minmax(min(100%, 6.5rem), 1fr));
-        gap: 0.6rem 1rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background-color: var(--input-background2);
+        border: 1px solid var(--border-ui);
     }
     .p-source {
         display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        min-height: 2.5rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+        min-width: 0;
+        padding: 0.5rem;
+        border: 1px solid var(--border-subtle);
     }
+    .p-source-head { display: flex; align-items: center; gap: 0.5rem; min-height: 2rem; max-width: 100%; }
+    /* The wide Discogs logo may narrow a little to share its cell with the
+       badge (object-fit keeps its shape); never below 2rem. */
+    .p-source-head .p-logo { flex: 0 1 auto; min-width: 2rem; max-width: min(5.5rem, 100%); }
+    /* 2 x 2 while the buttons fit; when text is enlarged so far that
+       "Search Wikipedia" can't fit half the box, one column (larger text
+       beats a tidy fit). rem follows the user's text size, so this switches
+       on text size, not window size. */
+    .p-sources { container-type: inline-size; }
+    @container (inline-size < 12rem) {
+        .p-source-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+    /* A long button name wraps inside the cell instead of spilling out. */
+    .p-source button { max-width: 100%; white-space: normal; text-align: start; }
     .p-logo { height: 1.75rem; width: auto; max-width: 5.5rem; object-fit: contain; flex: none; }
     .p-logo-mb {
         width: 1.75rem;
@@ -308,12 +341,12 @@
          in Artist, Album or Year re-runs the automatic search. -->
     <div class="p-left" id="p-left">
         <form id="p-form" aria-label="Album">
-            <div class="p-row">
-                <div class="p-field">
-                    <label for="p-local-path">Source Directory</label>
+            <div class="p-field">
+                <label for="p-local-path">Source Directory</label>
+                <div class="p-path-row">
                     <input type="text" id="p-local-path" class="p-input p-input-path" readonly placeholder="Select album folder...">
+                    <button type="button" id="p-browse-btn" class="mf-button-gold-fixed">Browse</button>
                 </div>
-                <button type="button" id="p-browse-btn" class="mf-button-gold-fixed">Browse</button>
             </div>
             <div class="p-field">
                 <label for="p-artist-input">Artist</label>
@@ -339,24 +372,32 @@
             <legend>Sources</legend>
             <div class="p-source-grid">
                 <div class="p-source">
-                    <span class="p-logo p-logo-mb" aria-hidden="true"></span>
-                    <span class="mf-visually-hidden">MusicBrainz</span>
-                    <span class="p-badge" id="p-src-mb-check" hidden></span>
+                    <div class="p-source-head">
+                        <span class="p-logo p-logo-mb" aria-hidden="true"></span>
+                        <span class="mf-visually-hidden">MusicBrainz</span>
+                        <span class="p-badge" id="p-src-mb-check" hidden></span>
+                    </div>
                 </div>
                 <div class="p-source">
-                    <img src="/ui/images/Discogs_logo.png" alt="Discogs" class="p-logo">
-                    <span class="p-badge" id="p-src-discogs-check" hidden></span>
+                    <div class="p-source-head">
+                        <img src="/ui/images/Discogs_logo.png" alt="Discogs" class="p-logo">
+                        <span class="p-badge" id="p-src-discogs-check" hidden></span>
+                    </div>
                 </div>
                 <div class="p-source">
-                    <img src="/ui/images/wikipedia.png" alt="" class="p-logo">
+                    <div class="p-source-head">
+                        <img src="/ui/images/wikipedia.png" alt="" class="p-logo">
+                        <span class="p-badge" id="p-src-wiki-check" hidden></span>
+                    </div>
                     <button type="button" id="p-src-wiki-btn" class="mf-button-gold-fixed" aria-describedby="p-wiki-hint">Search Wikipedia</button>
-                    <span class="p-badge" id="p-src-wiki-check" hidden></span>
                     <span class="mf-visually-hidden" id="p-wiki-hint">Wikipedia has no structured credits, so you choose the right page from the results.</span>
                 </div>
                 <div class="p-source">
-                    <img src="/ui/images/AllMusic.png" alt="" class="p-logo">
+                    <div class="p-source-head">
+                        <img src="/ui/images/AllMusic.png" alt="" class="p-logo">
+                        <span class="p-badge" id="p-src-allmusic-check" hidden></span>
+                    </div>
                     <button type="button" id="p-src-allmusic-btn" class="mf-button-gold-fixed" aria-describedby="p-allmusic-hint">Search AllMusic</button>
-                    <span class="p-badge" id="p-src-allmusic-check" hidden></span>
                     <span class="mf-visually-hidden" id="p-allmusic-hint">Last resort: opens an AllMusic search in a separate window; you copy the credits table and paste it here.</span>
                 </div>
             </div>
