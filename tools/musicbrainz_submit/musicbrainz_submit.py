@@ -29,7 +29,10 @@
 #             MusicBrainz are marked submitted and written to the
 #             remediation log. No "Mark Submitted" button.
 #
-# Parked original-year code lives in year_corrections.py (tab hidden).
+# The 1.x "Original Year Corrections" tab (year_corrections.py) was removed
+# on 2026-11-18. It seeded MusicBrainz's "Add release" page with a release
+# named after one track, without checking whether the real release already
+# existed, and so created fake singles. Nothing here creates releases.
 # ======================================================================
 import contextlib
 import io
@@ -462,11 +465,6 @@ def _status(c, state):
 # --- [ DISPATCH ] -----------------------------------------------------------
 
 def run_logic(action, tools_dir, env_path):
-    if action in ("list_candidates", "build_seed", "mark_handled"):
-        from tools.musicbrainz_submit import year_corrections   # parked; tab hidden in v2
-        return {"list_candidates": year_corrections._list_candidates,
-                "build_seed": year_corrections._build_seed,
-                "mark_handled": year_corrections._mark_handled}[action]()
     actions = {
         "albums": _albums, "album": _album, "check": _check, "set_credit": _set_credit,
         "set_artist": _set_artist, "skip_album": _skip_album, "batch": _batch,
