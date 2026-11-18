@@ -114,6 +114,7 @@
     .dbt-album-card:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
     .dbt-album-card img { inline-size: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; }
     .dbt-album-card strong { font-weight: 700; overflow-wrap: anywhere; }
+    .dbt-album-card .dbt-album-year { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
     .dbt-album-card small { color: var(--text-muted); font-size: 0.8125rem; }
 
     /* Tables (tracks, credits) */

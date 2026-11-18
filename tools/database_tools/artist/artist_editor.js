@@ -84,6 +84,7 @@ window.metaforge.database_tools = window.metaforge.database_tools || {};
             D.el('button', { type: 'button', className: 'dbt-album-card', dataset: { id: al.mf_id } },
                 D.el('img', { src: `/ui/covers/${encodeURIComponent(al.mf_id)}.jpg`, alt: '', loading: 'lazy' }),
                 D.el('strong', {}, al.album_title || 'Untitled'),
+                al.year ? D.el('span', { className: 'dbt-album-year' }, `(${al.year})`) : null,
                 D.el('small', {}, al.role === 'Primary Artist' ? 'Album artist' : 'Appears on'))))
             : [D.el('li', { className: 'dbt-hint' }, 'No albums in the database.')]));
         D.say('dbt-art-status', '');

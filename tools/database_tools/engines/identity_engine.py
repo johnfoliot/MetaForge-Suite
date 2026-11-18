@@ -82,6 +82,12 @@ def _search_artist_logic(query_str):
     # Single match identified
     return _get_artist_details_logic(res[0]['mf_artist_id'])
 
+def _album_year(value):
+    """The album's release year as four digits, or "" when there isn't one."""
+    m = re.search(r"\d{4}", str(value or ""))
+    return m.group(0) if m else ""
+
+
 def _get_artist_details_logic(aid):
     res = db_engine.execute_query(
         "SELECT * FROM library_artist WHERE mf_artist_id = ?", (aid,)
@@ -101,7 +107,7 @@ def _get_artist_details_logic(aid):
     # 2. Albums where this artist is the album artist (v2: by ID; matching
     # by name text missed albums whose name differed by case or apostrophe).
     albums_res = db_engine.execute_query(
-        "SELECT mf_id, album_title FROM library_master WHERE mf_artist_id = ? ORDER BY album_title COLLATE NOCASE", (aid,)
+        "SELECT mf_id, album_title, original_year FROM library_master WHERE mf_artist_id = ?", (aid,)
     )
     
     albums = []
@@ -110,6 +116,7 @@ def _get_artist_details_logic(aid):
             albums.append({
                 "mf_id": r['mf_id'],
                 "album_title": r['album_title'],
+                "year": _album_year(r['original_year']),
                 "role": "Primary Artist"
             })
             
@@ -118,7 +125,7 @@ def _get_artist_details_logic(aid):
     
     # 3. Gather personnel edge network mappings matching base schema structures
     edges = db_engine.execute_query(
-        "SELECT e.source_id as mf_id, m.album_title, e.role FROM edges e "
+        "SELECT e.source_id as mf_id, m.album_title, m.original_year, e.role FROM edges e "
         "JOIN library_master m ON e.source_id = m.mf_id "
         "WHERE e.target_id = ? AND e.source_type = 'album'", (aid,)
     )
@@ -134,6 +141,7 @@ def _get_artist_details_logic(aid):
             albums.append({
                 "mf_id": mid,
                 "album_title": e['album_title'],
+                "year": _album_year(e['original_year']),
                 "role": "Appears On"
             })
             primary_ids.add(mid)
@@ -145,7 +153,7 @@ def _get_artist_details_logic(aid):
     # or holding a personnel edge, so #2/#3 above missed it entirely. This
     # is exactly the Various Artists case Personnel Bridge exists for.
     track_albums = db_engine.execute_query(
-        "SELECT DISTINCT t.mf_id, m.album_title FROM tracks t "
+        "SELECT DISTINCT t.mf_id, m.album_title, m.original_year FROM tracks t "
         "JOIN library_master m ON t.mf_id = m.mf_id "
         "WHERE t.mf_artist_id = ?", (aid,)
     )
@@ -159,10 +167,14 @@ def _get_artist_details_logic(aid):
             albums.append({
                 "mf_id": mid,
                 "album_title": r['album_title'],
+                "year": _album_year(r['original_year']),
                 "role": "Appears On"
             })
             primary_ids.add(mid)
 
+    # Oldest release first (John, 2026-11-18). Albums with no year go last;
+    # albums from the same year are in title order.
+    albums.sort(key=lambda a: (a['year'] == "", a['year'], (a['album_title'] or "").casefold()))
     artist['albums'] = albums
     return jsonify({"status": "success", "type": "artist", "artist": artist})
 
