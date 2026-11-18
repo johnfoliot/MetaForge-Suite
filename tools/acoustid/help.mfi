@@ -1,6 +1,5 @@
 <!-- --- START OF FILE help.mfi --- -->
-<!-- v3 (2026-11-17, help overhaul): John's structure (intro, What it does,
-     How to use this tool, then more) and the shared blocks in ui/css/help.css. -->
+
 <p>AcoustID is a free, shared database that recognises a recording by how it sounds (its "fingerprint"). When AcoustID doesn't know one of your tracks yet, you can add it here. Submitting is optional, and it helps everyone who uses AcoustID.</p>
 
 <h3>What it does:</h3>

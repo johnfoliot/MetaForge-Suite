@@ -9,7 +9,7 @@
     <li><strong>listens</strong> to the audio, to measure its BPM, key and intensity;</li>
     <li><strong>fingerprints</strong> it and looks it up on AcoustID;</li>
     <li><strong>identifies</strong> the recording on MusicBrainz;</li>
-    <li><strong>asks the AI</strong> for its genre and sub-genre (from your genre list), its mood and its sound;</li>
+    <li><strong>determines</strong> its genre and sub-genre (from your genre list), its mood and its sound;</li>
     <li><strong>finds the original year</strong>, the year the recording first came out. It checks MusicBrainz, Discogs and Wikipedia, with an AI web search as a last resort.</li>
 </ul>
 <p>Then it clears out old, messy tags and writes the new ones into every file. It can also write them into the MetaForge database, which Album Personnel, Bio Builder and the Dashboard read.</p>
