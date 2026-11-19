@@ -242,10 +242,10 @@
                         <input type="checkbox" id="it-db-write" switch checked aria-describedby="it-db-hint">
                         <label for="it-db-write">Also write to the MetaForge database</label>
                     </div>
-                    <p class="it-hint" id="it-db-hint">Album Personnel and Bio Builder read from the database.</p>
+                    <p class="it-hint" id="it-db-hint">(The Library Viewer and Intelligent Playlist Maker read from the custom MetaForge database.)</p>
                 </div>
 
-                <div class="it-actions">
+                <div class="it-actions" style="background-color:var(--surface-raised);">
                     <button type="submit" id="it-start-btn" class="mf-button-gold-fixed" disabled>Begin Tagging</button>
                 </div>
 
