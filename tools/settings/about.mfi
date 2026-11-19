@@ -9,7 +9,7 @@
 
 <section class="set-about-top" aria-labelledby="set-about-app-h">
     <h3 id="set-about-app-h">MetaForge Studio <span data-about="version"></span></h3>
-    <p>Copyright © 2026 John Foliot. Proudly made in Canada.</p>
+    <p>MetaForge Studio - Music Management for Serious Collectors<br>Copyright &copy; 2026 John Foliot. Proudly made in Canada.</p>
     <p>MetaForge Studio is free software. You may use it, copy it, change it and share it under the terms of the <strong>GNU General Public License, version 3 or later</strong>.</p>
     <p class="set-about-actions">
         <button type="button" class="set-secondary" data-about-text="GPL-3.0.txt" data-about-title="GNU General Public License, version 3">Read the licence</button>
@@ -18,15 +18,15 @@
 </section>
 
 <section class="set-about-top" aria-labelledby="set-about-warranty-h">
-    <h3 id="set-about-warranty-h">No warranty</h3>
-    <p>MetaForge Studio changes your music files. It writes tags, renames files and folders, and converts audio.</p>
-    <p>It comes with <strong>no warranty of any kind</strong>. Keep a backup of anything you can't replace.</p>
+    <h3 id="set-about-warranty-h">No warranty provided</h3>
+    <p>MetaForge Studio is a robust .mp3 tagging tool that physically changes your music files and their metadata. It writes tags, renames files and folders, and (when required) converts audio formats to .mp3 (V0).</p>
+    <p style="font-size:120%;">⚠️ MetaForge Studio comes with <strong>no warranty of any kind</strong>. While the suite has been extensively tested, there is no such thing as "perfect", and accidents can happen. Keep a backup of anything you can't replace.</p>
 </section>
 
 <section class="set-about-top" aria-labelledby="set-about-support-h">
-    <h3 id="set-about-support-h">Support the project</h3>
-    <p>MetaForge Studio is free, and it will stay free. If it saves you time, you can support its development. A donation is never required and unlocks nothing.</p>
-    <p class="set-about-actions"><a href="https://buymeacoffee.com/johnfoliot">Buy me a coffee</a></p>
+    <h3 id="set-about-support-h">Support this project</h3>
+    <p>MetaForge Studio is free to use, and it will always stay free. If MetaForge Studio is useful to you, you can support its development by <i>buying me a coffee</i>. A donation is never required and unlocks nothing, but is really appreciated.</p>
+    <p class="set-about-actions"><a href="https://buymeacoffee.com/johnfoliot"><img src="ui/images/coffee.png" alt="Buy me a coffee" style="height:3.125rem; width:auto;"></a></p>
 </section>
 
 <section class="set-help-list set-about-more" aria-labelledby="set-about-more-h">
@@ -52,13 +52,13 @@
         </div>
     </details>
 
-    <details>
+    <!-- details>
         <summary>The MetaForge name and logo</summary>
         <div class="set-help-body">
             <p>The licence covers the code. It does not cover the name "MetaForge Studio" or the MetaForge logo.</p>
             <p>If you share a changed version, give it a different name and logo, so people can tell it apart from this one.</p>
         </div>
-    </details>
+    </details -->
 
     <details>
         <summary>What leaves your computer</summary>
@@ -68,7 +68,7 @@
                 <table>
                     <caption id="set-about-sent-cap">What is sent to each service</caption>
                     <thead>
-                        <tr><th scope="col">Service</th><th scope="col">What is sent</th><th scope="col">Why</th></tr>
+                        <tr><th scope="col" style="width:8rem;">Service</th><th scope="col">What is sent</th><th scope="col">Why</th></tr>
                     </thead>
                     <tbody>
                         <tr><th scope="row">MusicBrainz</th><td>Artist, album and track names; your email address</td><td>To identify releases. MusicBrainz asks each user for a contact address.</td></tr>
