@@ -51,6 +51,7 @@
         <summary>Can I run an album through it again?</summary>
         <p>Yes. The tags are written again, and the album's tracks in the database are replaced.</p>
         <p>Credits you saved in <strong class="tool">Album Personnel</strong> are kept, and so is the artist's biography.</p>
+        <p>This is also true if you correct the artist or the album title first. The album's record and its credits move to the new name.</p>
     </details>
 </section>
 
