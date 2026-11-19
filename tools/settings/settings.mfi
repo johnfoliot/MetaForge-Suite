@@ -400,6 +400,34 @@
     /* Text styling comes from help.css (.mf-help-doc), as in the Help dialog */
     .set-help-body { padding: 0.25rem 1rem 0.9rem; border-top: 1px solid var(--border-subtle); }
 
+    /* --- ABOUT --- */
+    .set-about-page { display: flex; flex-direction: column; gap: 1rem; max-width: 80ch; }
+    .set-about-top { padding: 0.75rem 1rem; background: var(--surface-page); border: 1px solid var(--border-subtle); border-radius: 4px; }
+    .set-about-top h3 { margin: 0 0 0.4rem; }
+    .set-about-top p { margin: 0.4rem 0 0; max-width: 70ch; line-height: 1.45; }
+    .set-about-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+    .set-about-more { max-width: none; }
+    .set-about-more > h3 { margin: 0.25rem 0 0; }
+    /* Tables: text wraps so nothing is cut off at large text; the wrapper
+       scrolls sideways on its own only if a word still can't fit. */
+    .set-about-table { overflow-x: auto; position: relative; margin: 0.5rem 0 0.75rem; }
+    .set-about-table:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .set-about-table table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+    .set-about-table caption { text-align: start; font-weight: 700; padding: 0 0 0.35rem; color: var(--text-primary); }
+    .set-about-table th, .set-about-table td { text-align: start; vertical-align: top; padding: 0.4rem 0.6rem 0.4rem 0; border-bottom: 1px solid var(--border-subtle); overflow-wrap: anywhere; }
+    .set-about-table thead th { color: var(--text-secondary); font-size: 0.875rem; border-bottom: 1px solid var(--border-ui); }
+    .set-about-table tbody th { font-weight: 700; color: var(--text-primary); }
+    .set-about-table .set-link-btn { text-decoration: underline; }
+    .set-about-table .set-link-btn:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+    .set-licence-dialog { width: min(52rem, 92vw); }
+    .set-licence-text {
+        margin: 0; padding: 0.75rem; max-height: 60vh; overflow: auto; position: relative;
+        white-space: pre-wrap; overflow-wrap: anywhere;
+        font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.45;
+        background: var(--surface-page); color: var(--text-primary); border: 1px solid var(--border-subtle); border-radius: 4px;
+    }
+    .set-licence-text:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
     /* --- CONFIRM DIALOG --- */
     .set-dialog {
         margin: auto;   /* a global margin reset otherwise pins it top-left */
@@ -473,6 +501,7 @@
         <button type="button" role="tab" id="set-tab-config" aria-controls="set-panel-config" aria-selected="false">Configuration &amp; keys</button>
         <button type="button" role="tab" id="set-tab-updates" aria-controls="set-panel-updates" aria-selected="false">Updates</button>
         <button type="button" role="tab" id="set-tab-help" aria-controls="set-panel-help" aria-selected="false">Help files</button>
+        <button type="button" role="tab" id="set-tab-about" aria-controls="set-panel-about" aria-selected="false">About</button>
     </div>
 
     <div class="set-panels" id="set-panels">
@@ -790,6 +819,18 @@
                 </div>
             </div>
         </div>
+
+        <!-- ABOUT (js/about_engine.js; wording in about.mfi, lists and
+             licence texts from the licenses/ folder) -->
+        <div role="tabpanel" id="set-panel-about" aria-labelledby="set-tab-about" hidden="until-found">
+            <div class="set-panel-in">
+                <h2>About MetaForge</h2>
+                <p class="set-intro">What MetaForge Studio is, the licence it comes under, and the licences of everything it is built on.</p>
+                <div class="set-about-page mf-help-doc" id="set-about-page">
+                    <p class="set-hint">Loading…</p>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 </div>
@@ -801,6 +842,14 @@
     <form method="dialog" class="set-dialog-actions">
         <button type="submit" value="ok" id="set-confirm-ok"></button>
         <button type="submit" value="cancel" class="set-secondary" id="set-confirm-cancel" autofocus></button>
+    </form>
+</dialog>
+<!-- A licence text (About tab). Close is the only action; Esc closes too. -->
+<dialog id="set-licence" class="set-dialog set-licence-dialog" aria-labelledby="set-licence-title">
+    <h2 id="set-licence-title"></h2>
+    <pre class="set-licence-text" id="set-licence-text" tabindex="0" role="region" aria-labelledby="set-licence-title"></pre>
+    <form method="dialog" class="set-dialog-actions">
+        <button type="submit" value="close" autofocus>Close</button>
     </form>
 </dialog>
 <!-- --- END OF FILE settings.mfi --- -->

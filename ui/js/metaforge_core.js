@@ -300,6 +300,15 @@ window.MFHelp = {
 document.addEventListener('click', function(e) {
     const trigger = e.target.closest('[data-mf-help]');
     if (trigger) { window.MFHelp.open(trigger.dataset.mfHelp, trigger.dataset.mfHelpName); return; }
+    // The footer's "About & licences": open Settings on its About tab
+    // (settings.js reads settingsStartTab when Settings opens).
+    if (e.target.closest('[data-mf-about]')) {
+        // Timed, so a request the user cancels (unsaved changes elsewhere)
+        // can't redirect a later visit to Settings.
+        window.metaforge.settingsStartTab = { tab: 'about', at: Date.now() };
+        window.mfSwitchMode('settings');     // asks about unsaved changes first, like the toolbar
+        return;
+    }
     // An outside link in help text: inside the app window a plain link
     // can't reach a real browser, so hand it to Python (openExternalLink).
     const link = e.target.closest('.mf-help-doc a[href^="http"]');

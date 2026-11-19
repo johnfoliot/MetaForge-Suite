@@ -1,0 +1,89 @@
+{
+ "_about": "Hand-kept list of the third-party parts shown on Settings > About (programs, fonts, images). The Python libraries are in python_libraries.json, which dev/build_notices.py writes. 'text' names a file in licenses/texts.",
+ "programs": [
+  {
+   "name": "FFmpeg and ffprobe",
+   "used_for": "Converting audio",
+   "licence": "GPL 3.0 or later",
+   "text": "GPL-3.0.txt",
+   "url": "https://ffmpeg.org/",
+   "source": "https://www.gyan.dev/ffmpeg/builds/"
+  },
+  {
+   "name": "Chromaprint (fpcalc)",
+   "used_for": "Making audio fingerprints",
+   "licence": "LGPL 2.1 or later",
+   "text": "LGPL-2.1.txt",
+   "url": "https://acoustid.org/chromaprint",
+   "source": "https://github.com/acoustid/chromaprint"
+  },
+  {
+   "name": "MP3val",
+   "used_for": "Checking and repairing MP3 files",
+   "licence": "GPL 2.0 or later",
+   "text": "GPL-2.0.txt",
+   "url": "https://mp3val.sourceforge.net/",
+   "source": "https://sourceforge.net/projects/mp3val/files/"
+  },
+  {
+   "name": "sacd_extract",
+   "used_for": "Reading SACD disc images",
+   "licence": "GPL 2.0",
+   "text": "GPL-2.0.txt",
+   "url": "https://github.com/EuFlo/sacd-ripper",
+   "source": "https://github.com/EuFlo/sacd-ripper"
+  },
+  {
+   "name": "UnRAR",
+   "used_for": "Opening RAR archives",
+   "licence": "Freeware, © Alexander Roshal",
+   "text": "UnRAR.txt",
+   "url": "https://www.rarlab.com/rar_add.htm",
+   "source": ""
+  },
+  {
+   "name": "yt-dlp",
+   "used_for": "YouTube to MP3",
+   "licence": "Unlicense; the packaged program includes GPL 3.0 parts",
+   "text": "GPL-3.0.txt",
+   "url": "https://github.com/yt-dlp/yt-dlp",
+   "source": "https://github.com/yt-dlp/yt-dlp"
+  }
+ ],
+ "fonts": [
+  {
+   "name": "Atkinson Hyperlegible Next",
+   "used_for": "The text on every screen",
+   "licence": "SIL Open Font License 1.1",
+   "text": "OFL-AtkinsonHyperlegibleNext.txt",
+   "credit": "© Braille Institute of America",
+   "url": "https://www.brailleinstitute.org/freefont/"
+  },
+  {
+   "name": "Cascadia Code and Cascadia Mono",
+   "used_for": "File names and codes",
+   "licence": "SIL Open Font License 1.1",
+   "text": "OFL-CascadiaCode.txt",
+   "credit": "© Microsoft Corporation",
+   "url": "https://github.com/microsoft/cascadia-code"
+  }
+ ],
+ "images": [
+  {
+   "name": "Phosphor Icons",
+   "used_for": "Most toolbar icons",
+   "licence": "MIT",
+   "text": "Phosphor-MIT.txt",
+   "credit": "© Phosphor Icons",
+   "url": "https://phosphoricons.com/"
+  },
+  {
+   "name": "flag-icons",
+   "used_for": "Country flags",
+   "licence": "MIT",
+   "text": "flag-icons-MIT.txt",
+   "credit": "© Panayiotis Lipiridis",
+   "url": "https://github.com/lipis/flag-icons"
+  }
+ ]
+}

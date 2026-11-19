@@ -1,0 +1,386 @@
+{
+ "generated": "2026-11-19",
+ "libraries": [
+  {
+   "name": "annotated-types",
+   "version": "0.7.0",
+   "licence": "MIT",
+   "url": "https://github.com/annotated-types/annotated-types"
+  },
+  {
+   "name": "anyio",
+   "version": "4.13.0",
+   "licence": "MIT",
+   "url": "https://github.com/agronholm/anyio"
+  },
+  {
+   "name": "audioread",
+   "version": "3.1.0",
+   "licence": "MIT",
+   "url": "https://github.com/beetbox/audioread"
+  },
+  {
+   "name": "blinker",
+   "version": "1.9.0",
+   "licence": "MIT",
+   "url": "https://github.com/pallets-eco/blinker/"
+  },
+  {
+   "name": "bottle",
+   "version": "0.13.4",
+   "licence": "MIT",
+   "url": "https://github.com/bottlepy/bottle"
+  },
+  {
+   "name": "certifi",
+   "version": "2026.4.22",
+   "licence": "MPL 2.0",
+   "url": "https://github.com/certifi/python-certifi"
+  },
+  {
+   "name": "cffi",
+   "version": "2.0.0",
+   "licence": "MIT",
+   "url": "https://github.com/python-cffi/cffi"
+  },
+  {
+   "name": "charset-normalizer",
+   "version": "3.4.7",
+   "licence": "MIT",
+   "url": "https://charset-normalizer.readthedocs.io/"
+  },
+  {
+   "name": "click",
+   "version": "8.3.2",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/pallets/click/"
+  },
+  {
+   "name": "clr_loader",
+   "version": "0.2.10",
+   "licence": "MIT",
+   "url": "https://pythonnet.github.io/clr-loader/"
+  },
+  {
+   "name": "colorama",
+   "version": "0.4.6",
+   "licence": "BSD",
+   "url": "https://github.com/tartley/colorama"
+  },
+  {
+   "name": "cryptography",
+   "version": "46.0.7",
+   "licence": "Apache-2.0 OR BSD-3-Clause",
+   "url": "https://github.com/pyca/cryptography"
+  },
+  {
+   "name": "decorator",
+   "version": "5.2.1",
+   "licence": "BSD",
+   "url": ""
+  },
+  {
+   "name": "distro",
+   "version": "1.9.0",
+   "licence": "Apache 2.0",
+   "url": "https://github.com/python-distro/distro"
+  },
+  {
+   "name": "Flask",
+   "version": "3.1.3",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/pallets/flask/",
+   "used_for": "Runs the screens"
+  },
+  {
+   "name": "google-auth",
+   "version": "2.49.2",
+   "licence": "Apache 2.0",
+   "url": "https://github.com/googleapis/google-auth-library-python"
+  },
+  {
+   "name": "google-genai",
+   "version": "1.73.1",
+   "licence": "Apache 2.0",
+   "url": "https://github.com/googleapis/python-genai",
+   "used_for": "Talks to Google Gemini"
+  },
+  {
+   "name": "h11",
+   "version": "0.16.0",
+   "licence": "MIT",
+   "url": "https://github.com/python-hyper/h11"
+  },
+  {
+   "name": "httpcore",
+   "version": "1.0.9",
+   "licence": "BSD 3-Clause",
+   "url": "https://www.encode.io/httpcore/"
+  },
+  {
+   "name": "httpx",
+   "version": "0.28.1",
+   "licence": "BSD",
+   "url": "https://github.com/encode/httpx"
+  },
+  {
+   "name": "idna",
+   "version": "3.15",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/kjd/idna"
+  },
+  {
+   "name": "itsdangerous",
+   "version": "2.2.0",
+   "licence": "BSD",
+   "url": "https://github.com/pallets/itsdangerous/"
+  },
+  {
+   "name": "Jinja2",
+   "version": "3.1.6",
+   "licence": "BSD",
+   "url": "https://github.com/pallets/jinja/"
+  },
+  {
+   "name": "joblib",
+   "version": "1.5.3",
+   "licence": "BSD 3-Clause",
+   "url": "https://joblib.readthedocs.io"
+  },
+  {
+   "name": "lazy-loader",
+   "version": "0.5",
+   "licence": "BSD 3-Clause",
+   "url": "https://scientific-python.org/specs/spec-0001/"
+  },
+  {
+   "name": "librosa",
+   "version": "0.11.0",
+   "licence": "ISC",
+   "url": "https://github.com/librosa/librosa",
+   "used_for": "Measures tempo, key and intensity"
+  },
+  {
+   "name": "llvmlite",
+   "version": "0.47.0",
+   "licence": "BSD 2-Clause",
+   "url": "https://github.com/numba/llvmlite"
+  },
+  {
+   "name": "MarkupSafe",
+   "version": "3.0.3",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/pallets/markupsafe/"
+  },
+  {
+   "name": "msgpack",
+   "version": "1.1.2",
+   "licence": "Apache 2.0",
+   "url": "https://msgpack.org/"
+  },
+  {
+   "name": "musicbrainzngs",
+   "version": "0.7.1",
+   "licence": "BSD / ISC",
+   "url": "https://python-musicbrainzngs.readthedocs.io/"
+  },
+  {
+   "name": "mutagen",
+   "version": "1.47.0",
+   "licence": "GPL 2.0 or later",
+   "url": "https://github.com/quodlibet/mutagen",
+   "used_for": "Reads and writes tags"
+  },
+  {
+   "name": "numba",
+   "version": "0.65.0",
+   "licence": "BSD",
+   "url": "https://numba.pydata.org"
+  },
+  {
+   "name": "numpy",
+   "version": "2.4.4",
+   "licence": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+   "url": "https://numpy.org",
+   "used_for": "Number work for the audio measurements"
+  },
+  {
+   "name": "packaging",
+   "version": "26.1",
+   "licence": "Apache-2.0 OR BSD-2-Clause",
+   "url": "https://github.com/pypa/packaging"
+  },
+  {
+   "name": "pillow",
+   "version": "12.2.0",
+   "licence": "MIT-CMU",
+   "url": "https://python-pillow.github.io",
+   "used_for": "Cover art, photos and the logo"
+  },
+  {
+   "name": "platformdirs",
+   "version": "4.9.6",
+   "licence": "MIT",
+   "url": "https://github.com/tox-dev/platformdirs"
+  },
+  {
+   "name": "pooch",
+   "version": "1.9.0",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/fatiando/pooch"
+  },
+  {
+   "name": "proxy_tools",
+   "version": "0.1.0",
+   "licence": "MIT",
+   "url": "http://github.com/jtushman/proxy_tools"
+  },
+  {
+   "name": "pyasn1",
+   "version": "0.6.3",
+   "licence": "BSD 2-Clause",
+   "url": "https://github.com/pyasn1/pyasn1"
+  },
+  {
+   "name": "pyasn1_modules",
+   "version": "0.4.2",
+   "licence": "BSD",
+   "url": "https://github.com/pyasn1/pyasn1-modules"
+  },
+  {
+   "name": "pycountry",
+   "version": "26.2.16",
+   "licence": "LGPL 2.1",
+   "url": "https://github.com/pycountry/pycountry",
+   "used_for": "Country names"
+  },
+  {
+   "name": "pycparser",
+   "version": "3.0",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/eliben/pycparser"
+  },
+  {
+   "name": "pydantic",
+   "version": "2.13.3",
+   "licence": "MIT",
+   "url": "https://github.com/pydantic/pydantic"
+  },
+  {
+   "name": "pydantic_core",
+   "version": "2.46.3",
+   "licence": "MIT",
+   "url": "https://github.com/pydantic"
+  },
+  {
+   "name": "python-dotenv",
+   "version": "1.2.2",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/theskumar/python-dotenv",
+   "used_for": "Reads your settings file"
+  },
+  {
+   "name": "pythonnet",
+   "version": "3.0.5",
+   "licence": "MIT",
+   "url": "https://pythonnet.github.io/"
+  },
+  {
+   "name": "pywebview",
+   "version": "6.2.1",
+   "licence": "BSD",
+   "url": "https://pywebview.flowrl.com/",
+   "used_for": "The program window"
+  },
+  {
+   "name": "requests",
+   "version": "2.33.1",
+   "licence": "Apache 2.0",
+   "url": "https://github.com/psf/requests",
+   "used_for": "Talks to the online services"
+  },
+  {
+   "name": "scikit-learn",
+   "version": "1.8.0",
+   "licence": "BSD 3-Clause",
+   "url": "https://scikit-learn.org"
+  },
+  {
+   "name": "scipy",
+   "version": "1.17.1",
+   "licence": "BSD",
+   "url": "https://scipy.org/",
+   "used_for": "Number work for the audio measurements"
+  },
+  {
+   "name": "sniffio",
+   "version": "1.3.1",
+   "licence": "MIT / Apache 2.0",
+   "url": "https://github.com/python-trio/sniffio"
+  },
+  {
+   "name": "soundfile",
+   "version": "0.13.1",
+   "licence": "BSD",
+   "url": "https://github.com/bastibe/python-soundfile",
+   "used_for": "Reads audio for measuring"
+  },
+  {
+   "name": "soxr",
+   "version": "1.0.0",
+   "licence": "LGPL 2.1 or later",
+   "url": "https://github.com/dofuuz/python-soxr",
+   "used_for": "Resamples audio for measuring"
+  },
+  {
+   "name": "tenacity",
+   "version": "9.1.4",
+   "licence": "Apache 2.0",
+   "url": "https://github.com/jd/tenacity",
+   "used_for": "Retries a service that is busy"
+  },
+  {
+   "name": "threadpoolctl",
+   "version": "3.6.0",
+   "licence": "BSD",
+   "url": "https://github.com/joblib/threadpoolctl"
+  },
+  {
+   "name": "typing-inspection",
+   "version": "0.4.2",
+   "licence": "MIT",
+   "url": "https://github.com/pydantic/typing-inspection"
+  },
+  {
+   "name": "typing_extensions",
+   "version": "4.15.0",
+   "licence": "PSF 2.0",
+   "url": "https://github.com/python/typing_extensions"
+  },
+  {
+   "name": "urllib3",
+   "version": "2.6.3",
+   "licence": "MIT",
+   "url": "https://urllib3.readthedocs.io"
+  },
+  {
+   "name": "websockets",
+   "version": "16.0",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/python-websockets/websockets"
+  },
+  {
+   "name": "Werkzeug",
+   "version": "3.1.8",
+   "licence": "BSD 3-Clause",
+   "url": "https://github.com/pallets/werkzeug/"
+  },
+  {
+   "name": "Wikipedia-API",
+   "version": "0.14.1",
+   "licence": "MIT",
+   "url": "https://github.com/martin-majlis/Wikipedia-API",
+   "used_for": "Reads Wikipedia"
+  }
+ ]
+}

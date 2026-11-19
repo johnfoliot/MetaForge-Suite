@@ -30,6 +30,7 @@ import taxonomy_engine
 import toolbar_engine
 import help_engine
 import update_engine
+import about_engine
 
 ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -90,6 +91,12 @@ def run_logic(action, tools_dir, env_path):
         return update_engine.dismiss_update()
     if action == "last_update_check":
         return update_engine.last_checked()
+
+    # H. About (the licence, and the licences of everything MetaForge uses)
+    if action == "get_about":
+        return about_engine.info()
+    if action == "licence_text":
+        return about_engine.licence_text()
 
     return jsonify({"status": "error", "message": f"Settings doesn't recognise the action '{action}'."}), 400
 

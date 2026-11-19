@@ -19,7 +19,7 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
         if (S.booting) return S.booting;
         S.booting = (async () => {
             const engines = ['theme_engine.js', 'theme_maker.js', 'toolbar_engine.js', 'dashboard_engine.js', 'taxonomy_engine.js',
-                             'api_engine.js', 'update_engine.js', 'help_engine.js'];
+                             'api_engine.js', 'update_engine.js', 'help_engine.js', 'about_engine.js'];
             for (const engine of engines) {
                 await new Promise((resolve) => {
                     const s = document.createElement('script');
@@ -129,6 +129,15 @@ window.metaforge.settings = window.metaforge.settings || { booted: false, bootin
         S.api && S.api.load();
         S.updates && S.updates.load();
         S.help && S.help.load();
+        S.about && S.about.load();
+        // Another screen asked for a particular tab (the footer's "About &
+        // licences" link sets this, then opens Settings).
+        const want = window.metaforge.settingsStartTab;
+        if (want) {
+            delete window.metaforge.settingsStartTab;
+            const tab = Date.now() - want.at < 10000 && document.getElementById(`set-tab-${want.tab}`);
+            if (tab) { S.selectTab(tab); tab.focus(); }
+        }
     };
 })();
 // --- END OF FILE settings.js ---

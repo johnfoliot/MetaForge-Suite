@@ -849,4 +849,11 @@ input, textarea, select {
     color: var(--mf-gold);
 }
 
+/* Footer link to Settings > About (2026-11-19). A real button that reads as
+   a link; it takes the footer's own text colour, so it passes in every theme. */
+/* !important: the app's general button colour is set with !important. */
+.mf-footer-link { all: unset; cursor: pointer; color: inherit !important; text-decoration: underline; text-underline-offset: 0.15em; }
+.mf-footer-link:hover { text-decoration-thickness: 2px; }
+.mf-footer-link:focus-visible { outline: 3px solid var(--focus-ring); outline-offset: 2px; }
+
 /* --- END OF FILE layout.css --- */

@@ -87,5 +87,17 @@ Because every track is indexed by fixed Genre and Sub-Genre taxonomies, BPM, Key
 
 ---
 
+## Licence
+
+MetaForge Studio is free software. Copyright © 2026 John Foliot.
+
+You may use it, copy it, change it and share it under the terms of the **GNU General Public License, version 3 or later**. The full text is in [LICENSE](LICENSE). MetaForge Studio comes with no warranty of any kind.
+
+The licence covers the code. It does not cover the name "MetaForge Studio" or the MetaForge logo: a changed version must use a different name and logo.
+
+MetaForge Studio is built on other people's work. The programs, libraries, fonts and images it uses, and their licences, are listed in the [licenses](licenses) folder and inside the app under **Settings > About**. The names and logos of MusicBrainz, AcoustID, Discogs, Wikipedia and other services belong to their owners and are not covered by this licence.
+
+---
+
 [^1]: Russell, J. A. (1980), *A Circumplex Model of Affect* — background on emotion/mood classification models: [Tufts EE Senior Design Handbook, "Music Mood Classification"](https://sites.tufts.edu/eeseniordesignhandbook/2015/music-mood-classification/).
 [^2]: Geneva Emotional Music Scale (GEMS), developed at the University of Geneva's Swiss Center for Affective Sciences: [UNIGE CISA, "Culture and Arts"](https://www.unige.ch/cisa/research/topics/culture-and-arts).
