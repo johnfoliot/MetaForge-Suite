@@ -23,13 +23,11 @@
     <p>It comes with <strong>no warranty of any kind</strong>. Keep a backup of anything you can't replace.</p>
 </section>
 
-<!-- SUPPORT THE PROJECT: add this section when the donation link exists.
 <section class="set-about-top" aria-labelledby="set-about-support-h">
     <h3 id="set-about-support-h">Support the project</h3>
     <p>MetaForge Studio is free, and it will stay free. If it saves you time, you can support its development. A donation is never required and unlocks nothing.</p>
-    <p class="set-about-actions"><a href="">Buy me a coffee</a></p>
+    <p class="set-about-actions"><a href="https://buymeacoffee.com/johnfoliot">Buy me a coffee</a></p>
 </section>
--->
 
 <section class="set-help-list set-about-more" aria-labelledby="set-about-more-h">
     <h3 id="set-about-more-h">More about MetaForge Studio</h3>
