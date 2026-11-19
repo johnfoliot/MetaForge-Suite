@@ -13,4 +13,4 @@
 .db-track { display: block; height: 0.9rem; width: var(--len, 100%); background: var(--surface-raised); border: 1px solid var(--border-ui); border-radius: 3px; overflow: hidden; }
 .db-fill { display: block; height: 100%; width: var(--done, 0%); background: var(--mf-gold); }
 .db-num { color: var(--text-muted); text-align: right; white-space: nowrap; }
-.db-tile h2 {background-color:var(--mf-gold):}
+.db-tile h2 {background-color:var(--surface-raised); padding:2px; padding-left:8px;}
