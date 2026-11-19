@@ -232,7 +232,10 @@ def _drop_orphans(db, ch):
         row = db.execute("SELECT * FROM library_artist WHERE mf_artist_id=?", (aid,)).fetchone()
         if not row:
             continue
-        if any((row[c] or "").strip() for c in ("biography", "photo_path", "country", "mb_artist_id")):
+        # "None" and "Unknown" are the Intelli-Tagger's placeholders for
+        # "nothing found", not something worth keeping (2026-11-19).
+        if any((row[c] or "").strip() not in ("", "None", "Unknown")
+               for c in ("biography", "photo_path", "country", "mb_artist_id")):
             ch.notes.append(f"{row['artist_name']} no longer has any albums, tracks or credits. "
                             "Their record is kept because it has a biography, photo, country or MusicBrainz ID.")
         else:
@@ -349,6 +352,115 @@ def run(op, apply=False, label="", **args):
     res["backup"] = str(backup)
     res["problems"] = _write_files(ch) + _repoint_logs(ch)
     return res
+
+
+def carry_over_retag(artist, title, file_paths, mb_album_id=None):
+    """Called by the Intelli-Tagger just before it saves an album
+    (John, 2026-11-18). An album's ID is hash(artist, title), so tagging
+    the same files again under a corrected name used to be treated as a
+    brand-new album: the save failed on every track (file_path is the
+    tracks key) and the saved credits stayed behind on the old record.
+
+    For each OTHER album record that owns any of these files:
+      - every one of its tracks is among these files: it is the same album
+        under its old name. Its record, credits and MusicBrainz logs move to
+        the new name (merging if that record exists), as a Database Tools
+        rename does. No tags are written: the Intelli-Tagger writes them.
+      - it has other tracks too: only these files' track rows are released,
+        so the save can succeed. Its credits stay where they are, because
+        which album they describe is not this code's call.
+    Files RENAMED since the first run share no path with the old record, so
+    an old record also counts as this album when all three hold (rule agreed
+    with John, 2026-11-19): none of its tracks' files exist any more, it has
+    the same MusicBrainz release ID as this run, and the same number of
+    tracks. Anything short of that is left alone.
+    Returns plain-language lines for the Activity log. Raises on failure;
+    the caller reports it and carries on."""
+    artist, title = (artist or "").strip(), (title or "").strip()
+    paths = {str(p).replace("\\", "/").lower() for p in file_paths}
+    if not artist or not title or not paths:
+        return []
+    new_id = hash_album_identity(artist, title)
+    artist_id = hash_artist_identity(artist)
+
+    def owners(db):
+        """{other album id: (its tracks among these files, its other tracks)}"""
+        out = {}
+        for r in db.execute("SELECT file_path, mf_id FROM tracks WHERE mf_id IS NOT ?", (new_id,)).fetchall():
+            if (r["file_path"] or "").replace("\\", "/").lower() in paths:
+                out.setdefault(r["mf_id"], [[], 0])[0].append(r["file_path"])
+        for old in out:
+            out[old][1] = db.execute("SELECT count(*) FROM tracks WHERE mf_id=?", (old,)).fetchone()[0] - len(out[old][0])
+        release = (mb_album_id or "").strip()
+        if release not in ("", "None", "Unknown"):
+            for a in db.execute("SELECT mf_id FROM library_master WHERE mb_album_id=? AND mf_id IS NOT ?",
+                                (release, new_id)).fetchall():
+                if a["mf_id"] in out:
+                    continue
+                theirs = [r["file_path"] for r in db.execute("SELECT file_path FROM tracks WHERE mf_id=?", (a["mf_id"],)).fetchall()]
+                if len(theirs) == len(paths) and not any(os.path.exists(fp) for fp in theirs):
+                    out[a["mf_id"]] = [theirs, 0]
+        return out
+
+    def work(db, ch):
+        lines = []
+        for old, (mine, others) in owners(db).items():
+            row = db.execute("SELECT artist_name, album_title FROM library_master WHERE mf_id=?", (old,)).fetchone()
+            was = f"“{row['album_title']}” by {row['artist_name']}" if row else "an album record that no longer exists"
+            if others:
+                for fp in mine:
+                    db.execute("DELETE FROM tracks WHERE file_path=?", (fp,))
+                lines.append(f"{_n(len(mine), 'file')} here {'was' if len(mine) == 1 else 'were'} filed under {was}, "
+                             f"which has {_n(others, 'other track')}. Its credits were left where they are. "
+                             "If it is the same album, rename it in Database Tools.")
+                continue
+            credits = db.execute("SELECT count(*) FROM edges WHERE source_type='album' AND source_id=?", (old,)).fetchone()[0]
+            if row:
+                db.execute("INSERT OR IGNORE INTO library_artist (mf_artist_id, artist_name, last_updated) "
+                           "VALUES (?, ?, CURRENT_TIMESTAMP)", (artist_id, artist))
+                _move_album(db, ch, old, artist, artist_id, title, retag_artist=False)
+            else:               # tracks and credits whose album record is already gone
+                db.execute("UPDATE tracks SET mf_id=? WHERE mf_id=?", (new_id, old))
+                db.execute("UPDATE edges SET source_id=? WHERE source_type='album' AND source_id=?", (new_id, old))
+                ch.album_ids[old] = new_id
+                ch.touched_albums.add(new_id)
+            # These files' track rows go now (the Intelli-Tagger deletes and
+            # rewrites them a moment later anyway), so an artist only they
+            # pointed at, such as a misspelt name, is seen as unused below.
+            for fp in mine:
+                t = db.execute("SELECT mf_artist_id FROM tracks WHERE file_path=?", (fp,)).fetchone()
+                if t:
+                    ch.maybe_orphans.add(t["mf_artist_id"])
+                db.execute("DELETE FROM tracks WHERE file_path=?", (fp,))
+            lines.append(f"This album was in the database as {was}. "
+                         + (f"Its record and {_n(credits, 'credit')} now belong" if credits else "Its record now belongs")
+                         + " to the name used here.")
+        _dedupe_credits(db, ch)
+        _drop_orphans(db, ch)
+        return lines
+
+    db = _connect()
+    try:
+        if not owners(db):
+            return []
+        db.execute("BEGIN IMMEDIATE")
+        try:
+            ch = Change()
+            lines = work(db, ch)
+            if ch.album_ids:                    # a record moves: back up the untouched
+                db.execute("ROLLBACK")          # database first, as run() does...
+                _backup(f"Intelli-Tagger re-tag {title}", ch)
+                db.execute("BEGIN IMMEDIATE")   # ...then the same work again, for real
+                ch = Change()
+                lines = work(db, ch)
+            db.execute("COMMIT")
+        except Exception:
+            if db.in_transaction:       # not while the backup is being made
+                db.execute("ROLLBACK")
+            raise
+    finally:
+        db.close()
+    return lines + list(dict.fromkeys(ch.notes)) + _repoint_logs(ch)
 
 
 def _result(ch):

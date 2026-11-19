@@ -95,6 +95,21 @@ def execute_commit(
     cursor = None
 
     if db_write:
+        # The same files tagged again under a corrected artist or title get
+        # a new album ID. Before saving, move the album's existing record and
+        # credits to the new name (John, 2026-11-18). Without this every
+        # track failed to save and the credits stayed on the old record.
+        try:
+            from tools.database_tools.engines import identity_ops
+            for line in identity_ops.carry_over_retag(
+                    artist_name, album_title,
+                    [str(f.resolve()) for f, _ in track_results],
+                    mb_album_id=manifest_seeds.get("mb_ids", {}).get("album")):
+                yield event("info", line)
+        except Exception as e:
+            yield event("warning", f"This album's earlier database record couldn't be moved to its new name ({e}). "
+                                   "Its credits may still be under the old name; check it in Database Tools")
+
         try:
             conn = sqlite3.connect(str(DB_PATH))
             cursor = conn.cursor()
