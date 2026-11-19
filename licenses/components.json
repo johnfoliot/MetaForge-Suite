@@ -1,5 +1,5 @@
 {
- "_about": "Hand-kept list of the third-party parts shown on Settings > About (programs, fonts, images). The Python libraries are in python_libraries.json, which dev/build_notices.py writes. 'text' names a file in licenses/texts.",
+ "_about": "Hand-kept list of the third-party parts shown on Settings > About (programs, fonts, images). The Python libraries are in python_libraries.json, which dev/build_notices.py writes. 'text' names a file in licenses/texts. A tool that brings its own third-party parts lists them in its own folder instead (tools/<id>/licenses.json, same shape as this file); the About page adds them while that tool is installed.",
  "programs": [
   {
    "name": "FFmpeg and ffprobe",
@@ -40,14 +40,6 @@
    "text": "UnRAR.txt",
    "url": "https://www.rarlab.com/rar_add.htm",
    "source": ""
-  },
-  {
-   "name": "yt-dlp",
-   "used_for": "YouTube to MP3",
-   "licence": "Unlicense; the packaged program includes GPL 3.0 parts",
-   "text": "GPL-3.0.txt",
-   "url": "https://github.com/yt-dlp/yt-dlp",
-   "source": "https://github.com/yt-dlp/yt-dlp"
   }
  ],
  "fonts": [

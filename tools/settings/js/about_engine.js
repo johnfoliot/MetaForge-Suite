@@ -27,6 +27,7 @@
         if (!row.text) return el('td', {}, row.licence || '');
         const b = el('button', { type: 'button', className: 'set-link-btn', textContent: row.licence || 'Licence' });
         b.dataset.aboutText = row.text;
+        if (row.tool) b.dataset.aboutTool = row.tool;      // the text is in that tool's own folder
         b.dataset.aboutTitle = `${row.name}: ${row.licence}`;
         b.setAttribute('aria-label', `${row.licence}. Read the licence for ${row.name}`);
         return el('td', {}, b);
@@ -89,7 +90,8 @@
         pre.scrollTop = 0;
         if (!dlg.open) dlg.showModal();
         try {
-            const res = await fetch(`/run_tool_logic/settings/licence_text?name=${encodeURIComponent(button.dataset.aboutText)}`);
+            const from = button.dataset.aboutTool ? `&tool=${encodeURIComponent(button.dataset.aboutTool)}` : '';
+            const res = await fetch(`/run_tool_logic/settings/licence_text?name=${encodeURIComponent(button.dataset.aboutText)}${from}`);
             const data = await res.json();
             pre.textContent = data.status === 'ok' ? data.text : (data.message || 'That licence text couldn’t be read.');
         } catch (e) {

@@ -1,0 +1,13 @@
+{
+ "_about": "Third-party parts this tool brings with it. Same shape as licenses/components.json (programs, fonts, images). Settings > About adds these rows while this tool's folder is installed. 'text' names a licence text: a .txt file in this tool's own licenses/ folder, or failing that one in the suite's licenses/texts.",
+ "programs": [
+  {
+   "name": "yt-dlp",
+   "used_for": "YouTube to MP3",
+   "licence": "Unlicense; the packaged program includes GPL 3.0 parts",
+   "text": "GPL-3.0.txt",
+   "url": "https://github.com/yt-dlp/yt-dlp",
+   "source": "https://github.com/yt-dlp/yt-dlp"
+  }
+ ]
+}
