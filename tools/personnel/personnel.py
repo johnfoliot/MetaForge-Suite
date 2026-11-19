@@ -90,7 +90,7 @@ MANUAL_VERIFICATION_TIERS = {
     },
 }
 
-USER_AGENT = "MetaForgeStudio/1.0 (contact: forensic-dev@metaforge.studio)"
+USER_AGENT = config_handler.USER_AGENT()
 API_URL = "https://en.wikipedia.org/w/api.php"
 
 # Evidence-collection log for a future MB contribution tool (see

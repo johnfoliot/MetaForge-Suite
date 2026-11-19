@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional
 from common import config_handler
 
 TOKEN = config_handler.DISCOGS_TOKEN()
-USER_AGENT = "MetaForgeStudio/1.0 (year-resolution)"
+USER_AGENT = config_handler.USER_AGENT()
 SEARCH_URL = "https://api.discogs.com/database/search"
 RELEASE_URL = "https://api.discogs.com/releases/{id}"
 MASTER_URL = "https://api.discogs.com/masters/{id}"

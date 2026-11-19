@@ -60,6 +60,21 @@ def DISCOGS_TOKEN():
     return os.getenv("DISCOGS_TOKEN")
 
 
+def USER_EMAIL():
+    # Asked for in first-run setup and editable in Settings ("Your email
+    # address (for MusicBrainz)"). Settings updates os.environ on save, so
+    # this is current without a restart.
+    return (os.getenv("USER_EMAIL") or "").strip()
+
+
+def USER_AGENT(with_email=False):
+    """The User-Agent for every request to an outside service (the string
+    itself is built in common/version.py). with_email=True is for
+    MusicBrainz only."""
+    from common.version import user_agent
+    return user_agent(USER_EMAIL() if with_email else None)
+
+
 def LIBRARY_ROOT():
     return Path(os.getenv("LIBRARY_ROOT", "C:\\Music"))
 

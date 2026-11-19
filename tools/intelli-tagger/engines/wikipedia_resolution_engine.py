@@ -19,7 +19,9 @@ from typing import Optional
 
 import requests
 
-USER_AGENT = "MetaForgeStudio/1.0 (year-resolution, contact: forensic-dev@metaforge.studio)"
+from common import config_handler
+
+USER_AGENT = config_handler.USER_AGENT()
 API_URL = "https://en.wikipedia.org/w/api.php"
 
 

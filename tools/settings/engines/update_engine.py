@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 from flask import jsonify, request
 
 from common import config_handler
-from common.version import APP_VERSION, is_newer, parse_version
+from common.version import APP_VERSION, is_newer, parse_version, user_agent
 
 REMOTE_URL = "https://raw.githubusercontent.com/johnfoliot/MetaForge-Suite/main/deploy/updates.json"
 ALLOWED_LINK_HOSTS = {"github.com", "www.github.com"}
@@ -59,7 +59,7 @@ def _fetch_remote():
     """Returns (data, source_label). Verified HTTPS (the default context)."""
     if TEST_FILE.exists():
         return json.loads(TEST_FILE.read_text(encoding="utf-8-sig")), f"TEST FILE {TEST_FILE}"
-    req = urllib.request.Request(f"{REMOTE_URL}?t={int(time.time())}", headers={"User-Agent": f"MetaForgeStudio/{APP_VERSION}"})
+    req = urllib.request.Request(f"{REMOTE_URL}?t={int(time.time())}", headers={"User-Agent": user_agent()})
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read().decode("utf-8-sig")), "GitHub"
 

@@ -75,7 +75,7 @@ def _discogs_portrait(artist_name):
     name short) and an exact name match is preferred over the first hit.
     """
     token = config_handler.DISCOGS_TOKEN()
-    headers = {"User-Agent": "MetaForge/1.0", "Authorization": f"Discogs token={token}"}
+    headers = {"User-Agent": config_handler.USER_AGENT(), "Authorization": f"Discogs token={token}"}
     try:
         time.sleep(1.0)
         res = requests.get("https://api.discogs.com/database/search",

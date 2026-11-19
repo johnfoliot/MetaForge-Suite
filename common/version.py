@@ -18,6 +18,29 @@ import re
 
 APP_VERSION = "2.0.0-dev"   # v2 rebuild in progress; first remediated release = 2.0.1 (John, 2026-11-15)
 
+# The project's public home. It is the contact address in every request
+# MetaForge makes to an outside service (see user_agent below).
+PROJECT_URL = "https://github.com/johnfoliot/MetaForge-Suite"
+
+_EMAIL_RE = re.compile(r"^[^\s@();<>]+@[^\s@();<>]+\.[^\s@();<>]+$")
+
+
+def user_agent(email=None):
+    """How MetaForge identifies itself to outside services: the one place
+    this string is built (2026-11-19; there were 9 different ones, two with
+    made-up contact addresses).
+
+        MetaForgeStudio/2.0.0 (+https://github.com/johnfoliot/MetaForge-Suite)
+
+    `email` is added only for MusicBrainz, the one service that asks for a
+    way to reach the person making the requests. Callers get it from
+    config_handler.USER_AGENT(with_email=True); no other service is sent a
+    personal detail. Anything that isn't a plain email address is left out."""
+    email = str(email or "").strip()
+    contact = f"+{PROJECT_URL}" + (f"; {email}" if _EMAIL_RE.match(email) else "")
+    return f"MetaForgeStudio/{APP_VERSION} ({contact})"
+
+
 _VERSION_RE = re.compile(r"^\s*v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?\s*$")
 
 

@@ -45,7 +45,6 @@ class MBResolutionEngine:
     """
 
     BASE_URL = "https://musicbrainz.org/ws/2/"
-    USER_AGENT = "MetaForge/1.0 (mb_resolution_engine)"
 
     def __init__(self, rate_limit_delay: float = 1.0):
         self.rate_limit_delay = rate_limit_delay
@@ -64,7 +63,7 @@ class MBResolutionEngine:
         """
         from common import mb_client
 
-        response = mb_client.get(endpoint, params=params, headers={"User-Agent": self.USER_AGENT})
+        response = mb_client.get(endpoint, params=params)
         self._last_call = time.time()
         return response.json()
 

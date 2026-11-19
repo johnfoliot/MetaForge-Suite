@@ -28,13 +28,15 @@ from pathlib import Path
 
 import requests
 
+from common.version import user_agent
+
 AUDIO_EXT = {".mp3", ".flac", ".wav", ".m4a", ".aac", ".ogg", ".opus", ".wma",
              ".ape", ".wv", ".aif", ".aiff", ".dsf", ".dff", ".alac"}
 # Disc and artwork folders inside an album don't make the library deeper.
 _INNER = re.compile(r"^(cd|disc|disk)\s*\d+$|^(art|artwork|scans|covers?)$", re.I)
 POLICIES = ("BASIC", "STANDARD", "ENHANCED")
-# Generic name only: no personal details go to the services (privacy rule).
-USER_AGENT = "MetaForgeStudio/2.0 (first-run key check)"
+# The app's name and project address only: no personal details go to the services (privacy rule).
+USER_AGENT = user_agent()
 TIMEOUT = 15
 
 

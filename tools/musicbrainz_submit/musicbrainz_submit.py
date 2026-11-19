@@ -59,7 +59,6 @@ REMEDIATION_LOG = MB_DIR / "remediation_log.jsonl"
 ARTIST_MATCH_CACHE = MB_DIR / "artist_match_cache.json"
 ARTIST_CACHE_DAYS = 30
 
-MB_API_USER_AGENT = "MetaForge/2.0 (musicbrainz_submit)"
 METAFORGE_HEURISTICS_URL = "https://github.com/johnfoliot/MetaForge-Suite/blob/main/AI%20Heuristics.md"
 BATCH_SIZE = 25
 
@@ -582,7 +581,7 @@ def _album():
 
 def _mb_get(path, params):
     from common import mb_client
-    res = mb_client.get(path, params=params, headers={"User-Agent": MB_API_USER_AGENT}, timeout=30)
+    res = mb_client.get(path, params=params, timeout=30)
     return res.json()
 
 

@@ -35,13 +35,14 @@ import time
 
 import requests
 
+from common import config_handler
+
 BASE_URL = "https://musicbrainz.org/ws/2/"
 MIN_INTERVAL = 1.1          # seconds between ANY two MusicBrainz requests
 TIMEOUT = 20                # seconds before one attempt is abandoned
 MAX_ATTEMPTS = 4            # 1 try + 3 retries
 RETRY_STATUSES = {502, 503, 504}
 MAX_RETRY_WAIT = 10         # cap on any single wait, seconds
-DEFAULT_USER_AGENT = "MetaForgeStudio/1.0.0"
 
 _session = requests.Session()
 _pace_lock = threading.Lock()
@@ -90,7 +91,9 @@ def get(endpoint_or_url, params=None, headers=None, timeout=TIMEOUT):
     url = endpoint_or_url if endpoint_or_url.startswith("http") else BASE_URL + endpoint_or_url.lstrip("/")
     params = dict(params or {})
     params.setdefault("fmt", "json")
-    hdrs = {"User-Agent": DEFAULT_USER_AGENT, "Accept": "application/json"}
+    # Every MusicBrainz request identifies MetaForge the same way, with the
+    # user's email as MusicBrainz asks (config_handler.USER_AGENT).
+    hdrs = {"User-Agent": config_handler.USER_AGENT(with_email=True), "Accept": "application/json"}
     if headers:
         hdrs.update(headers)
 

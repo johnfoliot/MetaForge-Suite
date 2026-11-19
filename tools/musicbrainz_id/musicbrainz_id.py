@@ -54,23 +54,12 @@ def _own_title(path):
     return parts[2].strip() if len(parts) == 3 and parts[2].strip() else path.stem
 
 
-def get_mb_headers(env_path):
-    email = "anonymous@metaforge.studio"
-
-    if env_path and env_path.exists():
-        try:
-            content = env_path.read_text(encoding="utf-8")
-            for line in content.splitlines():
-                if line.startswith("USER_EMAIL="):
-                    email = line.split("=", 1)[1].strip()
-                    break
-        except Exception:
-            pass
-
-    return {
-        "User-Agent": f"MetaForgeStudio/1.0.0 ({email})",
-        "Accept": "application/json"
-    }
+def get_mb_headers(env_path=None):
+    """Only the Accept header: common/mb_client adds MetaForge's User-Agent
+    (with the user's email, as MusicBrainz asks) to every request. This
+    used to read the settings file by hand and fall back to a made-up
+    address."""
+    return {"Accept": "application/json"}
 
 
 # =========================================================
