@@ -49,14 +49,14 @@ def scrub_tags(root_path):
     if not files:
         return
 
-    yield event("step", "Step 2: Scrubbing old metadata")
+    yield event("step", "Step 2: Reviewing and remediating existing metadata")
 
     scrub_count = 0
     vanished_count = 0
     for f in files:
         if not f.exists():
             vanished_count += 1
-            yield event("error", "File went missing before its old metadata could be scrubbed", file=f.name)
+            yield event("error", "File went missing before its old metadata could be checked", file=f.name)
             continue
 
         # tag_engine.sanitize_file logic protects frames starting with whitelist entries.
@@ -65,11 +65,11 @@ def scrub_tags(root_path):
         if success:
             scrub_count += 1
             if scrub_count % 5 == 0 or scrub_count == len(files):
-                yield event("detail", f"Scrubbed {scrub_count} of {len(files)} files",
+                yield event("detail", f"Reviewed {scrub_count} of {len(files)} files",
             ok=(scrub_count == len(files)))   # ✓ on the final line (John, 2026-11-15)
         else:
-            yield event("error", f"Scrub failed: {message}", file=f.name)
+            yield event("error", f"Review failed: {message}", file=f.name)
 
     if vanished_count > 0:
-        yield event("warning", f"{vanished_count} file{'s' if vanished_count != 1 else ''} went missing during the scrub")
+        yield event("warning", f"{vanished_count} file{'s' if vanished_count != 1 else ''} went missing during the review")
 # --- END OF FILE scrub_engine.py ---

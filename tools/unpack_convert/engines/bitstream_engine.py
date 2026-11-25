@@ -71,7 +71,7 @@ def process_targets(root, artist, album, category, report_data, disc_num=1, tota
     stays aligned with the real disc layout once that track is repaired.
     """
     disc_note = f" (disc {disc_num} of {total_discs})" if is_multidisc else ""
-    yield event("step", f"Step 2: Converting to MP3 and cleaning metadata{disc_note}")
+    yield event("step", f"Step 2: Converting to MP3(V0) and cleaning metadata{disc_note}")
 
     if 'failed_targets' not in report_data:
         report_data['failed_targets'] = []

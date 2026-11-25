@@ -424,7 +424,7 @@
     <!-- RIGHT: THE CREDITS. No repeated tool icon/heading (John's header
          pattern); the region keeps a name for screen-reader navigation. -->
     <section class="p-right" aria-label="Album personnel credits">
-        <p id="p-mapping-count">0 credits ready to save</p>
+        <p id="p-mapping-count">0 credits ready to save</p><div style="height:1px!important; width:1px!important; overflow:clip;" ><a href="#submit_buttons">Skip to Commit buttons</a></div>
 
         <div class="p-mapping-outer">
             <div id="p-mapping-viewport" class="mf-hide-native-scrollbar">
@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <div class="p-actions">
+        <div class="p-actions" id="submit_buttons">
             <button type="button" id="p-add-btn" class="mf-button-gold-fixed p-btn-quiet">Add a credit by hand</button>
             <button type="button" id="p-commit-btn" class="mf-button-gold-fixed" disabled>Save to Database</button>
         </div>
@@ -467,7 +467,7 @@
          fallback): the rest of the screen is inert while it runs. -->
     <div class="p-busy" id="p-busy" hidden>
         <div class="p-busy-card">
-            <div class="p-spinner" aria-hidden="true"></div>
+            <div class="p-spinner" role="spinner"></div>
             <p id="p-busy-text">Checking MusicBrainz and Discogs, with an AI web search if they come up thin. This can take a little while.</p>
         </div>
     </div>

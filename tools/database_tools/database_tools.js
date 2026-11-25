@@ -179,7 +179,7 @@ window.metaforge.database_tools = window.metaforge.database_tools || { booted: f
             const p = panelFor(t);
             if (on) p.removeAttribute('hidden'); else p.setAttribute('hidden', 'until-found');
         }
-        D.$('dbt-panels').scrollTop = 0;
+        for (const region of document.querySelectorAll('#dbt-panels .dbt-scroll')) region.scrollTop = 0;
     };
 
     function wireTabs() {

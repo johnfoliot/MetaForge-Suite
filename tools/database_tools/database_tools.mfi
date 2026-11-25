@@ -29,13 +29,19 @@
     .dbt-tabs button[aria-selected="true"] { color: var(--mf-gold) !important; background: var(--surface-raised); }
     .dbt-tabs button[aria-selected="true"]::after { content: ""; position: absolute; inset: auto 0.5rem 0; border-block-end: 4px solid var(--mf-gold); }
 
-    /* --- PANELS (one grid cell; only this area scrolls) --- */
-    .dbt-panels { display: grid; position: relative; min-height: 0; overflow-y: auto; scroll-padding-bottom: 6rem; }
-    .dbt-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+    /* --- PANELS (one grid cell). Each panel is two rows: a region that
+       scrolls (.dbt-scroll) and, under it, the action row (.dbt-actions).
+       The action row is a real row of the layout, not position: sticky
+       (2026-11-20: the sticky row was left stranded mid-screen in the app
+       window), so it can never sit on top of a field. --- */
+    .dbt-panels { display: grid; grid-template-rows: minmax(0, 1fr); position: relative; min-height: 0; }
+    .dbt-panels > [role="tabpanel"] { grid-area: 1 / 1; min-width: 0; min-height: 0; }
     /* hidden="until-found" keeps an invisible box; stacked in one cell it
        would swallow clicks meant for the visible panel. */
     .dbt-panels > [role="tabpanel"][hidden] { pointer-events: none; }
-    .dbt-in { display: flex; flex-direction: column; gap: 1rem; min-height: 100%; box-sizing: border-box; padding: 0.25rem 0.5rem 0 0.25rem; container-type: inline-size; }
+    .dbt-in { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100%; box-sizing: border-box; container-type: inline-size; }
+    .dbt-scroll { position: relative; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; box-sizing: border-box; padding: 0.25rem 0.5rem 0.75rem 0.25rem; }
+    .dbt-scroll > * { flex-shrink: 0; }
     .dbt-in h2 { margin: 0; font-size: 1.25rem; color: var(--mf-gold); }
     .dbt-in h3 { margin: 0; font-size: 1.0625rem; color: var(--text-primary); }
     .dbt-intro, .dbt-hint { margin: 0; max-width: 75ch; line-height: 1.45; }
@@ -129,11 +135,14 @@
     .dbt-year-note.is-low { color: var(--status-warning); font-weight: 700; }
     .dbt-col-year { inline-size: 7.5rem; }
 
-    /* Action row pinned to the bottom of the scrolling area */
+    /* Action row: always under the scrolling region. Its buttons belong to
+       the panel's form through form="…", so Enter in a field still saves. */
     .dbt-actions {
-        position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem;
-        margin-top: auto; padding: 0.6rem 0; background: var(--surface-page); border-top: 1px solid var(--border-subtle);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem;
+        padding: 0.6rem 0.25rem; background: var(--surface-page); border-top: 1px solid var(--border-subtle);
     }
+    /* No record open yet: no action row. */
+    .dbt-scroll:has(> form[hidden]) + .dbt-actions { display: none; }
     .dbt-actions .dbt-stamp { margin-inline-start: auto; font-size: 0.875rem; color: var(--text-muted); }
 
     /* Remove-records results */
@@ -186,6 +195,7 @@
         <!-- ================= ARTISTS ================= -->
         <div role="tabpanel" id="dbt-panel-artist" aria-labelledby="dbt-tab-artist">
             <div class="dbt-in">
+                <div class="dbt-scroll">
                 <search>
                     <form class="dbt-find" id="dbt-artist-find">
                         <div class="dbt-field">
@@ -237,19 +247,21 @@
                         <p class="dbt-hint">Choose an album to open it in the Albums tab.</p>
                         <ul class="dbt-albums" id="dbt-art-albums"></ul>
                     </section>
-                    <div class="dbt-actions">
-                        <button type="submit">Save changes</button>
-                        <button type="button" class="dbt-secondary" id="dbt-art-merge-btn">Merge with another artist…</button>
-                        <p class="dbt-dirty" id="dbt-art-dirty" hidden>Unsaved changes</p>
-                        <p class="dbt-status" id="dbt-art-status"></p>
-                    </div>
                 </form>
+                </div>
+                <div class="dbt-actions">
+                    <button type="submit" form="dbt-artist-form">Save changes</button>
+                    <button type="button" class="dbt-secondary" id="dbt-art-merge-btn">Merge with another artist…</button>
+                    <p class="dbt-dirty" id="dbt-art-dirty" hidden>Unsaved changes</p>
+                    <p class="dbt-status" id="dbt-art-status"></p>
+                </div>
             </div>
         </div>
 
         <!-- ================= ALBUMS ================= -->
         <div role="tabpanel" id="dbt-panel-album" aria-labelledby="dbt-tab-album" hidden="until-found">
             <div class="dbt-in">
+                <div class="dbt-scroll">
                 <search>
                     <form class="dbt-find" id="dbt-album-find">
                         <div class="dbt-field">
@@ -353,20 +365,22 @@
                             </div>
                         </section>
                     </div>
-                    <div class="dbt-actions">
-                        <button type="submit">Save changes</button>
-                        <p class="dbt-dirty" id="dbt-al-dirty" hidden>Unsaved changes</p>
-                        <p class="dbt-status" id="dbt-al-status"></p>
-                        <span class="dbt-stamp" id="dbt-al-stamp"></span>
-                    </div>
                     <ul class="dbt-problems" id="dbt-al-problems" hidden></ul>
                 </form>
+                </div>
+                <div class="dbt-actions">
+                    <button type="submit" form="dbt-album-form">Save changes</button>
+                    <p class="dbt-dirty" id="dbt-al-dirty" hidden>Unsaved changes</p>
+                    <p class="dbt-status" id="dbt-al-status"></p>
+                    <span class="dbt-stamp" id="dbt-al-stamp"></span>
+                </div>
             </div>
         </div>
 
         <!-- ================= REMOVE RECORDS ================= -->
         <div role="tabpanel" id="dbt-panel-remove" aria-labelledby="dbt-tab-remove" hidden="until-found">
             <div class="dbt-in">
+                <div class="dbt-scroll">
                 <p class="dbt-intro">Remove records from the MetaForge database: a junk artist name, a duplicate album, a wrong credit. Only database records are removed; music files are never touched. You'll see exactly what goes before anything is removed, and a backup is made first.</p>
                 <search>
                     <form class="dbt-editor" id="dbt-rm-find">
@@ -393,11 +407,12 @@
                 <form class="dbt-editor" id="dbt-rm-form" aria-labelledby="dbt-rm-h" hidden>
                     <h2 id="dbt-rm-h">Results</h2>
                     <div class="dbt-results" id="dbt-rm-results"></div>
-                    <div class="dbt-actions">
-                        <button type="submit" class="mf-btn-danger">Remove the selected record…</button>
-                        <p class="dbt-status" id="dbt-rm-status"></p>
-                    </div>
                 </form>
+                </div>
+                <div class="dbt-actions">
+                    <button type="submit" class="mf-btn-danger" form="dbt-rm-form">Remove the selected record…</button>
+                    <p class="dbt-status" id="dbt-rm-status"></p>
+                </div>
             </div>
         </div>
     </div>

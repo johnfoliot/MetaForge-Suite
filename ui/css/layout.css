@@ -744,7 +744,7 @@ input, textarea, select {
     display: grid;
     gap: 0.2rem;
     padding: 0.45rem;
-    border: 2px solid var(--border-subtle);
+    border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--surface-page);
     cursor: pointer;

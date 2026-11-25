@@ -50,7 +50,7 @@ window.metaforge.dashboardTiles.backlog = {
             h('thead', {}, h('tr', {},
                 h('th', { scope: 'col' }, 'Album'),
                 h('th', { scope: 'col', class: 'db-n' }, 'Tracks'),
-                h('th', { scope: 'col' }, 'Why'),
+                h('th', { scope: 'col' }, 'Status'),
                 h('th', { scope: 'col' }, h('span', { class: 'mf-visually-hidden' }, 'Action')))),
             h('tbody', {}, d.albums.map((a) => h('tr', {},
                 h('td', {}, a.album),

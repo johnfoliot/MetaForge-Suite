@@ -241,12 +241,12 @@ def _orchestrate_tagger_batch(data, env_path):
     yield signal("progress", percent=15, label="Health check")
     yield from health_engine.check_health(root_path, health_summary=health_summary)
 
-    yield signal("progress", percent=25, label="Scrubbing old metadata")
+    yield signal("progress", percent=25, label="Reviewing and remediating existing metadata")
     yield from scrub_engine.scrub_tags(root_path)
 
     yield event("step", "Step 3: Analysing each track (acoustics, identity, genre, original year)")
     yield signal("progress", percent=35, label="Preparing the acoustic analysis")
-    yield event("info", "The first track can take a little longer while the album is identified")
+    yield event("info", "The first track can occaisonally take a little longer, while the full Album is being verified")
 
     files = sorted(list(root_path.glob("**/*.mp3")), key=_natural_track_sort_key)
     total_files = len(files)
@@ -264,14 +264,14 @@ def _orchestrate_tagger_batch(data, env_path):
             yield event("error", "File went missing after the first scan. Skipped: investigate before re-running this album", file=f_path.name)
             continue
 
-        yield signal("progress", percent=progress, label=f"{track_prefix}: analysing the acoustics")
+        yield signal("progress", percent=progress, label=f"{track_prefix}: Analysing the acoustics...")
 
         acoustic_data = acoustic_engine.analyze_file(f_path)
 
         if not isinstance(acoustic_data, dict):
             acoustic_data = dict(acoustic_data)
 
-        yield signal("progress", percent=progress, label=f"{track_prefix}: fingerprinting")
+        yield signal("progress", percent=progress, label=f"{track_prefix}: AcoustID fingerprinting...")
 
         fingerprint_data = fingerprint_engine.generate_acoustid(f_path)
         acoustid_value = _extract_acoustid(fingerprint_data)
@@ -287,7 +287,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if not fast_track:
             fast_track = mb_track_lookup.get(("position", idx))
 
-        yield signal("progress", percent=progress, label=f"{track_prefix}: identifying the recording")
+        yield signal("progress", percent=progress, label=f"{track_prefix}: Identifying the recording...")
 
         if fast_track:
 
@@ -323,7 +323,7 @@ def _orchestrate_tagger_batch(data, env_path):
 
         title = identity_data.get("title", f_path.stem)
 
-        yield signal("progress", percent=progress, label=f"{track_prefix}: genre, mood, BPM, key and intensity")
+        yield signal("progress", percent=progress, label=f"{track_prefix}: Calculating Genre, Mood, BPM, Key and Intensity...")
 
         try:
             ai_results = ai_engine.map_track_taxonomy(
@@ -352,7 +352,7 @@ def _orchestrate_tagger_batch(data, env_path):
         if mb_ids.get("country"):
             combined["country"] = mb_ids["country"]
 
-        yield signal("progress", percent=progress, label=f"{track_prefix}: finding the original year")
+        yield signal("progress", percent=progress, label=f"{track_prefix}: Finding the original year...")
 
         year_result = year_resolution_engine.resolve_original_year(
             recording_id=combined.get("mb_recording_id"),
